@@ -63,7 +63,6 @@ pipeline:addStep(pipeline.Steps.ProxifyLocals:new({
 	
 }));
 
-
 --[[ Disabled because: slow, causes memory Issues
 -- Convert Locals to Table
 pipeline:addStep(pipeline.Steps.LocalsToTable:new({

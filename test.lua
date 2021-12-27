@@ -1,3 +1,8 @@
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- test.lua
+-- This file will Perform tests using all lua files within the tests directory
+
 -- Require Prometheus
 local Prometheus = require("src.prometheus")
 

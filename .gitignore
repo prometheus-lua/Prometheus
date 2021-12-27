@@ -1,2 +1,4 @@
 # Ignore Vscode Folder
 .vscode
+lua51.dll
+luajit.exe

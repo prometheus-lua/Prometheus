@@ -1,4 +1,5 @@
 # Ignore Vscode Folder
 .vscode
+# Ignore Lua Implementation
 lua51.dll
 luajit.exe

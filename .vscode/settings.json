@@ -1,0 +1,7 @@
+{
+    "Lua.runtime.version": "LuaJIT",
+    "lua-local.interpreter": "LuaJIT",
+    "Lua.diagnostics.globals": [
+        "newproxy"
+    ],
+}

@@ -28,7 +28,6 @@ local pipeline = Prometheus.Pipeline:new({
 	VarNamePrefix = ""; -- No Coustom Prefix
 });
 
---[=[
 -- "Mangled" for names like this : a, b, c, d, ...
 -- "MangledShuffled" is the same except the chars come in a different order - Recomended
 -- "Il" for weird names like this : IlIIl1llI11l1  - Recomended to make less readable
@@ -78,7 +77,6 @@ pipeline:addStep(pipeline.Steps.LocalsToTable:new({
 pipeline:addStep(pipeline.Steps.WrapInFunction:new({
 	Iterations = 1,
 }));
-]=]
 
 print("Performing Prometheus Tests ...")
 

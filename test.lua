@@ -72,7 +72,6 @@ pipeline:addStep(pipeline.Steps.LocalsToTable:new({
 }));
 ]]
 
-
 -- Wrap in Function Step
 pipeline:addStep(pipeline.Steps.WrapInFunction:new({
 	Iterations = 1,

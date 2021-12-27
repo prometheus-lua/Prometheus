@@ -6,20 +6,21 @@
 -- Configure Path for Require
 local function script_path()
 	local str = debug.getinfo(2, "S").source:sub(2)
-	return str:match("(.*/)")
+	return str:match("(.*[/%\\])")
 end
+
 package.path = script_path() .. "?.lua;" .. package.path;
 
 -- Require Prometheus Submodules
 local Pipeline  = require("obfuscator.pipeline");
 local highlight = require("highlightlua");
-local Colors    = require("colors");
+local colors    = require("colors");
 local Logger    = require("logger");
 
 -- Export
 return {
     Pipeline = Pipeline;
-    Colors   = Colors;
+    colors   = colors;
     Logger   = Logger;
     highlight = highlight;
 }

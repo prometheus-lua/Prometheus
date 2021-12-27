@@ -7,6 +7,7 @@ local Prometheus = require("src.prometheus")
 -- Config Variables - Later passed as Parameters
 local noColors    = false; -- Wether Colors in the Console output should be enabled
 local noHighlight = false; -- Disable Syntax Highlighting of Outputed Code
+local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
 
 -- The Code to Obfuscate
 local code = [=[
@@ -14,7 +15,7 @@ local code = [=[
 ]=];
 
 --  Enable/Disable Console Colors - this may be needed because cmd.exe and powershell.exe do not support ANSI Color Escape Sequences. The Windows Terminal Application is needed
-Prometheus.Colors.enabled = not noColors;
+Prometheus.colors.enabled = not noColors;
 
 -- Apply Obfuscation Pipeline
 local pipeline = Prometheus.Pipeline:new({
@@ -74,16 +75,84 @@ pipeline:addStep(pipeline.Steps.WrapInFunction:new({
 }));
 ]=]
 
+print("Performing Prometheus Tests ...")
 
-local obfuscated = pipeline:apply(code);
-
-
-local out;
-if(noColors or noHighlight) then
-	out = obfuscated;
-else
-	Prometheus.Logger:log("Applying Syntax Highlighting ...");
-	out = Prometheus.highlight(obfuscated, pipeline.luaVersion);
-	Prometheus.Logger:log("Highlighting Done!");
+local function scandir(directory)
+    local i, t, popen = 0, {}, io.popen
+    local pfile = popen(isWindows and 'dir "'..directory..'" /b' or 'ls -a "'..directory..'"')
+    for filename in pfile:lines() do
+        i = i + 1
+        t[i] = filename
+    end
+    pfile:close()
+    return t
 end
-print("\n" .. out);
+
+local function shallowcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in pairs(orig) do
+            copy[orig_key] = orig_value
+        end
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
+local function validate(a, b)
+	local outa  = "";
+	local outb  = "";
+
+	local enva = shallowcopy(getfenv(a));
+	local envb = shallowcopy(getfenv(a));
+
+	enva.print = function(...)
+		for i, v in ipairs({...}) do
+			outa = outa .. tostring(v);
+		end
+	end
+	
+	envb.print = function(...)
+		for i, v in ipairs({...}) do
+			outb = outb .. tostring(v);
+		end
+	end
+
+	setfenv(a, enva);
+	setfenv(b, envb);
+
+	if(not pcall(a)) then error("Expected Reference Program not to Fail!") end
+	if(not pcall(b)) then return false, outa, nil end
+
+	return outa == outb, outa, outb
+end
+
+local testdir = "./tests/"
+Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Warn;
+for i, filename in ipairs(scandir(testdir)) do
+	local path = testdir .. filename;
+	local file = io.open(path,"r");
+
+	local code = file:read("*a");
+	local obfuscated = pipeline:apply(code);
+
+	local funca = loadstring(code);
+	local funcb = loadstring(obfuscated);
+
+	local validated, outa, outb = validate(funca, funcb);
+
+	if not validated then
+		print(Prometheus.colors("[FAILED] ", "red") .. filename)
+		print("[OUTA]  ",    outa);
+		print("[OUTB]  ", outb);
+	else
+		print(Prometheus.colors("[PASSED] ", "green") .. filename)
+	end
+
+	file:close();
+end
+
+print("Done!")

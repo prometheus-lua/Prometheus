@@ -10,11 +10,6 @@ local noHighlight = false; -- Disable Syntax Highlighting of Outputed Code
 
 -- The Code to Obfuscate
 local code = [=[
-	if _G.key == "EliasIstCool!" then
-		print("unlocked!")
-	else
-		print("ERROR: Wrong Key!")
-	end
 	
 ]=];
 

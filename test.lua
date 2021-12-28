@@ -34,13 +34,11 @@ local pipeline = Prometheus.Pipeline:new({
 -- "Number" for names like this : _1, _2, _3, ...  - Not recomended
 pipeline:setNameGenerator("MangledShuffled");
 
---[[Disabled because: testing]]
 -- Compile to coustom Bytecode
 pipeline:addStep(pipeline.Steps.Vmify:new({
 
 }))
 
---[[Disabled because: slow, big code size]]
 -- Split Strings Step
 pipeline:addStep(pipeline.Steps.SplitStrings:new({
 	MinLength = 20,
@@ -49,7 +47,6 @@ pipeline:addStep(pipeline.Steps.SplitStrings:new({
 	CoustomFunctionType = "local",
 }));
 
---[[Disabled because: testing]]
 -- Put all Constants into a Constants Array
 pipeline:addStep(pipeline.Steps.ConstantArray:new({
 	StringsOnly = false; -- Only Put Strings into the Constant Array

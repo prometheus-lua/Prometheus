@@ -1,14 +1,15 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- prometheus.lua
--- This file exports all prometheus exports
+-- This file is the entrypoint for Prometheus
 
--- Configure Path for Require
+-- Configure package.path for require
 local function script_path()
 	local str = debug.getinfo(2, "S").source:sub(2)
 	return str:match("(.*[/%\\])")
 end
 
+local oldPkgPath = package.path;
 package.path = script_path() .. "?.lua;" .. package.path;
 
 -- Require Prometheus Submodules
@@ -17,6 +18,9 @@ local highlight = require("highlightlua");
 local colors    = require("colors");
 local Logger    = require("logger");
 
+-- Restore package.path
+package.path = oldPkgPath;
+
 -- Export
 return {
     Pipeline = Pipeline;
@@ -24,3 +28,4 @@ return {
     Logger   = Logger;
     highlight = highlight;
 }
+

@@ -12,7 +12,6 @@ local util = require("obfuscator.util");
 local Parser = require("obfuscator.parser");
 local Unparser = require("obfuscator.unparser");
 local logger = require("logger");
-local Watermark = require("obfuscator.watermark");
 
 local NameGenerators = {
 	Mangled = require("obfuscator.namegenerators.mangled");
@@ -189,13 +188,6 @@ function Pipeline:apply(code, filename)
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
-
-	-- TODO: Apply Watermark Check Step
-	local watermark;
-	if(#self.steps > 0) then
-		watermark = Watermark:new();
-	end
-	
 	
 	-- User Defined Steps
 	for i, step in ipairs(self.steps) do
@@ -206,11 +198,6 @@ function Pipeline:apply(code, filename)
 			ast = newAst;
 		end
 		logger:info(string.format("Step \"%s\" Done in %.2f seconds", step.Name or "Unnamed", gettime() - stepStartTime));
-	end
-	
-	-- TODO: Apply Watermark Step
-	if watermark then
-		watermark:apply(ast);
 	end
 	
 	-- Rename Variables Step

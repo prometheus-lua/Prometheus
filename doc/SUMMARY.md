@@ -5,3 +5,7 @@
 ## Getting Started
 
 * [Installation](getting-started/installation.md)
+
+***
+
+* [Obfuscating your first script](obfuscating-your-first-script.md)

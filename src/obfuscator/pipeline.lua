@@ -12,23 +12,10 @@ local util = require("obfuscator.util");
 local Parser = require("obfuscator.parser");
 local Unparser = require("obfuscator.unparser");
 local logger = require("logger");
-local Watermark = require("obfuscator.watermark");
 
-local NameGenerators = {
-	Mangled = require("obfuscator.namegenerators.mangled");
-	MangledShuffled = require("obfuscator.namegenerators.mangled_shuffled");
-	Il = require("obfuscator.namegenerators.Il");
-	Number = require("obfuscator.namegenerators.number");
-}
+local NameGenerators = require("obfuscator.namegenerators");
 
-local Steps = {
-	WrapInFunction = require("obfuscator.steps.WrapInFunction");
-	SplitStrings   = require("obfuscator.steps.SplitStrings");
-	LocalsToTable  = require("obfuscator.steps.LocalsToTable");
-	Vmify          = require("obfuscator.steps.Vmify");
-	ConstantArray  = require("obfuscator.steps.ConstantArray");
-	ProxifyLocals  = require("obfuscator.steps.ProxifyLocals");
-}
+local Steps = require("obfuscator.steps");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;
@@ -89,6 +76,30 @@ function Pipeline:new(settings)
 	setmetatable(pipeline, self);
 	self.__index = self;
 	
+	return pipeline;
+end
+
+function Pipeline:fromConfig(config)
+	local pipeline = Pipeline:new({
+		LuaVersion    = config.LuaVersion;
+		PrettyPrint   = config.PrettyPrint;
+		VarNamePrefix = config.VarNamePrefix;
+		Seed          = config.Seed;
+	});
+
+	-- Add all Steps defined in Config
+	local steps = config.Steps or {};
+	for i, step in ipairs(steps) do
+		if type(step.Name) ~= "string" then
+			logger:error("Step.Name must be a String");
+		end
+		local constructor = pipeline.Steps[step.Name];
+		if not constructor then
+			logger:error(string.format("The Step \"%s\" was not found!", step.Name));
+		end
+		pipeline:addStep(constructor:new(step.Settings or {}));
+	end
+
 	return pipeline;
 end
 
@@ -165,13 +176,6 @@ function Pipeline:apply(code, filename)
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
-
-	-- TODO: Apply Watermark Check Step
-	local watermark;
-	if(#self.steps > 0) then
-		watermark = Watermark:new();
-	end
-	
 	
 	-- User Defined Steps
 	for i, step in ipairs(self.steps) do
@@ -182,11 +186,6 @@ function Pipeline:apply(code, filename)
 			ast = newAst;
 		end
 		logger:info(string.format("Step \"%s\" Done in %.2f seconds", step.Name or "Unnamed", gettime() - stepStartTime));
-	end
-	
-	-- TODO: Apply Watermark Step
-	if watermark then
-		watermark:apply(ast);
 	end
 	
 	-- Rename Variables Step

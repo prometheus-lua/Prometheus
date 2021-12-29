@@ -110,7 +110,7 @@ function Pipeline:fromConfig(config)
 		if not constructor then
 			logger:error(string.format("The Step \"%s\" was not found!", step.Name));
 		end
-		pipeline:addStep(constructor(step.Settings or {}));
+		pipeline:addStep(constructor:new(step.Settings or {}));
 	end
 
 	return pipeline;

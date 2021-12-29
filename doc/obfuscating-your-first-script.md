@@ -12,7 +12,7 @@ print("Hello, World")
 ```
 {% endcode %}
 
-Now run the following command in the Prometheus directory:
+Now run the following command within the Prometheus directory:
 
 ```batch
 lua ./cli.lua ./hello_world.lua

@@ -34,47 +34,7 @@ local pipeline = Prometheus.Pipeline:new({
 -- "Number" for names like this : _1, _2, _3, ...  - Not recomended
 pipeline:setNameGenerator("MangledShuffled");
 
--- Compile to coustom Bytecode
-pipeline:addStep(pipeline.Steps.Vmify:new({
-
-}))
-
--- Split Strings Step
-pipeline:addStep(pipeline.Steps.SplitStrings:new({
-	MinLength = 20,
-	MaxLength = 40,
-	ConcatenationType = "coustom",
-	CoustomFunctionType = "local",
-}));
-
--- Put all Constants into a Constants Array
-pipeline:addStep(pipeline.Steps.ConstantArray:new({
-	StringsOnly = false; -- Only Put Strings into the Constant Array
-	LocalWrapperCount = 3;
-	LocalWrapperArgCount = 3,
-	Shuffle = true,
-}));
-
--- Proxyfy Locals
-pipeline:addStep(pipeline.Steps.ProxifyLocals:new({
-	
-}));
-
---[[ Disabled because: slow, causes memory Issues
--- Convert Locals to Table
-pipeline:addStep(pipeline.Steps.LocalsToTable:new({
-	Treshold = 1,
-	RemapIndices = true,
-}));
-]]
-
--- Wrap in Function Step
-pipeline:addStep(pipeline.Steps.WrapInFunction:new({
-	Iterations = 1,
-}));
-
 print("Performing Prometheus Tests ...")
-
 local function scandir(directory)
     local i, t, popen = 0, {}, io.popen
     local pfile = popen(isWindows and 'dir "'..directory..'" /b' or 'ls -a "'..directory..'"')
@@ -128,29 +88,38 @@ local function validate(a, b)
 	return outa == outb, outa, outb
 end
 
+
+local steps = pipeline.Steps;
 local testdir = "./tests/"
-Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Warn;
+local failed = {};
+Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error;
+local fc = 0;
 for i, filename in ipairs(scandir(testdir)) do
 	local path = testdir .. filename;
 	local file = io.open(path,"r");
 
 	local code = file:read("*a");
-	local obfuscated = pipeline:apply(code);
+	print(Prometheus.colors("[CURRENT] ", "magenta") .. filename);
+	for key, step in pairs(steps) do
+		pipeline:resetSteps();
+		pipeline:addStep(step:new({}));
+		local obfuscated = pipeline:apply(code);
 
-	local funca = loadstring(code);
-	local funcb = loadstring(obfuscated);
-
-	local validated, outa, outb = validate(funca, funcb);
-
-	if not validated then
-		print(Prometheus.colors("[FAILED] ", "red") .. filename)
-		print("[OUTA]  ",    outa);
-		print("[OUTB]  ", outb);
-	else
-		print(Prometheus.colors("[PASSED] ", "green") .. filename)
+		local funca = loadstring(code);
+		local funcb = loadstring(obfuscated);
+	
+		local validated, outa, outb = validate(funca, funcb);
+	
+		if not validated then
+			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. ") " .. step.Name);
+			print("[OUTA]    ",    outa);
+			print("[OUTB]    ", outb);
+			fc = fc + 1;
+		end
 	end
-
 	file:close();
 end
 
-print("Done!")
+if fc < 1 then
+	print(Prometheus.colors("[PASSED]  ", "green") .. "All tests passed!");
+end

@@ -17,15 +17,17 @@ local Pipeline  = require("obfuscator.pipeline");
 local highlight = require("highlightlua");
 local colors    = require("colors");
 local Logger    = require("logger");
+local Presets   = require("presets")
 
 -- Restore package.path
 package.path = oldPkgPath;
 
 -- Export
 return {
-    Pipeline = Pipeline;
-    colors   = colors;
-    Logger   = Logger;
+    Pipeline  = Pipeline;
+    colors    = colors;
+    Logger    = Logger;
     highlight = highlight;
+    Presets   = Presets;
 }
 

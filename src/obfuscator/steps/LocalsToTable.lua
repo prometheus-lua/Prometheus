@@ -41,7 +41,7 @@ LocalsToTable.SettingsDescriptor = {
 }
 
 function LocalsToTable:init(settings)
-	logger:warn(string.format("The Step \"%s\" is not recommended, as it often causes Memory Leaks", LocalsToTable.Name))
+	logger:warn(string.format("The Step \"%s\" is not recommended, as it causes Memory Leaks", LocalsToTable.Name))
 end
 
 function LocalsToTable:apply(ast)

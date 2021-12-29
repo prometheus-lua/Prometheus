@@ -154,6 +154,7 @@ function Parser:parse(code)
 	-- Clean Up
 	self.tokenizer:reset();
 	self.tokens = {};
+	self.index = 0;
 	self.length = 0;
 	
 	logger:debug("Cleanup Done")

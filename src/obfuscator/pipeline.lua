@@ -13,21 +13,9 @@ local Parser = require("obfuscator.parser");
 local Unparser = require("obfuscator.unparser");
 local logger = require("logger");
 
-local NameGenerators = {
-	Mangled = require("obfuscator.namegenerators.mangled");
-	MangledShuffled = require("obfuscator.namegenerators.mangled_shuffled");
-	Il = require("obfuscator.namegenerators.Il");
-	Number = require("obfuscator.namegenerators.number");
-}
+local NameGenerators = require("obfuscator.namegenerators");
 
-local Steps = {
-	WrapInFunction = require("obfuscator.steps.WrapInFunction");
-	SplitStrings   = require("obfuscator.steps.SplitStrings");
-	LocalsToTable  = require("obfuscator.steps.LocalsToTable");
-	Vmify          = require("obfuscator.steps.Vmify");
-	ConstantArray  = require("obfuscator.steps.ConstantArray");
-	ProxifyLocals  = require("obfuscator.steps.ProxifyLocals");
-}
+local Steps = require("obfuscator.steps");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;

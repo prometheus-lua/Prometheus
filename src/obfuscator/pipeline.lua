@@ -106,12 +106,14 @@ function Pipeline:fromConfig(config)
 		if type(step.Name) ~= "string" then
 			logger:error("Step.Name must be a String");
 		end
-		local constructor = self.Steps[step.Name];
+		local constructor = pipeline.Steps[step.Name];
 		if not constructor then
 			logger:error(string.format("The Step \"%s\" was not found!", step.Name));
 		end
-		self:addStep(constructor(step.Settings or {}));
+		pipeline:addStep(constructor(step.Settings or {}));
 	end
+
+	return pipeline;
 end
 
 function Pipeline:addStep(step)

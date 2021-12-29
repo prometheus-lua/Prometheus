@@ -2,7 +2,7 @@
 
 To install Prometheus, simply clone the Github Repository using:
 
-```
+```batch
 git clone https://github.com/Levno710/Prometheus.git
 ```
 

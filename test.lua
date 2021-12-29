@@ -122,4 +122,7 @@ end
 
 if fc < 1 then
 	print(Prometheus.colors("[PASSED]  ", "green") .. "All tests passed!");
+	return 0;
+else
+	return -1;
 end

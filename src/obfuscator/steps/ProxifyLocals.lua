@@ -119,6 +119,15 @@ function ProifyLocals:CreateAssignmentExpression(info, expr, parentScope)
     local getValueFunctionScope = Scope:new(parentScope);
     local getValueSelf = getValueFunctionScope:addVariable();
     local getValueArg = getValueFunctionScope:addVariable();
+    local getValueIdxExpr;
+    if(info.getValue.key == "__index" or info.setValue.key == "__index") then
+        getValueIdxExpr = Ast.FunctionCallExpression(Ast.VariableExpression(getValueFunctionScope:resolveGlobal("rawget")), {
+            Ast.VariableExpression(getValueFunctionScope, getValueSelf),
+            Ast.StringExpression(info.valueName),
+        });
+    else
+        getValueIdxExpr = Ast.IndexExpression(Ast.VariableExpression(getValueFunctionScope, getValueSelf), Ast.StringExpression(info.valueName));
+    end
     local getvalueFunctionLiteral = Ast.FunctionLiteralExpression(
         {
             Ast.VariableExpression(getValueFunctionScope, getValueSelf), -- Argument 1
@@ -126,7 +135,7 @@ function ProifyLocals:CreateAssignmentExpression(info, expr, parentScope)
         },
         Ast.Block({ -- Create Function Body
             Ast.ReturnStatement({
-                Ast.IndexExpression(Ast.VariableExpression(getValueFunctionScope, getValueSelf), Ast.StringExpression(info.valueName))
+                getValueIdxExpr;
             });
         }, getValueFunctionScope)
     );

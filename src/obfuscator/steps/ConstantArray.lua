@@ -59,7 +59,7 @@ ConstantArray.SettingsDescriptor = {
 	},
 	LocalWrapperCount = {
 		name = "LocalWrapperCount",
-		description = "The number of Local wrapper Functions per scope. This only applies if WrapperFunction is set to true",
+		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperTreshold is greater than 0",
 		type = "number",
 		min = 0,
 		max = 512,

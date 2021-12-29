@@ -415,9 +415,9 @@ function Unparser:unparseExpression(expression, tabbing)
 	
 	if(expression.kind == AstKind.BooleanExpression) then
 		if(expression.value) then
-			return self.prettyPrint and "true" or randomTrueNode();
+			return "true";
 		else
-			return self.prettyPrint and "false" or randomFalseNode();
+			return "false";
 		end
 	end
 	

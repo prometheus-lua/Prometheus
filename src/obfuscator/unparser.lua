@@ -42,6 +42,7 @@ function Unparser:new(settings)
 		notIdentPattern = "[^" .. table.concat(conventions.IdentChars, "") .. "]";
 		numberPattern = "^[" .. table.concat(conventions.NumberChars, "") .. "]";
 		highlight     = settings and settings.Highlight or false;
+		keywordsLookup = lookupify(conventions.Keywords);
 	}
 	
 	setmetatable(unparser, self);
@@ -710,7 +711,9 @@ function Unparser:unparseExpression(expression, tabbing)
 		
 		-- Identifier Indexing e.g: x.y instead of x["y"];
 		if(expression.index.kind == AstKind.StringExpression and self:isValidIdentifier(expression.index.value)) then
-			return base .. "." .. expression.index.value;
+			if(self.keywordsLookup[expression.index.value]) then
+				return base .. "." .. expression.index.value;
+			end
 		end
 		
 		-- Index never needs parens

@@ -100,9 +100,6 @@ if not outFile then
     end
 end
 
-print(sourceFile);
-print(outFile);
-
 local source = table.concat(lines_from(sourceFile), "\n");
 local pipeline = Prometheus.Pipeline:fromConfig(config);
 local out = pipeline:apply(source, sourceFile);

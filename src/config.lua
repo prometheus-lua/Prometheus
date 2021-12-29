@@ -6,7 +6,7 @@
 -- These may be changed
 
 -- You are not allowed to change the following Variables
-local VERSION = "Alpha v0.5.1";
+local VERSION = "Alpha v0.0.1";
 local NAME    = "Prometheus";
 local BY      = "Levno_710";
 

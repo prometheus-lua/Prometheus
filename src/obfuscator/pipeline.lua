@@ -92,6 +92,28 @@ function Pipeline:new(settings)
 	return pipeline;
 end
 
+function Pipeline:fromConfig(config)
+	local pipeline = Pipeline:new({
+		LuaVersion    = config.LuaVersion;
+		PrettyPrint   = config.PrettyPrint;
+		VarNamePrefix = config.VarNamePrefix;
+		Seed          = config.Seed;
+	});
+
+	-- Add all Steps defined in Config
+	local steps = config.Steps or {};
+	for i, step in ipairs(steps) do
+		if type(step.Name) ~= "string" then
+			logger:error("Step.Name must be a String");
+		end
+		local constructor = self.Steps[step.Name];
+		if not constructor then
+			logger:error(string.format("The Step \"%s\" was not found!", step.Name));
+		end
+		self:addStep(constructor(step.Settings or {}));
+	end
+end
+
 function Pipeline:addStep(step)
 	table.insert(self.steps, step);
 end

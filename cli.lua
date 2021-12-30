@@ -35,6 +35,8 @@ local config;
 local sourceFile;
 local outFile;
 
+Prometheus.colors.enabled = true;
+
 -- Parse Arguments
 local i = 1;
 while i <= #arg do
@@ -71,6 +73,8 @@ while i <= #arg do
                 Prometheus.Logger:warn("The output file was specified multiple times!");
             end
             outFile = arg[i];
+        elseif curr == "--nocolors" then
+            Prometheus.colors.enabled = false;
         else
             Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored"));
         end

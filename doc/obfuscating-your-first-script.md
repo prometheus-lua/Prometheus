@@ -26,7 +26,7 @@ print("Hello, World")
 ```
 {% endcode %}
 
-As you can see, the file hasn't changed at all. That is because by default prometheus is just a minifier and the code we gave it was already as small as possible. To actually obfuscate the file, prometheus must be told which obfuscation steps it should apply in which order. In order to do this, the cli has the `--preset` option which allows you to specify the name of a predefined configuration. There are currently only two presets:
+As you can see, the file hasn't changed at all. That is because by default prometheus is just a minifier and the code we gave it was already as small as possible. To actually obfuscate the file, prometheus must be told which obfuscation steps it should apply in which order. In order to do this, the cli provides the `--preset` option which allows you to specify the name of a predefined configuration. There are currently only two presets:
 
 * Minify
 * Strong

@@ -4,5 +4,7 @@ RMDIR /s /q build
 MKDIR build
 glue.exe ./srlua.exe prometheus-main.lua build/prometheus.exe
 robocopy ./src ./build/lua /E>nul
-copy ./lua51.dll ./build/lua51.dll
+
+robocopy . ./build lua51.dll>nul
+
 ECHO Done!

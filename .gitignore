@@ -1,5 +1,9 @@
 # Ignore Vscode Folder
 .vscode
-# Ignore Lua Implementation
+
+# Ignore Lua Implementation and srlua
 lua51.dll
 luajit.exe
+srlua
+luajit
+buildnotes.txt

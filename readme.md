@@ -24,7 +24,7 @@ Prometheus provides a simple cli for obfuscating scripts. It can be used as foll
 ```batch
 lua ./cli.lua [options] ./your_file.lua
 ```
-When using the windows release
+When using the windows release:
 ```batch
 prometheus.exe [options] ./your_file.lua
 ```

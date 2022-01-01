@@ -18,6 +18,12 @@ Now run the following command inside of the Prometheus directory:
 lua ./cli.lua ./hello_world.lua
 ```
 
+You may notice, that the console output looks weird. If that is the case, your terminal does not support ansi color escape sequences. You should add the `--nocolors` option:
+
+```batch
+lua ./cli.lua --nocolors ./hello_world.lua
+```
+
 This should create the following file:
 
 {% code title="hello_world.obfuscated.lua" %}

@@ -18,6 +18,8 @@ Now run the following command inside of the Prometheus directory:
 lua ./cli.lua ./hello_world.lua
 ```
 
+When using the windows release `lua ./cli.lua` must be substituted by `prometheus.exe`.
+
 You may notice, that the console output looks weird. If that is the case, your terminal does not support ansi color escape sequences. You should add the `--nocolors` option:
 
 ```batch

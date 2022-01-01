@@ -9,3 +9,4 @@
 ***
 
 * [Obfuscating your first script](obfuscating-your-first-script.md)
+* [Command Line Options](command-line-options.md)

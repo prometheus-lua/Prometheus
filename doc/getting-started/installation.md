@@ -10,4 +10,4 @@ Alternatively you can download the Sources [here](https://github.com/levno-710/P
 
 Prometheus also Requires LuaJIT or Lua51 in order to work. The Lua51 binaries can be downloaded [here](https://sourceforge.net/projects/luabinaries/files/5.1.5/Tools%20Executables/).
 
-On windows there is also a bundled release, which already includes luajit. It can be downloaded via the releases tab.
+There is also a bundled release for windows, which already includes luajit. It can be downloaded via the releases tab.

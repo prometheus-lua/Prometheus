@@ -7,3 +7,6 @@ luajit.exe
 srlua
 luajit
 buildnotes.txt
+srlua.exe
+glue.exe
+build

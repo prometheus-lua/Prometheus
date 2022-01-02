@@ -711,7 +711,7 @@ function Unparser:unparseExpression(expression, tabbing)
 		
 		-- Identifier Indexing e.g: x.y instead of x["y"];
 		if(expression.index.kind == AstKind.StringExpression and self:isValidIdentifier(expression.index.value)) then
-			if(self.keywordsLookup[expression.index.value]) then
+			if(not self.keywordsLookup[expression.index.value]) then
 				return base .. "." .. expression.index.value;
 			end
 		end

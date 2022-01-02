@@ -51,6 +51,6 @@ As you can see, the only transformation that was applied to our Hello World exam
 
 ### How does the Config File work?
 
-The config file is simply a lua file, that returns the configuration object. Please note that this lua file is sandboxed by Prometheus when loading the configuration, meaning that you can't use any predefined functions like `tostring` or the libraries like `math`.
+The config file is simply a lua file, that returns the configuration object. Please note that this lua file is sandboxed by Prometheus when loading the configuration, meaning that you can't use any predefined functions like `tostring` or libraries like `math`.
 
 See [The Config Object](the-config-object.md) to learn what this configuration object consists of.

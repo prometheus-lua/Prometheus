@@ -730,41 +730,6 @@ end
 function Parser:expressionFunctionCall(scope, base)
 	base = base or self:expressionIndex(scope);
 	
-	-- Function Passing self
-	if(consume(self, TokenKind.Symbol, ":")) then
-		local passSelfFunctionName = expect(self, TokenKind.Ident).value;
-		local args = {};
-		if(is(self, TokenKind.String)) then
-			args = {
-				Ast.StringExpression(get(self).value),
-			};
-		elseif(is(self, TokenKind.Symbol, "{")) then
-			args = {
-				self:tableConstructor(scope),
-			};
-		else
-			expect(self, TokenKind.Symbol, "(");
-			if(not is(self, TokenKind.Symbol, ")")) then
-				args = self:exprList(scope);
-			end
-			expect(self, TokenKind.Symbol, ")");
-		end
-		
-		local node = Ast.PassSelfFunctionCallExpression(base, passSelfFunctionName, args);
-
-		-- the result of a function call can be indexed
-		if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[")) then
-			return self:expressionIndex(scope, node);
-		end
-		
-		-- The result of a function call can be a function that is again called
-		if(is(self, TokenKind.Symbol, "(") or is(self, TokenKind.Symbol, ":") or is(self, TokenKind.Symbol, "{") or is(self, TokenKind.String)) then
-			return self:expressionFunctionCall(scope, node);
-		end
-		
-		return node
-	end
-	
 	-- Normal Function Call
 	local args = {};
 	if(is(self, TokenKind.String)) then
@@ -787,12 +752,12 @@ function Parser:expressionFunctionCall(scope, base)
 	local node = Ast.FunctionCallExpression(base, args);
 	
 	-- the result of a function call can be indexed
-	if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[")) then
+	if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[") or is(self, TokenKind.Symbol, ":")) then
 		return self:expressionIndex(scope, node);
 	end
 
 	-- The result of a function call can be a function that is again called
-	if(is(self, TokenKind.Symbol, "(") or is(self, TokenKind.Symbol, ":") or is(self, TokenKind.Symbol, "{") or is(self, TokenKind.String)) then
+	if(is(self, TokenKind.Symbol, "(") or is(self, TokenKind.Symbol, "{") or is(self, TokenKind.String)) then
 		return self:expressionFunctionCall(scope, node);
 	end
 	
@@ -819,6 +784,46 @@ function Parser:expressionIndex(scope, base)
 			expect(self, TokenKind.Symbol, "]");
 			base = Ast.IndexExpression(base, expr);
 		end
+	end
+
+	-- Function Passing self
+	if(consume(self, TokenKind.Symbol, ":")) then
+		local passSelfFunctionName = expect(self, TokenKind.Ident).value;
+		local args = {};
+		if(is(self, TokenKind.String)) then
+			args = {
+				Ast.StringExpression(get(self).value),
+			};
+		elseif(is(self, TokenKind.Symbol, "{")) then
+			args = {
+				self:tableConstructor(scope),
+			};
+		else
+			expect(self, TokenKind.Symbol, "(");
+			if(not is(self, TokenKind.Symbol, ")")) then
+				args = self:exprList(scope);
+			end
+			expect(self, TokenKind.Symbol, ")");
+		end
+		
+		local node = Ast.PassSelfFunctionCallExpression(base, passSelfFunctionName, args);
+
+		-- the result of a function call can be indexed
+		if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[") or is(self, TokenKind.Symbol, ":")) then
+			return self:expressionIndex(scope, node);
+		end
+
+		-- The result of a function call can be a function that is again called
+		if(is(self, TokenKind.Symbol, "(") or is(self, TokenKind.Symbol, "{") or is(self, TokenKind.String)) then
+			return self:expressionFunctionCall(scope, node);
+		end
+		
+		return node
+	end
+
+	-- The result of a function call can be a function that is again called
+	if(is(self, TokenKind.Symbol, "(") or is(self, TokenKind.Symbol, "{") or is(self, TokenKind.String)) then
+		return self:expressionFunctionCall(scope, base);
 	end
 	
 	return base;

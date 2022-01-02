@@ -80,12 +80,15 @@ function Pipeline:new(settings)
 end
 
 function Pipeline:fromConfig(config)
+	config = config or {};
 	local pipeline = Pipeline:new({
-		LuaVersion    = config.LuaVersion;
-		PrettyPrint   = config.PrettyPrint;
-		VarNamePrefix = config.VarNamePrefix;
-		Seed          = config.Seed;
+		LuaVersion    = config.LuaVersion or LuaVersion.Lua51;
+		PrettyPrint   = config.PrettyPrint or false;
+		VarNamePrefix = config.VarNamePrefix or "";
+		Seed          = config.Seed or 0;
 	});
+
+	pipeline:setNameGenerator(config.NameGenerator or "MangledShuffled")
 
 	-- Add all Steps defined in Config
 	local steps = config.Steps or {};

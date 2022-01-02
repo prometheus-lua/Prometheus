@@ -9,7 +9,7 @@ local Step = require("obfuscator.step");
 local SecureCompiler = require("obfuscator.compiler_secure.compiler");
 
 local Vmify = Step:extend();
-Vmify.Description = "This Step will Compile your script into a fully-coustom (not a half coustom like other lua obfuscators) Bytecode Format and emit an vm for executing it.";
+Vmify.Description = "This Step will Compile your script into a fully-coustom (not a half coustom like other lua obfuscators) Bytecode Format and emit a vm for executing it.";
 Vmify.Name = "Vmify";
 
 Vmify.SettingsDescriptor = {

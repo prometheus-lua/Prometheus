@@ -36,7 +36,7 @@ SplitStrings.SettingsDescriptor = {
 	},
 	MaxLength = {
 		name = "MaxLength",
-		description = "The minimal length for the chunks in that the Strings are splitted",
+		description = "The maximal length for the chunks in that the Strings are splitted",
 		type = "number",
 		default = 5,
 		min = 1,
@@ -44,7 +44,7 @@ SplitStrings.SettingsDescriptor = {
 	},
 	ConcatenationType = {
 		name = "ConcatenationType",
-		description = "The Concatenation Algorithm. Note that when using coustom, the String Array will also be Shuffled",
+		description = "The Functions used for Concatenation. Note that when using coustom, the String Array will also be Shuffled",
 		type = "enum",
 		values = {
 			"strcat",

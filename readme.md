@@ -20,14 +20,15 @@ Prometheus also Requires LuaJIT or Lua51 in order to work. The Lua51 binaries ca
 
 On Windows the windows release can also be used, which includes everything needed to run the prometheus cli.
 ## Usage
-Prometheus provides a simple cli for obfuscating scripts. It can be used as following:
+To quickly obfuscate a script:
 ```batch
-lua ./cli.lua [options] ./your_file.lua
+lua ./cli.lua --preset Strong ./your_file.lua
 ```
 When using the windows release:
 ```batch
-prometheus.exe [options] ./your_file.lua
+prometheus.exe --preset Strong ./your_file.lua
 ```
+For more advances use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
 ## Tests
 To perform the Prometheus Tests, just run
 ```batch

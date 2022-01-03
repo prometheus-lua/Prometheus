@@ -1,7 +1,7 @@
 ---
 description: >-
-  This Step will Compile your script into a fully-coustom (not a half coustom
-  like other lua obfuscators) Bytecode Format and emit a vm for executing it.
+  This Step will Compile your script into a fully-custom (not a half custom like
+  other lua obfuscators) Bytecode Format and emit a vm for executing it.
 ---
 
 # Vmify

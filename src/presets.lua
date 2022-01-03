@@ -62,26 +62,10 @@ return {
         -- Obfuscation steps
         Steps = {
             {
-                Name = "SplitStrings";
-                Settings = {
-                    Treshold = 1;
-                    MinLength = 15;
-                    MaxLength = 40;
-                    ConcatenationType = "custom";
-                    CustomFunctionType = "local";
-                    CustomLocalFunctionsCount = 2;
-                }
-            },
-            {
                 Name = "ConstantArray";
                 Settings = {
                     Treshold    = 1;
                     StringsOnly = true;
-                    Shuffle     = true;
-                    Rotate      = true;
-                    LocalWrapperTreshold = 1;
-                    LocalWrapperCount = 3;
-                    LocalWrapperArgCount = 3;
                 }
             },
         }

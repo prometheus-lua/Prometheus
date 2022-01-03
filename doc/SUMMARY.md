@@ -7,6 +7,7 @@
 * [Installation](getting-started/installation.md)
 * [Obfuscating your first script](getting-started/obfuscating-your-first-script.md)
 * [Command Line Options](getting-started/command-line-options.md)
+* [Presets](getting-started/presets.md)
 * [Writing a custom Config File](getting-started/writing-a-custom-config-file.md)
 * [The Config Object](getting-started/the-config-object.md)
 

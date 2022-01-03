@@ -17,7 +17,18 @@ ProifyLocals.Description = "This Step wraps all locals into Proxy Objects";
 ProifyLocals.Name = "Proxify Locals";
 
 ProifyLocals.SettingsDescriptor = {
-	
+	LiteralType = {
+		name = "LiteralType",
+		description = "The type of the randomly generated literals",
+		type = "enum",
+		values = {
+			"dictionary",
+			"number",
+			"string",
+            "any",
+		},
+		default = "string",
+	},
 }
 
 local function shallowcopy(orig)
@@ -249,7 +260,17 @@ function ProifyLocals:apply(ast, pipeline)
             local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
             -- Apply Only to Some Variables if Treshold is non 1
             if localMetatableInfo then
-                return localMetatableInfo.getValue.constructor(node, RandomLiterals.Any());
+                local literal;
+                if self.LiteralType == "dictionary" then
+                    literal = RandomLiterals.Dictionary();
+                elseif self.LiteralType == "number" then
+                    literal = RandomLiterals.Number();
+                elseif self.LiteralType == "string" then
+                    literal = RandomLiterals.String(pipeline);
+                else
+                    literal = RandomLiterals.Any(pipeline);
+                end
+                return localMetatableInfo.getValue.constructor(node, literal);
             end
         end
 

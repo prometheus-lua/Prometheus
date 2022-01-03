@@ -6,7 +6,9 @@ description: This Step wraps all locals into Proxy Objects
 
 ### Settings
 
-None
+| Name        | type | description                                 | values                                  |
+| ----------- | ---- | ------------------------------------------- | --------------------------------------- |
+| LiteralType | enum | The type of the randomly generated literals | "dictionary", "number", "string", "any" |
 
 ### Example
 
@@ -19,7 +21,7 @@ print(x)
 
 {% code title="out.lua" %}
 ```lua
--- No Settings
+-- LiteralType = "dictionary"
 local n = setmetatable
 local D =
     n(

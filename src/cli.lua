@@ -13,6 +13,12 @@ package.path = script_path() .. "?.lua;" .. package.path;
 local Prometheus = require("prometheus");
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Info;
 
+-- Override Error callback
+Prometheus.Logger.errorCallback = function(...)
+    print(Prometheus.colors(Prometheus.Config.NameUpper .. ": " .. ..., "red"))
+	os.exit(1);
+end
+
 -- see if the file exists
 local function file_exists(file)
     local f = io.open(file, "rb")

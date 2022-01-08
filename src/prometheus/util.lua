@@ -249,6 +249,13 @@ local function toBits(num)
     return t
 end
 
+
+local function readonly(obj)
+	local r = newproxy(true);
+	getmetatable(r).__index = obj;
+	return r;
+end
+
 return {
 	lookupify = lookupify,
 	unlookupify = unlookupify,
@@ -270,4 +277,5 @@ return {
 	utf8char = utf8char,
 	toBits = toBits,
 	bytesToString = bytesToString,
+	readonly = readonly,
 }

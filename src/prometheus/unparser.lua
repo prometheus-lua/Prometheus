@@ -12,9 +12,9 @@
 --
 
 local config = require("config");
-local Ast    = require("obfuscator.ast");
-local Enums  = require("obfuscator.enums");
-local util = require("obfuscator.util");
+local Ast    = require("prometheus.ast");
+local Enums  = require("prometheus.enums");
+local util = require("prometheus.util");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;

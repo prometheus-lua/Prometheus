@@ -3,8 +3,8 @@
 -- util.lua
 -- This file Provides a Utility function for visiting each node of an ast
 
-local Ast = require("obfuscator.ast");
-local util = require("obfuscator.util");
+local Ast = require("prometheus.ast");
+local util = require("prometheus.util");
 
 local AstKind = Ast.AstKind;
 local lookupify = util.lookupify;

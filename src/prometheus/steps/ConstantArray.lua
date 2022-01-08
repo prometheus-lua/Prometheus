@@ -7,13 +7,13 @@
 -- TODO: Wrapper Functions
 -- TODO: Proxy Object for indexing: e.g: ARR[X] becomes ARR + X
 
-local Step = require("obfuscator.step");
-local Ast = require("obfuscator.ast");
-local Scope = require("obfuscator.scope");
-local visitast = require("obfuscator.visitast");
-local util     = require("obfuscator.util")
-local Parser   = require("obfuscator.parser");
-local enums = require("obfuscator.enums")
+local Step = require("prometheus.step");
+local Ast = require("prometheus.ast");
+local Scope = require("prometheus.scope");
+local visitast = require("prometheus.visitast");
+local util     = require("prometheus.util")
+local Parser   = require("prometheus.parser");
+local enums = require("prometheus.enums")
 
 local LuaVersion = enums.LuaVersion;
 local AstKind = Ast.AstKind;

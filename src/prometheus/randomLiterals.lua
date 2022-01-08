@@ -2,8 +2,8 @@
 --
 -- Library for Creating Random Literals
 
-local Ast = require("obfuscator.ast");
-local RandomStrings = require("obfuscator.randomStrings");
+local Ast = require("prometheus.ast");
+local RandomStrings = require("prometheus.randomStrings");
 
 local RandomLiterals = {};
 

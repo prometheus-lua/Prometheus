@@ -1,4 +1,4 @@
-local Ast = require("obfuscator.ast");
+local Ast = require("prometheus.ast");
 
 local dictionary = {
 	"getfenv",

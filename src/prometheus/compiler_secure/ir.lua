@@ -4,9 +4,9 @@
 -- This Script contains the IR library for Compiling to Prometheus Bytecode
 
 local logger = require("logger");
-local util = require("obfuscator.util");
+local util = require("prometheus.util");
 
-local Bytecode = require("obfuscator.compiler_secure.bytecode");
+local Bytecode = require("prometheus.compiler_secure.bytecode");
 local InstructionKind = Bytecode.InstructionKind
 
 local function Instruction(tb)

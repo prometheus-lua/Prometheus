@@ -1,18 +1,23 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- namegenerators/mangled_shuffled.lua
+-- namegenerators/mangled.lua
 --
--- This Script provides a function for generation of mangled names with shuffled character order
+-- This Script provides a function for generation of weird names consisting of I, l and 1
+
+local MIN_CHARACTERS = 5;
+local MAX_INITIAL_CHARACTERS = 10;
 
 
-local util = require("obfuscator.util");
+local util = require("prometheus.util");
 local chararray = util.chararray;
 
-local VarDigits = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
-local VarStartDigits = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+local offset = 0;
+local VarDigits = chararray("Il1");
+local VarStartDigits = chararray("Il");
 
 local function generateName(id, scope)
 	local name = ''
+	id = id + offset;
 	local d = id % #VarStartDigits
 	id = (id - d) / #VarStartDigits
 	name = name..VarStartDigits[d+1]
@@ -27,6 +32,7 @@ end
 local function prepare(ast)
 	util.shuffle(VarDigits);
 	util.shuffle(VarStartDigits);
+	offset = math.random(3 ^ MIN_CHARACTERS, 3 ^ MAX_INITIAL_CHARACTERS);
 end
 
 return {

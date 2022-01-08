@@ -13,7 +13,7 @@ local oldPkgPath = package.path;
 package.path = script_path() .. "?.lua;" .. package.path;
 
 -- Require Prometheus Submodules
-local Pipeline  = require("obfuscator.pipeline");
+local Pipeline  = require("prometheus.pipeline");
 local highlight = require("highlightlua");
 local colors    = require("colors");
 local Logger    = require("logger");

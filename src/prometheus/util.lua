@@ -4,7 +4,7 @@
 -- This file Provides some utility functions
 
 local logger = require("logger");
-local bit32  = require("bit");
+local bit32  = require("prometheus.bit").bit32;
 
 local function lookupify(tb)
 	for _, v in ipairs(tb) do

@@ -6,16 +6,16 @@
 -- These Modules can simply be added to the pipeline
 
 local config = require("config");
-local Ast    = require("obfuscator.ast");
-local Enums  = require("obfuscator.enums");
-local util = require("obfuscator.util");
-local Parser = require("obfuscator.parser");
-local Unparser = require("obfuscator.unparser");
+local Ast    = require("prometheus.ast");
+local Enums  = require("prometheus.enums");
+local util = require("prometheus.util");
+local Parser = require("prometheus.parser");
+local Unparser = require("prometheus.unparser");
 local logger = require("logger");
 
-local NameGenerators = require("obfuscator.namegenerators");
+local NameGenerators = require("prometheus.namegenerators");
 
-local Steps = require("obfuscator.steps");
+local Steps = require("prometheus.steps");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;

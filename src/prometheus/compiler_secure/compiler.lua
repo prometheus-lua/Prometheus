@@ -1,8 +1,8 @@
 local Compiler = {};
 
-local IR = require("obfuscator.compiler_secure.ir");
-local Bytecode = require("obfuscator.compiler_secure.bytecode");
-local Ast = require("obfuscator.ast");
+local IR = require("prometheus.compiler_secure.ir");
+local Bytecode = require("prometheus.compiler_secure.bytecode");
+local Ast = require("prometheus.ast");
 local logger = require("logger");
 local AstKind = Ast.AstKind;
 

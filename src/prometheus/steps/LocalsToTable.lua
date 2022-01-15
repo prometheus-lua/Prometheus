@@ -4,11 +4,11 @@
 --
 -- This Script provides a Obfuscation Step for converting Local Variables to a table access
 -- This Step can and often will cause garbage collection Problems
-local Step = require("obfuscator.step");
-local Ast = require("obfuscator.ast");
-local Scope = require("obfuscator.scope");
-local visitAst = require("obfuscator.visitast");
-local util = require("obfuscator.util");
+local Step = require("prometheus.step");
+local Ast = require("prometheus.ast");
+local Scope = require("prometheus.scope");
+local visitAst = require("prometheus.visitast");
+local util = require("prometheus.util");
 local logger = require("logger")
 
 local AstKind = Ast.AstKind;

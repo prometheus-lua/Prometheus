@@ -6,14 +6,14 @@ description: This Step splits Strings to a specific or random length
 
 ### Settings
 
-| Name                      | type   | description                                                                                                                                                                             | Values                      |
-| ------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Treshold                  | number | The relative amount of nodes that will be affected                                                                                                                                      | 0 <= x <= 1                 |
-| MinLength                 | number | The minimal length for the chunks in that the Strings are splitted                                                                                                                      | x > 0                       |
-| MaxLength                 | number | The maximal length for the chunks in that the Strings are splitted                                                                                                                      | x >= MinLength              |
-| ConcatenationType         | enum   | The Functions used for Concatenation. Note that when using coustom, the String Array will also be Shuffled                                                                              | "strcat", "table", "custom" |
-| CustomFunctionType        | enum   | <p>The Type of Function code injection This Option only applies when coustom Concatenation is selected.<br>Note that when chosing inline, the code size may increase significantly!</p> | "global", "local", "inline" |
-| CustomLocalFunctionsCount | number | The number of local functions per scope. This option only applies when CoustomFunctionType = local                                                                                      | x > 0                       |
+| Name                      | type   | description                                                                                                                                                                            | Values                      |
+| ------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Treshold                  | number | The relative amount of nodes that will be affected                                                                                                                                     | 0 <= x <= 1                 |
+| MinLength                 | number | The minimal length for the chunks in that the Strings are splitted                                                                                                                     | x > 0                       |
+| MaxLength                 | number | The maximal length for the chunks in that the Strings are splitted                                                                                                                     | x >= MinLength              |
+| ConcatenationType         | enum   | The Functions used for Concatenation. Note that when using custom, the String Array will also be Shuffled                                                                              | "strcat", "table", "custom" |
+| CustomFunctionType        | enum   | <p>The Type of Function code injection This Option only applies when custom Concatenation is selected.<br>Note that when chosing inline, the code size may increase significantly!</p> | "global", "local", "inline" |
+| CustomLocalFunctionsCount | number | The number of local functions per scope. This option only applies when CustomFunctionType = local                                                                                      | x > 0                       |
 
 ### Example
 

@@ -2,10 +2,10 @@
 --
 -- This Script provides a simple Method for Syntax Highlighting of Lua code
 
-local Tokenizer = require("obfuscator.tokenizer");
+local Tokenizer = require("prometheus.tokenizer");
 local colors    = require("colors");
 local TokenKind = Tokenizer.TokenKind;
-local lookupify = require("obfuscator.util").lookupify;
+local lookupify = require("prometheus.util").lookupify;
 
 return function(code, luaVersion)
     local out = "";

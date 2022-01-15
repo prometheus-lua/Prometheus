@@ -25,7 +25,7 @@ Prometheus.colors.enabled = not noColors;
 -- Apply Obfuscation Pipeline
 local pipeline = Prometheus.Pipeline:new({
 	Seed = 0; -- For Using Time as Seed
-	VarNamePrefix = ""; -- No Coustom Prefix
+	VarNamePrefix = ""; -- No Custom Prefix
 });
 
 -- "Mangled" for names like this : a, b, c, d, ...

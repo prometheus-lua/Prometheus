@@ -4,12 +4,12 @@
 --
 -- This Script provides a Simple Obfuscation Step for splitting Strings
 
-local Step = require("obfuscator.step");
-local Ast = require("obfuscator.ast");
-local visitAst = require("obfuscator.visitast");
-local Parser = require("obfuscator.parser");
-local util = require("obfuscator.util");
-local enums = require("obfuscator.enums")
+local Step = require("prometheus.step");
+local Ast = require("prometheus.ast");
+local visitAst = require("prometheus.visitast");
+local Parser = require("prometheus.parser");
+local util = require("prometheus.util");
+local enums = require("prometheus.enums")
 
 local LuaVersion = enums.LuaVersion;
 

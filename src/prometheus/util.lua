@@ -4,7 +4,7 @@
 -- This file Provides some utility functions
 
 local logger = require("logger");
-local bit32  = require("bit");
+local bit32  = require("prometheus.bit").bit32;
 
 local function lookupify(tb)
 	for _, v in ipairs(tb) do
@@ -249,6 +249,13 @@ local function toBits(num)
     return t
 end
 
+
+local function readonly(obj)
+	local r = newproxy(true);
+	getmetatable(r).__index = obj;
+	return r;
+end
+
 return {
 	lookupify = lookupify,
 	unlookupify = unlookupify,
@@ -270,4 +277,5 @@ return {
 	utf8char = utf8char,
 	toBits = toBits,
 	bytesToString = bytesToString,
+	readonly = readonly,
 }

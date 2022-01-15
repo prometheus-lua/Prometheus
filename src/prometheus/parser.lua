@@ -11,11 +11,11 @@
 -- luaVersion : The LuaVersion of the Script - Currently Supported : Lua51 and LuaU
 -- 
 
-local Tokenizer = require("obfuscator.tokenizer");
-local Enums = require("obfuscator.enums");
-local util = require("obfuscator.util");
-local Ast = require("obfuscator.ast");
-local Scope = require("obfuscator.scope");
+local Tokenizer = require("prometheus.tokenizer");
+local Enums = require("prometheus.enums");
+local util = require("prometheus.util");
+local Ast = require("prometheus.ast");
+local Scope = require("prometheus.scope");
 local logger = require("logger");
 
 local AstKind = Ast.AstKind;

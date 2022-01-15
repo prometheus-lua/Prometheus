@@ -5,7 +5,7 @@
 -- This file Provides the base class for Obfuscation Steps
 
 local logger = require("logger");
-local util = require("obfuscator.util");
+local util = require("prometheus.util");
 
 local lookupify = util.lookupify;
 

@@ -4,8 +4,8 @@
 -- Overview:
 -- This Script provides a class for lexical Analysis of lua code.
 -- This Tokenizer is Capable of tokenizing LuaU and Lua5.1
-local Enums = require("obfuscator.enums");
-local util = require("obfuscator.util");
+local Enums = require("prometheus.enums");
+local util = require("prometheus.util");
 local logger = require("logger");
 local config = require("config");
 

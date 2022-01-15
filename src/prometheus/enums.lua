@@ -5,7 +5,7 @@
 
 local Enums = {};
 
-local chararray = require("obfuscator.util").chararray;
+local chararray = require("prometheus.util").chararray;
 
 Enums.LuaVersion = {
 	LuaU  = "LuaU" ,

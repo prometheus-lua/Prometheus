@@ -3,8 +3,8 @@
 -- util.lua
 -- This file Provides a Utility function for visiting each node of an ast
 
-local Ast = require("obfuscator.ast");
-local util = require("obfuscator.util");
+local Ast = require("prometheus.ast");
+local util = require("prometheus.util");
 
 local AstKind = Ast.AstKind;
 local lookupify = util.lookupify;
@@ -15,7 +15,9 @@ function visitAst(ast, previsit, postvisit, data)
 	ast.isAst = true;
 	data = data or {};
 	data.scopeStack = {};
-	data.functionData = {};
+	data.functionData = {
+		scope = ast.body.scope;
+	};
 	data.scope = ast.globalScope;
 	data.globalScope = ast.globalScope;
 	if(type(previsit) == "function") then
@@ -98,11 +100,15 @@ function visitStatement(statement, previsit, postvisit, data)
 		for i, expression in ipairs(statement.rhs) do
 			statement.rhs[i] = visitExpression(expression, previsit, postvisit, data);
 		end
-	elseif(statement.kind == AstKind.DoStatement or statement.kind == AstKind.FunctionDeclaration or statement.kind == AstKind.LocalFunctionDeclaration) then
+	elseif(statement.kind == AstKind.FunctionDeclaration or statement.kind == AstKind.LocalFunctionDeclaration) then
 		local parentFunctionData = data.functionData;
-		data.functionData = {};
+		data.functionData = {
+			scope = statement.body.scope;
+		};
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;
+	elseif(statement.kind == AstKind.DoStatement) then
+		statement.body = visitBlock(statement.body, previsit, postvisit, data, true);
 	elseif(statement.kind == AstKind.WhileStatement) then
 		statement.condition = visitExpression(statement.condition, previsit, postvisit, data);
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);
@@ -190,7 +196,9 @@ function visitExpression(expression, previsit, postvisit, data)
 	
 	if(expression.kind == AstKind.FunctionLiteralExpression) then
 		local parentFunctionData = data.functionData;
-		data.functionData = {};
+		data.functionData = {
+			scope = expression.body.scope;
+		};
 		expression.body = visitBlock(expression.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;
 	end

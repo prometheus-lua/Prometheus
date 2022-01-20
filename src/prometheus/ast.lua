@@ -248,7 +248,7 @@ function Ast.WhileStatement(body, condition, parentScope)
 	}
 end
 
-function Ast.ForInStatement(scope, vars, expressions, body)
+function Ast.ForInStatement(scope, vars, expressions, body, parentScope)
 	return {
 		kind = AstKind.ForInStatement,
 		scope = scope,
@@ -256,10 +256,11 @@ function Ast.ForInStatement(scope, vars, expressions, body)
 		vars = vars,
 		expressions = expressions,
 		body = body,
+		parentScope = parentScope,
 	}
 end
 
-function Ast.ForStatement(scope, id, initialValue, finalValue, incrementBy, body)
+function Ast.ForStatement(scope, id, initialValue, finalValue, incrementBy, body, parentScope)
 	return {
 		kind = AstKind.ForStatement,
 		scope = scope,
@@ -268,6 +269,7 @@ function Ast.ForStatement(scope, id, initialValue, finalValue, incrementBy, body
 		finalValue = finalValue,
 		incrementBy = incrementBy,
 		body = body,
+		parentScope = parentScope,
 	}
 end
 

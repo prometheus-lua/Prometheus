@@ -355,7 +355,7 @@ function Parser:statement(scope, currentLoop)
 				incrementBy = self:expression(scope);
 			end
 			
-			local stat = Ast.ForStatement(forScope, varId, initialValue, finalValue, incrementBy, nil);
+			local stat = Ast.ForStatement(forScope, varId, initialValue, finalValue, incrementBy, nil, scope);
 			forScope:enableVariable(varId);
 			expect(self, TokenKind.Keyword, "do");
 			stat.body = self:block(nil, stat, forScope);
@@ -376,8 +376,8 @@ function Parser:statement(scope, currentLoop)
 		-- 	end
 		self:enableNameList(forScope, ids);
 		expect(self, TokenKind.Keyword, "do");
-		local stat = Ast.ForInStatement(forScope, ids, expressions, nil);
-		stat.body = self:block(nil, true, forScope);
+		local stat = Ast.ForInStatement(forScope, ids, expressions, nil, scope);
+		stat.body = self:block(nil, stat, forScope);
 		expect(self, TokenKind.Keyword, "end");
 		
 		return stat;

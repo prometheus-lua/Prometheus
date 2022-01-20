@@ -371,6 +371,9 @@ function Compiler:compileStatement(statement)
         ir:instruction(IR:JMP(endNop));
         ir:instruction(IR:PUSHTEMPSTACK());
 
+        statement.__endnop = endNop;
+        statement.__startnop = fskip;
+
         table.insert(self.scopeStack, self.currentScope);
         self.currentScope = statement.body.scope;
 
@@ -397,6 +400,9 @@ function Compiler:compileStatement(statement)
 
         local fskip = IR:FORINSKIP();
         local endNop   = IR:NOP();
+
+        statement.__endnop = endNop;
+        statement.__endnop = endNop;
 
         ir:instruction(fskip);
         ir:instruction(IR:JMP(endNop));

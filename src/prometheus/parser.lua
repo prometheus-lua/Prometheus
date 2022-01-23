@@ -548,39 +548,47 @@ function Parser:expressionAnd(scope)
 end
 
 function Parser:expressionComparision(scope)
-	local lhs = self:expressionStrCat(scope);
-
-	if(consume(self, TokenKind.Symbol, "<")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.LessThanExpression(lhs, rhs, true);
-	end
+	local curr = self:expressionStrCat(scope);
+	repeat
+		local found = false;
+		if(consume(self, TokenKind.Symbol, "<")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.LessThanExpression(curr, rhs, true);
+			found = true;
+		end
+		
+		if(consume(self, TokenKind.Symbol, ">")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.GreaterThanExpression(curr, rhs, true);
+			found = true;
+		end
+		
+		if(consume(self, TokenKind.Symbol, "<=")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.LessThanOrEqualsExpression(curr, rhs, true);
+			found = true;
+		end
 	
-	if(consume(self, TokenKind.Symbol, ">")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.GreaterThanExpression(lhs, rhs, true);
-	end
+		if(consume(self, TokenKind.Symbol, ">=")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.GreaterThanOrEqualsExpression(curr, rhs, true);
+			found = true;
+		end
+		
+		if(consume(self, TokenKind.Symbol, "~=")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.NotEqualsExpression(curr, rhs, true);
+			found = true;
+		end
 	
-	if(consume(self, TokenKind.Symbol, "<=")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.LessThanOrEqualsExpression(lhs, rhs, true);
-	end
+		if(consume(self, TokenKind.Symbol, "==")) then
+			local rhs = self:expressionStrCat(scope);
+			curr = Ast.EqualsExpression(curr, rhs, true);
+			found = true;
+		end
+	until not found;
 
-	if(consume(self, TokenKind.Symbol, ">=")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.GreaterThanOrEqualsExpression(lhs, rhs, true);
-	end
-	
-	if(consume(self, TokenKind.Symbol, "~=")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.NotEqualsExpression(lhs, rhs, true);
-	end
-
-	if(consume(self, TokenKind.Symbol, "==")) then
-		local rhs = self:expressionComparision(scope);
-		return Ast.EqualsExpression(lhs, rhs, true);
-	end
-
-	return lhs;
+	return curr;
 end
 
 function Parser:expressionStrCat(scope)
@@ -595,46 +603,61 @@ function Parser:expressionStrCat(scope)
 end
 
 function Parser:expressionAddSub(scope)
-	local lhs = self:expressionMulDiv(scope);
+	local curr = self:expressionMulDiv(scope);
 
-	if(consume(self, TokenKind.Symbol, "+")) then
-		local rhs = self:expressionAddSub(scope);
-		return Ast.AddExpression(lhs, rhs, true);
-	end
+	repeat
+		local found = false;
+		if(consume(self, TokenKind.Symbol, "+")) then
+			local rhs = self:expressionMulDiv(scope);
+			curr = Ast.AddExpression(curr, rhs, true);
+			found = true;
+		end
+		
+		if(consume(self, TokenKind.Symbol, "-")) then
+			local rhs = self:expressionMulDiv(scope);
+			curr = Ast.SubExpression(curr, rhs, true);
+			found = true;
+		end
+	until not found;
 	
-	if(consume(self, TokenKind.Symbol, "-")) then
-		local rhs = self:expressionAddSub(scope);
-		return Ast.SubExpression(lhs, rhs, true);
-	end
 
-	return lhs;
+	return curr;
 end
 
 function Parser:expressionMulDiv(scope)
-	local lhs = self:expressionMod(scope);
+	local curr = self:expressionMod(scope);
 
-	if(consume(self, TokenKind.Symbol, "*")) then
-		local rhs = self:expressionMulDiv(scope);
-		return Ast.MulExpression(lhs, rhs, true);
-	end
+	repeat
+		local found = false;
+		if(consume(self, TokenKind.Symbol, "*")) then
+			local rhs = self:expressionMod(scope);
+			curr = Ast.MulExpression(curr, rhs, true);
+			found = true;
+		end
+	
+		if(consume(self, TokenKind.Symbol, "/")) then
+			local rhs = self:expressionMod(scope);
+			curr = Ast.DivExpression(curr, rhs, true);
+			found = true;
+		end
+	until not found;
 
-	if(consume(self, TokenKind.Symbol, "/")) then
-		local rhs = self:expressionMulDiv(scope);
-		return Ast.DivExpression(lhs, rhs, true);
-	end
-
-	return lhs;
+	return curr;
 end
 
 function Parser:expressionMod(scope)
-	local lhs = self:expressionUnary(scope);
+	local curr = self:expressionUnary(scope);
 	
-	if(consume(self, TokenKind.Symbol, "%")) then
-		local rhs = self:expressionMulDiv(scope);
-		return Ast.ModExpression(lhs, rhs, true);
-	end
+	repeat
+		local found = false;
+		if(consume(self, TokenKind.Symbol, "%")) then
+			local rhs = self:expressionUnary(scope);
+			curr = Ast.ModExpression(curr, rhs, true);
+			found = true;
+		end
+	until not found;
 	
-	return lhs;
+	return curr;
 end
 
 function Parser:expressionUnary(scope)

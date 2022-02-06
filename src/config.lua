@@ -8,7 +8,7 @@
 -- You are not allowed to change the following Variables
 local VERSION = "Alpha v0.1";
 local NAME    = "Prometheus";
-local BY      = "Levno_710";
+local BY      = "levno-710";
 
 -- Config Starts here
 return {

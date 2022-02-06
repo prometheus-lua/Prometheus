@@ -6,7 +6,7 @@
 -- with lua, making it much harder to crack than other lua obfuscators
 
 local Step = require("prometheus.step");
-local SecureCompiler = require("prometheus.compiler_secure.compiler");
+local SecureCompiler = require("prometheus.compiler_old.compiler");
 
 local Vmify = Step:extend();
 Vmify.Description = "This Step will Compile your script into a fully-custom (not a half custom like other lua obfuscators) Bytecode Format and emit a vm for executing it.";

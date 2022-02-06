@@ -3,7 +3,7 @@
 -- vmstrings.lua
 -- This Script contains Constant Strings used in the Bytecode vm
 
-local InstructionKind = require("prometheus.compiler_secure.instructionkind");
+local InstructionKind = require("prometheus.compiler_old.instructionkind");
 local util = require("prometheus.util");
 
 -- Inline Replacements needed:

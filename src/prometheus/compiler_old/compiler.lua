@@ -1,7 +1,7 @@
 local Compiler = {};
 
-local IR = require("prometheus.compiler_secure.ir");
-local Bytecode = require("prometheus.compiler_secure.bytecode");
+local IR = require("prometheus.compiler_old.ir");
+local Bytecode = require("prometheus.compiler_old.bytecode");
 local Ast = require("prometheus.ast");
 local logger = require("logger");
 local AstKind = Ast.AstKind;

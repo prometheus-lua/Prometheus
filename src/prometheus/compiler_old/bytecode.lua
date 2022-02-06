@@ -7,7 +7,7 @@
 local bit32 = require("bit") or require("prometheus.bit").bit32;
 local logger = require("logger");
 local util = require("prometheus.util");
-local vmstrings = require("prometheus.compiler_secure.vmstrings");
+local vmstrings = require("prometheus.compiler_old.vmstrings");
 local Parser = require("prometheus.parser");
 local enums = require("prometheus.enums");
 
@@ -15,7 +15,7 @@ local LuaVersion = enums.LuaVersion;
 local BIT_MAX_8  = 255;
 local BIT_MAX_16 = 65535;
 
-local InstructionKind = require("prometheus.compiler_secure.instructionkind");
+local InstructionKind = require("prometheus.compiler_old.instructionkind");
 
 local Bytecode = {
 	InstructionKind = InstructionKind

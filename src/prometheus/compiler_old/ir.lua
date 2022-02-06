@@ -6,7 +6,7 @@
 local logger = require("logger");
 local util = require("prometheus.util");
 
-local Bytecode = require("prometheus.compiler_secure.bytecode");
+local Bytecode = require("prometheus.compiler_old.bytecode");
 local InstructionKind = Bytecode.InstructionKind
 
 local function Instruction(tb)

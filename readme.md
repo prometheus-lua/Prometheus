@@ -28,7 +28,7 @@ When using the windows release:
 ```batch
 prometheus.exe --preset Strong ./your_file.lua
 ```
-For more advances use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
+For more advanced use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
 ## Tests
 To perform the Prometheus Tests, just run
 ```batch

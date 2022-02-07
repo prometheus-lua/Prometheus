@@ -4,7 +4,7 @@
 -- This Script contains the Bytecode library for Compiling to Prometheus Bytecode
 
 -- For Lua5.1 Compatibility
-local bit32 = require("bit") or require("prometheus.bit").bit32;
+local bit32 = require("prometheus.bit").bit32;
 local logger = require("logger");
 local util = require("prometheus.util");
 local vmstrings = require("prometheus.compiler_old.vmstrings");

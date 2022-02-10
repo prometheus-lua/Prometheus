@@ -11,7 +11,7 @@ You can find the full Documentation including a getting started guide [here](htt
 To install Prometheus, simply clone the Github Repository using:
 
 ```batch
-git clone https://github.com/Levno710/Prometheus.git
+git clone https://github.com/levno-710/Prometheus.git
 ```
 
 Alternatively you can download the Sources [here](https://github.com/Levno710/Prometheus/archive/refs/heads/master.zip).
@@ -22,11 +22,11 @@ On Windows the windows release can also be used, which includes everything neede
 ## Usage
 To quickly obfuscate a script:
 ```batch
-lua ./cli.lua --preset Strong ./your_file.lua
+lua ./cli.lua --preset Medium ./your_file.lua
 ```
 When using the windows release:
 ```batch
-prometheus.exe --preset Strong ./your_file.lua
+prometheus.exe --preset Medium ./your_file.lua
 ```
 For more advanced use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
 ## Tests

@@ -41,11 +41,17 @@ return {
                 };
             },
             {
-                Name = "WrapInFunction";
+                Name = "ConstantArray";
                 Settings = {
-                    Iterations = 1;
+                    Treshold    = 1;
+                    StringsOnly = true;
+                    Shuffle     = true;
+                    Rotate      = true;
+                    LocalWrapperTreshold = 1;
+                    LocalWrapperCount = 3;
+                    LocalWrapperArgCount = 3;
                 }
-            }
+            },
         }
     };
     ["Weak"] = {

@@ -201,7 +201,7 @@ function Pipeline:apply(code, filename)
 	
 	logger:info(string.format("Generated Code size is %.2f%% of the Source Code size", (string.len(code) / sourceLen)*100))
 	
-	code = "--[[\n	" .. config.Watermark .. "\n]]\n" .. code;
+	code = "--[[\n    " .. config.Watermark .. "\n]]\n" .. code;
 	
 	return code;
 end

@@ -52,6 +52,7 @@ lua ./cli.lua [options]
 ## Credits
 ### Contributors
 - [levno-710](https://github.com/levno-710)
+- [brandonsturgeon](https://github.com/brandonsturgeon)
 ### Libraries Used
 - [lua-bit-numberlua](https://github.com/davidm/lua-bit-numberlua)
 ## License

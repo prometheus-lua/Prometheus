@@ -7,10 +7,11 @@ local logger = require("logger");
 local bit32  = require("prometheus.bit").bit32;
 
 local function lookupify(tb)
+	local tb2 = {};
 	for _, v in ipairs(tb) do
-		tb[v] = true
+		tb2[v] = true
 	end
-	return tb
+	return tb2
 end
 
 local function unlookupify(tb)

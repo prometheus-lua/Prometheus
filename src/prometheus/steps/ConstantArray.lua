@@ -163,27 +163,13 @@ local function rotate(t, d, n)
 	reverse(t, d+1, n)
 end
 
-local rotateCode = [[
-	do
-		local i, j = 1, LEN;
-		while i < j do
-			ARR[i], ARR[j] = ARR[j], ARR[i]
-			i, j = i+1, j-1
-		end
-
-		i, j = 1, SHIFT;
-		while i < j do
-			ARR[i], ARR[j] = ARR[j], ARR[i]
-			i, j = i+1, j-1
-		end
-
-		i, j = SHIFT + 1, LEN;
-		while i < j do
-			ARR[i], ARR[j] = ARR[j], ARR[i]
-			i, j = i+1, j-1
+local rotateCode = [=[
+	for i, v in ipairs({{1, LEN}, {1, SHIFT}, {SHIFT + 1, LEN}}) do
+		while v[1] < v[2] do
+			ARR[v[1]], ARR[v[2]], v[1], v[2] = ARR[v[2]], ARR[v[1]], v[1] + 1, v[2] - 1
 		end
 	end
-]];
+]=];
 
 function ConstantArray:addRotateCode(ast, shift)
 	local parser = Parser:new({
@@ -345,47 +331,53 @@ function ConstantArray:apply(ast, pipeline)
 		end
 	end);
 
-	-- Add Wrapper Function Code
-	do
-		local funcScope = Scope:new(self.rootScope);
-		-- Add Reference to Array
-		funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
+	local steps = util.shuffle({
+		-- Add Wrapper Function Code
+		function() 
+			local funcScope = Scope:new(self.rootScope);
+			-- Add Reference to Array
+			funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
 
-		local arg = funcScope:addVariable();
-		local addSubArg;
+			local arg = funcScope:addVariable();
+			local addSubArg;
 
-		-- Create add and Subtract code
-		if self.wrapperOffset < 0 then
-			addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-self.wrapperOffset));
-		else
-			addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(self.wrapperOffset));
-		end
+			-- Create add and Subtract code
+			if self.wrapperOffset < 0 then
+				addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-self.wrapperOffset));
+			else
+				addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(self.wrapperOffset));
+			end
 
-		-- Create and Add the Function Declaration
-		table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.rootScope, self.wrapperId, {
-			Ast.VariableExpression(funcScope, arg)
-		}, Ast.Block({
-			Ast.ReturnStatement({
-				Ast.IndexExpression(
-					Ast.VariableExpression(self.rootScope, self.arrId),
-					addSubArg
-				)
-			});
-		}, funcScope)));
+			-- Create and Add the Function Declaration
+			table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.rootScope, self.wrapperId, {
+				Ast.VariableExpression(funcScope, arg)
+			}, Ast.Block({
+				Ast.ReturnStatement({
+					Ast.IndexExpression(
+						Ast.VariableExpression(self.rootScope, self.arrId),
+						addSubArg
+					)
+				});
+			}, funcScope)));
 
-		-- Resulting Code:
-		-- function xy(a)
-		-- 		return ARR[a - 10]
-		-- end
-	end
+			-- Resulting Code:
+			-- function xy(a)
+			-- 		return ARR[a - 10]
+			-- end
+		end,
+		-- Rotate Array and Add unrotate code
+		function()
+			if self.Rotate and #self.constants > 1 then
+				local shift = math.random(1, #self.constants - 1);
 
+				rotate(self.constants, -shift);
+				self:addRotateCode(ast, shift);
+			end
+		end,
+	});
 
-	-- Rotate Array and Add unrotate code
-	if self.Rotate and #self.constants > 1 then
-		local shift = math.random(1, #self.constants - 1);
-
-		rotate(self.constants, -shift);
-		self:addRotateCode(ast, shift);
+	for i, f in ipairs(steps) do
+		f();
 	end
 
 	-- Add the Array Declaration

@@ -800,7 +800,7 @@ function Unparser:unparseExpression(expression, tabbing)
 				code = code .. "," .. self:optionalWhitespace(self:newline() .. self:tabs(tableTabbing));
 			end
 			if(entry.kind == AstKind.KeyedTableEntry) then
-				if(entry.key.kind == AstKind.StringExpression and self:isValidIdentifier(entry.key.kind)) then
+				if(entry.key.kind == AstKind.StringExpression and self:isValidIdentifier(entry.key.value)) then
 					code = code .. entry.key.value;
 				else
 					code = code .. "[" .. self:unparseExpression(entry.key, tableTabbing) .. "]";

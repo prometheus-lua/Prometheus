@@ -47,9 +47,9 @@ return {
                     StringsOnly = true;
                     Shuffle     = true;
                     Rotate      = true;
-                    LocalWrapperTreshold = 1;
-                    LocalWrapperCount = 3;
-                    LocalWrapperArgCount = 3;
+                    LocalWrapperTreshold = 0;
+                    LocalWrapperCount = 1;
+                    LocalWrapperArgCount = 1;
                 }
             },
         }

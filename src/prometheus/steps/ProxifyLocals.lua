@@ -237,6 +237,7 @@ function ProifyLocals:apply(ast, pipeline)
                     vexp.__ignoreProxifyLocals = true;
                     args[1] = localMetatableInfo.setValue.constructor(vexp, args[1]);
                     self.emptyFunctionUsed = true;
+                    data.scope:addReferenceToHigherScope(self.emptyFunctionScope, self.emptyFunctionId);
                     return Ast.FunctionCallStatement(Ast.VariableExpression(self.emptyFunctionScope, self.emptyFunctionId), args);
                 end
             end

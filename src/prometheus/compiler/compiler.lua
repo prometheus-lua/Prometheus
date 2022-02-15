@@ -4,7 +4,7 @@
 -- This Script contains the new Compiler
 
 -- The max Number of variables used as registers
-local MAX_REGS = 100;
+local MAX_REGS = 40;
 
 local Compiler = {};
 
@@ -25,6 +25,7 @@ function Compiler:new()
         };
         activeBlock = nil;
         registersForVar = {};
+        usedRegisters = 0;
         maxUsedRegister = 0;
         registerVars = {};
 
@@ -48,7 +49,6 @@ function Compiler:new()
             AstKind.MulExpression,
             AstKind.DivExpression,
             AstKind.ModExpression,
-            AstKind.NegateExpression,
             AstKind.PowExpression,
         }
     };
@@ -78,12 +78,12 @@ function Compiler:setActiveBlock(block)
     self.activeBlock = block;
 end
 
-function Compiler:addStatement(statement, writes, reads, doNotMove)
+function Compiler:addStatement(statement, writes, reads, usesUpvals)
     table.insert(self.activeBlock.statements, {
         statement = statement,
         writes = lookupify(writes),
         reads = lookupify(reads),
-        doNotMove = doNotMove or false,
+        usesUpvals = usesUpvals or false,
     });
 end
 
@@ -93,6 +93,7 @@ function Compiler:compile(ast)
     self.activeBlock = nil;
     self.registersForVar = {};
     self.maxUsedRegister = 0;
+    self.usedRegisters = 0;
     self.registerVars = {};
 
 
@@ -200,52 +201,51 @@ function Compiler:emitContainerFuncBody()
         -- Shuffle Blockstats
         for i = 2, #blockstats do
             local stat = blockstats[i];
-            if not stat.doNotMove then
-                local reads = stat.reads;
-                local writes = stat.writes;
-                local maxShift = 0;
-                for shift = 1, i - 1 do
-                    local stat2 = blockstats[i - shift];
+            local reads = stat.reads;
+            local writes = stat.writes;
+            local maxShift = 0;
+            local usesUpvals = stat.usesUpvals;
+            for shift = 1, i - 1 do
+                local stat2 = blockstats[i - shift];
 
-                    if stat2.doNotMove then
+                if stat2.usesUpvals and usesUpvals then
+                    break;
+                end
+
+                local reads2 = stat2.reads;
+                local writes2 = stat2.writes;
+                local f = true;
+
+                for r, b in pairs(reads2) do
+                    if(writes[r]) then
+                        f = false;
                         break;
                     end
+                end
 
-                    local reads2 = stat2.reads;
-                    local writes2 = stat2.writes;
-                    local f = true;
-
-                    for r, b in pairs(reads2) do
+                if f then
+                    for r, b in pairs(writes2) do
                         if(writes[r]) then
                             f = false;
                             break;
                         end
-                    end
-
-                    if f then
-                        for r, b in pairs(writes2) do
-                            if(writes[r]) then
-                                f = false;
-                                break;
-                            end
-                            if(reads[r]) then
-                                f = false;
-                                break;
-                            end
+                        if(reads[r]) then
+                            f = false;
+                            break;
                         end
                     end
-
-                    if not f then
-                        break
-                    end
-
-                    maxShift = shift;
                 end
 
-                local shift = math.random(0, maxShift);
-                for j = 1, shift do
+                if not f then
+                    break
+                end
+
+                maxShift = shift;
+            end
+
+            local shift = math.random(0, maxShift);
+            for j = 1, shift do
                     blockstats[i - j], blockstats[i - j + 1] = blockstats[i - j + 1], blockstats[i - j];
-                end
             end
         end
 
@@ -304,11 +304,13 @@ end
 
 function Compiler:freeRegister(id, force)
     if force or not (self.registers[id] == self.VAR_REGISTER) then
+        self.usedRegisters = self.usedRegisters - 1;
         self.registers[id] = false
     end
 end
 
 function Compiler:allocRegister(isVar, isUpval)
+    self.usedRegisters = self.usedRegisters + 1;
 
     -- POS register can be temporarily used
     if not isVar and not self.registers[self.POS_REGISTER] then
@@ -323,9 +325,15 @@ function Compiler:allocRegister(isVar, isUpval)
     end
 
     local id = 0;
-    repeat
-        id = id + 1;
-    until not self.registers[id];
+    if self.usedRegisters < MAX_REGS * 0.75 then
+        repeat
+            id = math.random(1, MAX_REGS - 1);
+        until not self.registers[id];
+    else
+        repeat
+            id = id + 1;
+        until not self.registers[id];
+    end
 
     if id > self.maxUsedRegister then
         self.maxUsedRegister = id;
@@ -483,6 +491,16 @@ function Compiler:jmp(scope, to)
 end
 
 function Compiler:setPos(scope, val)
+    if not val then
+        local v;
+        if math.random(1, 2) == 1 then
+            v = Ast.NilExpression();
+        else
+            v = Ast.BooleanExpression(false);
+        end
+        scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
+        return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {v});
+    end
     scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
     return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {Ast.NumberExpression(val) or Ast.NilExpression()});
 end
@@ -513,7 +531,7 @@ function Compiler:compileTopNode(node)
     if(self.activeBlock.advanceToNextBlock) then
         self.activeBlock.advanceToNextBlock = false;
         self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-        self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {})
+        self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {}, false)
     end
 
     self:resetRegisters();
@@ -551,7 +569,7 @@ function Compiler:compileStatement(statement, funcDepth)
             self:freeRegister(reg, false);
         end
 
-        self:addStatement(self:setReturn(scope, Ast.TableConstructorExpression(entries)), {self.RETURN_REGISTER}, regs, true);
+        self:addStatement(self:setReturn(scope, Ast.TableConstructorExpression(entries)), {self.RETURN_REGISTER}, regs, false);
         self.activeBlock.advanceToNextBlock = false;
         self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
 
@@ -582,7 +600,7 @@ function Compiler:compileStatement(statement, funcDepth)
             self:freeRegister(exprregs[i], false);
         end
 
-        self:addStatement(self:copyRegisters(scope, varregs, exprregs), varregs, exprregs);
+        self:addStatement(self:copyRegisters(scope, varregs, exprregs), varregs, exprregs, false);
         return;
     end
 
@@ -597,7 +615,7 @@ function Compiler:compileStatement(statement, funcDepth)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        self:addStatement(self:setRegister(scope, retReg, Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retReg}, {baseReg, argRegs}, true);
+        self:addStatement(self:setRegister(scope, retReg, Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retReg}, {baseReg, unpack(argRegs)}, true);
         self:freeRegister(baseReg, false);
         self:freeRegister(retReg, false);
         for i, reg in ipairs(argRegs) do
@@ -618,8 +636,8 @@ function Compiler:compileStatement(statement, funcDepth)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(statement.passSelfFunctionName)), {tmpReg}, {});
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {tmpReg, baseReg});
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(statement.passSelfFunctionName)), {tmpReg}, {}, false);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {tmpReg, baseReg}, false);
 
         self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))), {tmpReg}, {tmpReg, unpack(argRegs)}, true);
         self:freeRegister(baseReg, false);
@@ -645,9 +663,9 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         for i=1, numReturns, 1 do
             regs[i] = self:allocRegister();
             if(i == 1) then
-                self:addStatement(self:setRegister(scope, regs[i], Ast.StringExpression(expression.value)), {regs[i]}, {});
+                self:addStatement(self:setRegister(scope, regs[i], Ast.StringExpression(expression.value)), {regs[i]}, {}, false);
             else
-                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;
@@ -659,9 +677,9 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         for i=1, numReturns do
             regs[i] = self:allocRegister();
             if(i == 1) then
-               self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(expression.value)), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(expression.value)), {regs[i]}, {}, false);
             else
-               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;
@@ -673,9 +691,9 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         for i=1, numReturns do
             regs[i] = self:allocRegister();
             if(i == 1) then
-               self:addStatement(self:setRegister(scope, regs[i], Ast.BooleanExpression(expression.value)), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.BooleanExpression(expression.value)), {regs[i]}, {}, false);
             else
-               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;
@@ -686,7 +704,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         local regs = {};
         for i=1, numReturns do
             regs[i] = self:allocRegister();
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end
         return regs;
     end
@@ -701,8 +719,8 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                     -- Global Variable
                     regs[i] = self:allocRegister(false, false);
                     local tmpReg = self:allocRegister(false, false);
-                    self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.scope:getVariableName(expression.id))), {tmpReg}, {});
-                    self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:env(scope), self:register(scope, tmpReg))), {regs[i]}, {tmpReg});
+                    self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.scope:getVariableName(expression.id))), {tmpReg}, {}, false);
+                    self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:env(scope), self:register(scope, tmpReg))), {regs[i]}, {tmpReg}, true);
                     self:freeRegister(tmpReg, false);
                 else
                     -- Local Variable
@@ -710,7 +728,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 end
             else
                 regs[i] = self:allocRegister();
-                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;
@@ -754,8 +772,8 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {});
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg});
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
         self:addStatement(self:setRegisters(scope, retRegs, {Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))}), retRegs, {tmpReg, unpack(argRegs)}, true)
         self:freeRegister(baseReg, false);
@@ -775,11 +793,11 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
                 local indexReg = self:compileExpression(expression.index, funcDepth, 1)[1];
 
-                self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg});
+                self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg}, false);
                 self:freeRegister(baseReg, false);
                 self:freeRegister(indexReg, false)
             else
-               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;
@@ -794,11 +812,43 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
                 local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
 
-                self:addStatement(self:setRegister(scope, regs[i], Ast[expression.kind](self:register(scope, lhsReg), self:register(scope, rhsReg))), {regs[i]}, {lhsReg, rhsReg});
+                self:addStatement(self:setRegister(scope, regs[i], Ast[expression.kind](self:register(scope, lhsReg), self:register(scope, rhsReg))), {regs[i]}, {lhsReg, rhsReg}, false);
                 self:freeRegister(rhsReg, false);
                 self:freeRegister(lhsReg, false)
             else
-               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {});
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+        return regs;
+    end
+
+    if(expression.kind == AstKind.NotExpression) then
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i == 1) then
+                local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NotExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, false);
+                self:freeRegister(rhsReg, false)
+            else
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+        return regs;
+    end
+
+    if(expression.kind == AstKind.NegateExpression) then
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i == 1) then
+                local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, false);
+                self:freeRegister(rhsReg, false)
+            else
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
         return regs;

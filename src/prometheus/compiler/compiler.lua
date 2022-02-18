@@ -4,7 +4,7 @@
 -- This Script contains the new Compiler
 
 -- The max Number of variables used as registers
-local MAX_REGS = 40;
+local MAX_REGS = 100;
 
 local Compiler = {};
 
@@ -35,8 +35,6 @@ function Compiler:new()
         RETURN_REGISTER = newproxy(false);
 
         BIN_OPS = lookupify{
-            AstKind.OrExpression,
-            AstKind.AndExpression,
             AstKind.LessThanExpression,
             AstKind.GreaterThanExpression,
             AstKind.LessThanOrEqualsExpression,
@@ -60,7 +58,11 @@ function Compiler:new()
 end
 
 function Compiler:createBlock()
-    local id = #self.blocks + 1;
+    local id;
+    repeat
+        id = math.random(0, 2^24)
+    until not self.usedBlockIds[id];
+
     local scope = Scope:new(self.containerFuncScope);
     local block = {
         id = id;
@@ -95,6 +97,7 @@ function Compiler:compile(ast)
     self.maxUsedRegister = 0;
     self.usedRegisters = 0;
     self.registerVars = {};
+    self.usedBlockIds = {};
 
 
     local newGlobalScope = Scope:newGlobal();
@@ -186,17 +189,13 @@ function Compiler:compile(ast)
 end
 
 function Compiler:emitContainerFuncBody()
-    local tableEntries = {};
+    local blocks = {};
 
     util.shuffle(self.blocks);
 
-    for _, block in pairs(self.blocks) do
+    for _, block in ipairs(self.blocks) do
         local id = block.id;
         local blockstats = block.statements;
-
-        if(block.advanceToNextBlock) then
-            table.insert(block.statements, self:jmp(block.scope, id + 1));
-        end
 
         -- Shuffle Blockstats
         for i = 2, #blockstats do
@@ -254,23 +253,41 @@ function Compiler:emitContainerFuncBody()
             table.insert(blockstats, stat.statement);
         end
 
-        table.insert(tableEntries, Ast.KeyedTableEntry(Ast.NumberExpression(id), Ast.FunctionLiteralExpression({},
-            Ast.Block(blockstats, block.scope)
-        )));
+        table.insert(blocks, { id = id, block = Ast.Block(blockstats, block.scope) });
     end
 
-    local tableVar = self.containerFuncScope:addVariable();
+    table.sort(blocks, function(a, b)
+        return a.id < b.id;
+    end);
+
+    local function buildWhileBody(tb, l, r, pScope, scope)
+        local len = r - l + 1;
+        if len == 1 then
+            tb[r].block.scope:setParent(pScope);
+            return tb[r].block;
+        elseif len == 0 then
+            return nil;
+        end
+
+        local mid = l + math.ceil(len / 2);
+        local ifScope = scope or Scope:new(pScope);
+
+        local lBlock = buildWhileBody(tb, l, mid - 1, ifScope);
+        local rBlock = buildWhileBody(tb, mid, r, ifScope);
+
+        return Ast.Block({
+            Ast.IfStatement(Ast.LessThanExpression(self:pos(ifScope), Ast.NumberExpression(tb[mid].id)), lBlock, {}, rBlock);
+        }, ifScope);
+    end
+
+    local whileBody = buildWhileBody(blocks, 1, #blocks, self.containerFuncScope, self.whileScope);
 
     self.whileScope:addReferenceToHigherScope(self.containerFuncScope, self.returnVar, 1);
-    self.whileScope:addReferenceToHigherScope(self.containerFuncScope, tableVar);
     self.whileScope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
  
     self.containerFuncScope:addReferenceToHigherScope(self.scope, self.unpackVar);
 
-    local tmpScope = Scope:new(self.whileScope);
-
     local declarations = {
-        tableVar,
         self.returnVar,
     }
 
@@ -282,12 +299,7 @@ function Compiler:emitContainerFuncBody()
 
     local stats = {
         Ast.LocalVariableDeclaration(self.containerFuncScope, util.shuffle(declarations), {});
-        Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, tableVar)}, {Ast.TableConstructorExpression(tableEntries)});
-        Ast.WhileStatement(Ast.Block({
-            Ast.FunctionCallStatement(
-                    Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, tableVar), Ast.VariableExpression(self.containerFuncScope, self.posVar)), {}
-            );
-        }, self.whileScope), Ast.VariableExpression(self.containerFuncScope, self.posVar));
+        Ast.WhileStatement(whileBody, Ast.VariableExpression(self.containerFuncScope, self.posVar));
         Ast.ReturnStatement{
             Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
                 Ast.VariableExpression(self.containerFuncScope, self.returnVar)
@@ -309,20 +321,27 @@ function Compiler:freeRegister(id, force)
     end
 end
 
-function Compiler:allocRegister(isVar, isUpval)
+function Compiler:isVarRegister(id)
+    return self.registers[id] == self.VAR_REGISTER;
+end
+
+function Compiler:allocRegister(isVar)
     self.usedRegisters = self.usedRegisters + 1;
 
-    -- POS register can be temporarily used
-    if not isVar and not self.registers[self.POS_REGISTER] then
-        self.registers[self.POS_REGISTER] = true;
-        return self.POS_REGISTER;
-    end
+    if not isVar then
+        -- POS register can be temporarily used
+        if not self.registers[self.POS_REGISTER] then
+            self.registers[self.POS_REGISTER] = true;
+            return self.POS_REGISTER;
+        end
 
-    -- RETURN register can be temporarily used
-    if not isVar and not self.registers[self.RETURN_REGISTER] then
-        self.registers[self.RETURN_REGISTER] = true;
-        return self.RETURN_REGISTER;
+        -- RETURN register can be temporarily used
+        if not self.registers[self.RETURN_REGISTER] then
+            self.registers[self.RETURN_REGISTER] = true;
+            return self.RETURN_REGISTER;
+        end
     end
+    
 
     local id = 0;
     if self.usedRegisters < MAX_REGS * 0.75 then
@@ -392,7 +411,7 @@ function Compiler:register(scope, id)
 
     local vid = self:getRegisterVarId(MAX_REGS);
     scope:addReferenceToHigherScope(self.containerFuncScope, vid);
-    return Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression(id));
+    return Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression((id - MAX_REGS) + 1));
 end
 
 function Compiler:registerList(scope, ids)
@@ -419,7 +438,7 @@ function Compiler:registerAssignment(scope, id)
 
     local vid = self:getRegisterVarId(MAX_REGS);
     scope:addReferenceToHigherScope(self.containerFuncScope, vid);
-    return Ast.AssignmentIndexing(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression(id));
+    return Ast.AssignmentIndexing(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression((id - MAX_REGS) + 1));
 end
 
 -- Maybe convert ids to strings
@@ -584,30 +603,41 @@ function Compiler:compileStatement(statement, funcDepth)
                 local regs = self:compileExpression(expr, funcDepth, #statement.ids - #statement.expressions + 1);
 
                 for i, reg in ipairs(regs) do
+                    if(self:isVarRegister(reg)) then
+                        local ro = reg;
+                        reg = self:allocRegister(false);
+                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
+                    end
                     table.insert(exprregs, reg);
                 end
             else
                 if statement.ids[i] or expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression then
                     local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                    if(self:isVarRegister(reg)) then
+                        local ro = reg;
+                        reg = self:allocRegister(false);
+                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
+                    end
                     table.insert(exprregs, reg);
                 end
             end
         end
 
-        local varregs = {};
         for i, id in ipairs(statement.ids) do
-            table.insert(varregs, self:getVarRegister(statement.scope, id, exprregs[i]));
-            self:freeRegister(exprregs[i], false);
+            if(exprregs[i]) then
+                local varreg = self:getVarRegister(statement.scope, id, exprregs[i]);
+                self:addStatement(self:copyRegisters(scope, {varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
+                self:freeRegister(exprregs[i], false);
+            end
         end
 
-        self:addStatement(self:copyRegisters(scope, varregs, exprregs), varregs, exprregs, false);
         return;
     end
 
     -- Function call Statement
     if(statement.kind == AstKind.FunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
-        local retReg  = self:allocRegister(false, false);
+        local retReg  = self:allocRegister(false);
         local argRegs = {};
 
         -- TODO: Function call multi return pass
@@ -628,7 +658,7 @@ function Compiler:compileStatement(statement, funcDepth)
     -- Pass self Function Call Statement
     if(statement.kind == AstKind.PassSelfFunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
-        local tmpReg  = self:allocRegister(false, false);
+        local tmpReg  = self:allocRegister(false);
         local argRegs = { baseReg };
 
         -- TODO: Function call multi return pass
@@ -647,6 +677,55 @@ function Compiler:compileStatement(statement, funcDepth)
         end
         
         return;
+    end
+
+    -- Assignment Statement
+    if(statement.kind == AstKind.AssignmentStatement) then
+        local exprregs = {};
+        for i, expr in ipairs(statement.rhs) do
+            if(i == #statement.rhs and #statement.lhs > #statement.rhs) then
+                local regs = self:compileExpression(expr, funcDepth, #statement.lhs - #statement.expressions + 1);
+
+                for i, reg in ipairs(regs) do
+                    if(self:isVarRegister(reg)) then
+                        local ro = reg;
+                        reg = self:allocRegister(false);
+                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
+                    end
+                    table.insert(exprregs, reg);
+                end
+            else
+                if statement.lhs[i] or expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression then
+                    local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                    if(self:isVarRegister(reg)) then
+                        local ro = reg;
+                        reg = self:allocRegister(false);
+                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
+                    end
+                    table.insert(exprregs, reg);
+                end
+            end
+        end
+
+        for i, primaryExpr in ipairs(statement.lhs) do
+            if primaryExpr.kind == AstKind.AssignmentVariable then
+                if primaryExpr.scope.isGlobal then
+                    local tmpReg = self:allocRegister(false);
+                    self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(primaryExpr.scope:getVariableName(primaryExpr.id))), {tmpReg}, {}, false);
+                    self:addStatement(Ast.AssignmentStatement({Ast.AssignmentIndexing(self:env(scope), self:register(scope, tmpReg))},
+                     {self:register(scope, exprregs[i])}), {}, {tmpReg, exprregs[i]}, true);
+                    self:freeRegister(tmpReg, false);
+                else
+                    -- TODO: Support Upvalues
+                   local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, exprregs[i]);
+                   if reg ~= exprregs[i] then
+                       self:addStatement(self:setRegister(scope, reg, self:register(scope, exprregs[i])), {reg}, {exprregs[i]}, false);
+                   end
+                end
+            end
+        end
+
+        return
     end
 
     -- TODO
@@ -717,8 +796,8 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 -- TODO: Implement Upvalues
                 if(expression.scope.isGlobal) then
                     -- Global Variable
-                    regs[i] = self:allocRegister(false, false);
-                    local tmpReg = self:allocRegister(false, false);
+                    regs[i] = self:allocRegister(false);
+                    local tmpReg = self:allocRegister(false);
                     self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.scope:getVariableName(expression.id))), {tmpReg}, {}, false);
                     self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:env(scope), self:register(scope, tmpReg))), {regs[i]}, {tmpReg}, true);
                     self:freeRegister(tmpReg, false);
@@ -739,7 +818,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
         local retRegs  = {};
         for i = 1, numReturns do
-            retRegs[i] = self:allocRegister(false, false);
+            retRegs[i] = self:allocRegister(false);
         end
         local argRegs = {};
 
@@ -748,7 +827,23 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        self:addStatement(self:setRegisters(scope, retRegs, {Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))}), retRegs, {baseReg, unpack(argRegs)}, true);
+        
+
+        if(numReturns > 1) then
+            local tmpReg = self:allocRegister(false);
+
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
+
+            for i, reg in ipairs(retRegs) do
+                self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
+            end
+
+            self:freeRegister(tmpReg, false);
+        else
+            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+        end
+        
+
         self:freeRegister(baseReg, false);
         for i, reg in ipairs(argRegs) do
             self:freeRegister(reg, false);
@@ -757,14 +852,14 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return retRegs;
     end
 
-    -- Pass self Function Call Statement
+    -- Pass self Function Call Expression
     if(expression.kind == AstKind.PassSelfFunctionCallExpression) then
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
         local retRegs  = {};
         for i = 1, numReturns do
-            retRegs[i] = self:allocRegister(false, false);
+            retRegs[i] = self:allocRegister(false);
         end
-        local tmpReg = retRegs[1] or self:allocRegister(false, false);
+        local tmpReg = retRegs[1] or self:allocRegister(false);
         local argRegs = { baseReg };
 
         -- TODO: Function call multi return pass
@@ -851,6 +946,96 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
         end
+        return regs;
+    end
+
+    if(expression.kind == AstKind.OrExpression) then      
+        local posState = self.registers[self.POS_REGISTER];
+        self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
+
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i ~= 1) then
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+
+        local resReg = regs[1];
+        local tmpReg;
+
+        if posState then
+            tmpReg = self:allocRegister(false);
+            self:addStatement(self:copyRegisters(scope, {tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
+        end
+
+        local block1, block2 = self:createBlock(), self:createBlock();
+        local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
+
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block2.id)), Ast.NumberExpression(block1.id))), {self.POS_REGISTER}, {lhsReg}, false);
+        self:addStatement(self:copyRegisters(scope, {resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
+
+        do
+            self:setActiveBlock(block1);
+            local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            self:addStatement(self:copyRegisters(scope, {resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
+            self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
+        end
+
+        self.registers[self.POS_REGISTER] = posState;
+
+        self:setActiveBlock(block2);
+
+        if tmpReg then
+            self:addStatement(self:copyRegisters(scope, {self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
+            self:freeRegister(tmpReg, false);
+        end
+
+        return regs;
+    end
+
+    if(expression.kind == AstKind.AndExpression) then      
+        local posState = self.registers[self.POS_REGISTER];
+        self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
+
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i ~= 1) then
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+
+        local resReg = regs[1];
+        local tmpReg;
+
+        if posState then
+            tmpReg = self:allocRegister(false);
+            self:addStatement(self:copyRegisters(scope, {tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
+        end
+
+        local block1, block2 = self:createBlock(), self:createBlock();
+        local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
+
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block1.id)), Ast.NumberExpression(block2.id))), {self.POS_REGISTER}, {lhsReg}, false);
+        self:addStatement(self:copyRegisters(scope, {resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
+
+        do
+            self:setActiveBlock(block1);
+            local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            self:addStatement(self:copyRegisters(scope, {resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
+            self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
+        end
+
+        self.registers[self.POS_REGISTER] = posState;
+
+        self:setActiveBlock(block2);
+
+        if tmpReg then
+            self:addStatement(self:copyRegisters(scope, {self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
+            self:freeRegister(tmpReg, false);
+        end
+
         return regs;
     end
 

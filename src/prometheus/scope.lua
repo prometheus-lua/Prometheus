@@ -200,9 +200,6 @@ end
 function Scope:addChild(scope)
 	-- This will add all References from that Scope to higher Scopes. Note that the higher scopes may only be global
 	for scope, ids in pairs(scope.variablesFromHigherScopes) do
-		if not scope.isGlobal then
-			logger:error("Tried to Add Child that is referencing a Higher non global variable!");
-		end
 		for id, count in pairs(ids) do
 			if count and count > 0 then
 				self:addReferenceToHigherScope(scope, id, count);
@@ -240,6 +237,9 @@ end
 function Scope:addReferenceToHigherScope(scope, id, n, b)
 	n = n or 1;
 	if self.isGlobal then
+		if not scope.isGlobal then
+			logger:error(string.format("Could not resolve Scope \"%s\"", scope.name))
+		end
 		return
 	end
 	if scope == self then

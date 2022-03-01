@@ -108,7 +108,7 @@ function visitStatement(statement, previsit, postvisit, data)
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;
 	elseif(statement.kind == AstKind.DoStatement) then
-		statement.body = visitBlock(statement.body, previsit, postvisit, data, true);
+		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);
 	elseif(statement.kind == AstKind.WhileStatement) then
 		statement.condition = visitExpression(statement.condition, previsit, postvisit, data);
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);

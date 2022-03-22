@@ -19,6 +19,12 @@ local code = [=[
 	
 ]=];
 
+for _, currArg in pairs(arg) do
+	if currArg == "--Linux" then
+		isWindows = false
+	end
+end
+
 --  Enable/Disable Console Colors - this may be needed because cmd.exe and powershell.exe do not support ANSI Color Escape Sequences. The Windows Terminal Application is needed
 Prometheus.colors.enabled = not noColors;
 
@@ -39,8 +45,10 @@ local function scandir(directory)
     local i, t, popen = 0, {}, io.popen
     local pfile = popen(isWindows and 'dir "'..directory..'" /b' or 'ls -a "'..directory..'"')
     for filename in pfile:lines() do
-        i = i + 1
-        t[i] = filename
+		if string.sub(filename, -4) == ".lua" then
+			i = i + 1
+			t[i] = filename
+		end
     end
     pfile:close()
     return t

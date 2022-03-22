@@ -48,7 +48,7 @@ function Compiler:new()
             AstKind.DivExpression,
             AstKind.ModExpression,
             AstKind.PowExpression,
-        }
+        };
     };
 
     setmetatable(compiler, self);
@@ -260,6 +260,12 @@ function Compiler:emitContainerFuncBody()
         return a.id < b.id;
     end);
 
+    local function buildIfBlock(scope, id, lBlock, rBlock)
+        return Ast.Block({
+            Ast.IfStatement(Ast.LessThanExpression(self:pos(scope), Ast.NumberExpression(id)), lBlock, {}, rBlock);
+        }, scope);
+    end
+
     local function buildWhileBody(tb, l, r, pScope, scope)
         local len = r - l + 1;
         if len == 1 then
@@ -270,14 +276,13 @@ function Compiler:emitContainerFuncBody()
         end
 
         local mid = l + math.ceil(len / 2);
+        local bound = math.random(tb[mid - 1].id, tb[mid].id);
         local ifScope = scope or Scope:new(pScope);
 
         local lBlock = buildWhileBody(tb, l, mid - 1, ifScope);
         local rBlock = buildWhileBody(tb, mid, r, ifScope);
 
-        return Ast.Block({
-            Ast.IfStatement(Ast.LessThanExpression(self:pos(ifScope), Ast.NumberExpression(tb[mid].id)), lBlock, {}, rBlock);
-        }, ifScope);
+        return buildIfBlock(ifScope, bound, lBlock, rBlock)        
     end
 
     local whileBody = buildWhileBody(blocks, 1, #blocks, self.containerFuncScope, self.whileScope);
@@ -506,7 +511,7 @@ end
 
 function Compiler:jmp(scope, to)
     scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
-    return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)},{Ast.NumberExpression(to)});
+    return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)},{to});
 end
 
 function Compiler:setPos(scope, val)
@@ -559,6 +564,10 @@ end
 function Compiler:compileBlock(block, funcDepth)
     for i, stat in ipairs(block.statements) do
         self:compileStatement(stat, funcDepth);
+    end
+
+    for id, name in ipairs(block.scope.variables) do
+        self:freeRegister(self:getVarRegister(block.scope, id, nil), true);
     end
 end
 
@@ -682,6 +691,8 @@ function Compiler:compileStatement(statement, funcDepth)
     -- Assignment Statement
     if(statement.kind == AstKind.AssignmentStatement) then
         local exprregs = {};
+        local assignments = {};
+
         for i, expr in ipairs(statement.rhs) do
             if(i == #statement.rhs and #statement.lhs > #statement.rhs) then
                 local regs = self:compileExpression(expr, funcDepth, #statement.lhs - #statement.expressions + 1);
@@ -726,6 +737,186 @@ function Compiler:compileStatement(statement, funcDepth)
         end
 
         return
+    end
+
+    -- If Statement
+    if(statement.kind == AstKind.IfStatement) then
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
+        local finalBlock = self:createBlock();
+
+        local nextBlock
+        if statement.elsebody or #statement.elseifs > 0 then
+            nextBlock = self:createBlock();
+        else
+            nextBlock = finalBlock;
+        end
+        local innerBlock = self:createBlock();
+
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(nextBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
+        
+        self:freeRegister(conditionReg, false);
+
+        self:setActiveBlock(innerBlock);
+        self:compileBlock(statement.body, funcDepth);
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
+
+        for i, eif in ipairs(statement.elseifs) do
+            self:setActiveBlock(nextBlock);
+            conditionReg = self:compileExpression(eif.condition, funcDepth, 1)[1];
+
+            
+
+            self:setActiveBlock(nextBlock);
+            local innerBlock = self:createBlock();
+            if statement.elsebody or i < #statement.elseifs then
+                nextBlock = self:createBlock();
+            else
+                nextBlock = finalBlock;
+            end
+
+            self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(nextBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
+        
+            self:freeRegister(conditionReg, false);
+
+            self:setActiveBlock(innerBlock);
+            self:compileBlock(eif.body, funcDepth);
+            self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
+        end
+
+        if statement.elsebody then
+            self:setActiveBlock(nextBlock);
+            self:compileBlock(statement.elsebody, funcDepth);
+            self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
+        end
+
+        self:setActiveBlock(finalBlock);
+
+        return;
+    end
+
+    -- Do Statement
+    if(statement.kind == AstKind.DoStatement) then
+        self:compileBlock(statement.body, funcDepth);
+        return;
+    end
+
+    -- While Statement
+    if(statement.kind == AstKind.WhileStatement) then
+        local innerBlock = self:createBlock();
+        local finalBlock = self:createBlock();
+
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(finalBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
+        self:freeRegister(conditionReg, false);
+
+        self:setActiveBlock(innerBlock);
+        self:compileBlock(statement.body, funcDepth);
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(finalBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
+        self:freeRegister(conditionReg, false);
+
+        self:setActiveBlock(finalBlock);
+
+        return;
+    end
+
+    -- Repeat Statement
+    if(statement.kind == AstKind.RepeatStatement) then
+        local innerBlock = self:createBlock();
+        local finalBlock = self:createBlock();
+
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(innerBlock.id)), {self.POS_REGISTER}, {}, false);
+        self:freeRegister(conditionReg, false);
+
+        self:setActiveBlock(innerBlock);
+        self:compileBlock(statement.body, funcDepth);
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(finalBlock.id)), Ast.NumberExpression(innerBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
+        self:freeRegister(conditionReg, false);
+
+        self:setActiveBlock(finalBlock);
+
+        return;
+    end
+
+    -- For Statement
+    if(statement.kind == AstKind.ForStatement) then
+        local checkBlock = self:createBlock();
+        local innerBlock = self:createBlock();
+        local finalBlock = self:createBlock();
+
+        local posState = self.registers[self.POS_REGISTER];
+        self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
+
+        local initialReg = self:compileExpression(statement.initialValue, funcDepth, 1)[1];
+
+        local finalExprReg = self:compileExpression(statement.finalValue, funcDepth, 1)[1];
+        local finalReg = self:allocRegister(false);
+        self:addStatement(self:copyRegisters(scope, {finalReg}, {finalExprReg}), {finalReg}, {finalExprReg}, false);
+        self:freeRegister(finalExprReg);
+
+        local incrementExprReg = self:compileExpression(statement.incrementBy, funcDepth, 1)[1];
+        local incrementReg = self:allocRegister(false);
+        self:addStatement(self:copyRegisters(scope, {incrementReg}, {incrementExprReg}), {incrementReg}, {incrementExprReg}, false);
+        self:freeRegister(incrementExprReg);
+
+        local tmpReg = self:allocRegister(false);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.NumberExpression(0)), {tmpReg}, {}, false);
+        local incrementIsNegReg = self:allocRegister(false);
+        self:addStatement(self:setRegister(scope, incrementIsNegReg, Ast.LessThanExpression(self:register(scope, incrementReg), self:register(scope, tmpReg))), {incrementIsNegReg}, {incrementReg, tmpReg}, false);     
+        self:freeRegister(tmpReg);
+
+        local currentReg = self:allocRegister(true);
+        self:addStatement(self:setRegister(scope, currentReg, Ast.SubExpression(self:register(scope, initialReg), self:register(scope, incrementReg))), {currentReg}, {initialReg, incrementReg}, false);
+        self:freeRegister(initialReg);
+
+        self:addStatement(self:jmp(scope, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
+
+        self:setActiveBlock(checkBlock);
+
+        scope = checkBlock.scope;
+        self:addStatement(self:setRegister(scope, currentReg, Ast.AddExpression(self:register(scope, currentReg), self:register(scope, incrementReg))), {currentReg}, {currentReg, incrementReg}, false);
+        local tmpReg1 = self:allocRegister(false);
+        local tmpReg2 = self:allocRegister(false);
+        self:addStatement(self:setRegister(scope, tmpReg2, Ast.NotExpression(self:register(scope, incrementIsNegReg))), {tmpReg2}, {incrementIsNegReg}, false);
+        self:addStatement(self:setRegister(scope, tmpReg1, Ast.LessThanOrEqualsExpression(self:register(scope, currentReg), self:register(scope, finalReg))), {tmpReg1}, {currentReg, finalReg}, false);
+        self:addStatement(self:setRegister(scope, tmpReg1, Ast.AndExpression(self:register(scope, tmpReg2), self:register(scope, tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
+        self:addStatement(self:setRegister(scope, tmpReg2, Ast.GreaterThanOrEqualsExpression(self:register(scope, currentReg), self:register(scope, finalReg))), {tmpReg2}, {currentReg, finalReg}, false);
+        self:addStatement(self:setRegister(scope, tmpReg2, Ast.AndExpression(self:register(scope, incrementIsNegReg), self:register(scope, tmpReg2))), {tmpReg2}, {tmpReg2, incrementIsNegReg}, false);
+        self:addStatement(self:setRegister(scope, tmpReg1, Ast.OrExpression(self:register(scope, tmpReg2), self:register(scope, tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
+        self:freeRegister(tmpReg2);
+        tmpReg2 = self:compileExpression(Ast.NumberExpression(innerBlock.id), funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.AndExpression(self:register(scope, tmpReg1), self:register(scope, tmpReg2))), {self.POS_REGISTER}, {tmpReg1, tmpReg2}, false);
+        self:freeRegister(tmpReg2);
+        self:freeRegister(tmpReg1);
+        tmpReg2 = self:compileExpression(Ast.NumberExpression(finalBlock.id), funcDepth, 1)[1];
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(self:register(scope, self.POS_REGISTER), self:register(scope, tmpReg2))), {self.POS_REGISTER}, {self.POS_REGISTER, tmpReg2}, false);
+        self:freeRegister(tmpReg2);
+
+        self:setActiveBlock(innerBlock);
+        self.registers[self.POS_REGISTER] = posState;
+
+        local varReg = self:getVarRegister(statement.scope, statement.id, nil);
+        self:addStatement(self:setRegister(scope, varReg, self:register(scope, currentReg)), {varReg}, {currentReg}, false);
+        self:compileBlock(statement.body, funcDepth);
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
+        
+        self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
+        self:freeRegister(finalReg);
+        self:freeRegister(incrementIsNegReg);
+        self:freeRegister(incrementReg);
+        self:freeRegister(currentReg, true);
+
+        self.registers[self.POS_REGISTER] = posState;
+        self:setActiveBlock(finalBlock);
+
+        return;
+    end
+
+    -- Do Statement
+    if(statement.kind == AstKind.DoStatement) then
+        self:compileBlock(statement.body, funcDepth);
     end
 
     -- TODO
@@ -859,18 +1050,35 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         for i = 1, numReturns do
             retRegs[i] = self:allocRegister(false);
         end
-        local tmpReg = retRegs[1] or self:allocRegister(false);
+
         local argRegs = { baseReg };
 
-        -- TODO: Function call multi return pass
         for i, expr in ipairs(expression.args) do
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
+        if(numReturns > 1) then
+            local tmpReg = self:allocRegister(false);
 
-        self:addStatement(self:setRegisters(scope, retRegs, {Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))}), retRegs, {tmpReg, unpack(argRegs)}, true)
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
+
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
+
+            for i, reg in ipairs(retRegs) do
+                self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
+            end
+
+            self:freeRegister(tmpReg, false);
+        else
+            local tmpReg = retRegs[1] or self:allocRegister(false);
+
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
+
+            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+        end
+
         self:freeRegister(baseReg, false);
         for i, reg in ipairs(argRegs) do
             self:freeRegister(reg, false);
@@ -888,7 +1096,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
                 local indexReg = self:compileExpression(expression.index, funcDepth, 1)[1];
 
-                self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg}, false);
+                self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg}, true);
                 self:freeRegister(baseReg, false);
                 self:freeRegister(indexReg, false)
             else
@@ -907,7 +1115,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
                 local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
 
-                self:addStatement(self:setRegister(scope, regs[i], Ast[expression.kind](self:register(scope, lhsReg), self:register(scope, rhsReg))), {regs[i]}, {lhsReg, rhsReg}, false);
+                self:addStatement(self:setRegister(scope, regs[i], Ast[expression.kind](self:register(scope, lhsReg), self:register(scope, rhsReg))), {regs[i]}, {lhsReg, rhsReg}, true);
                 self:freeRegister(rhsReg, false);
                 self:freeRegister(lhsReg, false)
             else
@@ -940,7 +1148,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             if(i == 1) then
                 local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
 
-                self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, false);
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, true);
                 self:freeRegister(rhsReg, false)
             else
                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);

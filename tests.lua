@@ -13,6 +13,7 @@ local Prometheus = require("src.prometheus")
 local noColors    = false; -- Wether Colors in the Console output should be enabled
 local noHighlight = false; -- Disable Syntax Highlighting of Outputed Code
 local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
+local ciMode = false; 	   -- Wether the Test error are ignored or not
 
 -- The Code to Obfuscate
 local code = [=[
@@ -22,6 +23,9 @@ local code = [=[
 for _, currArg in pairs(arg) do
 	if currArg == "--Linux" then
 		isWindows = false
+	end
+	if currArg == "--CI" then
+		ciMode = true
 	end
 end
 
@@ -122,6 +126,9 @@ for i, filename in ipairs(scandir(testdir)) do
 			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. ") " .. step.Name);
 			print("[OUTA]    ",    outa);
 			print("[OUTB]    ", outb);
+			if ciMode then
+				error("Test Failed!")
+			end
 			fc = fc + 1;
 		end
 	end

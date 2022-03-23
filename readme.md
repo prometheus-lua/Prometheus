@@ -53,6 +53,7 @@ lua ./cli.lua [options]
 ### Contributors
 - [levno-710](https://github.com/levno-710)
 - [brandonsturgeon](https://github.com/brandonsturgeon)
+- [pnlmon](https://github.com/pnlmon)
 ### Libraries Used
 - [lua-bit-numberlua](https://github.com/davidm/lua-bit-numberlua)
 ## License

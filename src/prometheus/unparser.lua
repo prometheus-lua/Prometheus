@@ -423,7 +423,11 @@ function Unparser:unparseExpression(expression, tabbing)
 	end
 	
 	if(expression.kind == AstKind.NumberExpression) then
-		return tostring(expression.value);
+		local str = tostring(expression.value);
+		if(str:sub(1, 2) == "0.") then
+			str = str:sub(2);
+		end
+		return str;
 	end
 	
 	if(expression.kind == AstKind.VariableExpression or expression.kind == AstKind.AssignmentVariable) then

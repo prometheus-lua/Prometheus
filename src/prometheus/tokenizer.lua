@@ -281,7 +281,7 @@ end
 -- Lex the next token as a Number
 function Tokenizer:number()
 	local startPos = self.index;
-	local source   = expect(self, self.NumberCharsLookup);
+	local source   = expect(self, setmetatable({["."] = true}, {__index = self.NumberCharsLookup}));
 	
 	if source == "0" then
 		if self.BinaryNums and is(self, lookupify(self.BinaryNums)) then
@@ -299,10 +299,13 @@ function Tokenizer:number()
 		end
 	end
 	
-	source = source .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
-	
-	if(is(self, ".")) then
-		source = source .. get(self) .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
+	if source == "." then
+		source = source .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
+	else
+		source = source .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
+		if(is(self, ".")) then
+			source = source .. get(self) .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
+		end
 	end
 	
 	if(self.DecimalExponent and is(self, lookupify(self.DecimalExponent))) then
@@ -532,6 +535,11 @@ function Tokenizer:next()
 		if isString then
 			return value;
 		end
+	end
+
+	-- Number starting with dot
+	if(is(self, ".") and is(self, self.NumberCharsLookup, 1)) then
+		return self:number();
 	end
 	
 	-- Symbols

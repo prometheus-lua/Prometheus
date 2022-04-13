@@ -83,7 +83,7 @@ while i <= #arg do
         elseif curr == "--nocolors" then
             Prometheus.colors.enabled = false;
         else
-            Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored"));
+            Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored", curr));
         end
     else
         if sourceFile then

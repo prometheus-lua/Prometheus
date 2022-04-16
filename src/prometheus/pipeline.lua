@@ -231,7 +231,7 @@ function Pipeline:renameVariables(ast)
 		generatorFunction = generatorFunction.generateName;
 	end
 	
-	if not self.unparser:isValidIdentifier(self.VarNamePrefix) then
+	if not self.unparser:isValidIdentifier(self.VarNamePrefix) and #self.VarNamePrefix ~= 0 then
 		logger:error(string.format("The Prefix \"%s\" is not a valid Identifier in %s", self.VarNamePrefix, self.LuaVersion));
 	end
 

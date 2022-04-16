@@ -47,7 +47,7 @@ local N={"Hello, World!"}local function k(k)return N[k+40058]end print(k(-40057)
 ```
 {% endcode %}
 
-As you can see, the only transformation that was applied to our Hello World example was putting all strings (in this case only `"Hello, World!"` into an array and creating a wrapper function for retrieving the value.
+As you can see, the only transformation that was applied to our Hello World example was putting all strings (in this case only `"Hello, World!"` ) into an array and creating a wrapper function for retrieving the value.
 
 ### How does the Config File work?
 

@@ -58,7 +58,7 @@ function Unparser:isValidIdentifier(source)
 	if(string.find(source, self.numberPattern)) then
 		return false;
 	end
-	return true;
+	return #source > 0;
 end
 
 function Unparser:setPrettyPrint(prettyPrint)

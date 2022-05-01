@@ -252,7 +252,7 @@ end
 
 
 local function readonly(obj)
-	local r = newproxy(true);
+	local r = newproxy and newproxy(true) or setmetatable({}, {});
 	getmetatable(r).__index = obj;
 	return r;
 end

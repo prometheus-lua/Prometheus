@@ -603,18 +603,18 @@ function Parser:expressionStrCat(scope)
 end
 
 function Parser:expressionAddSub(scope)
-	local curr = self:expressionMulDiv(scope);
+	local curr = self:expressionMulDivMod(scope);
 
 	repeat
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "+")) then
-			local rhs = self:expressionMulDiv(scope);
+			local rhs = self:expressionMulDivMod(scope);
 			curr = Ast.AddExpression(curr, rhs, true);
 			found = true;
 		end
 		
 		if(consume(self, TokenKind.Symbol, "-")) then
-			local rhs = self:expressionMulDiv(scope);
+			local rhs = self:expressionMulDivMod(scope);
 			curr = Ast.SubExpression(curr, rhs, true);
 			found = true;
 		end
@@ -624,39 +624,30 @@ function Parser:expressionAddSub(scope)
 	return curr;
 end
 
-function Parser:expressionMulDiv(scope)
-	local curr = self:expressionMod(scope);
+function Parser:expressionMulDivMod(scope)
+	local curr = self:expressionUnary(scope);
 
 	repeat
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "*")) then
-			local rhs = self:expressionMod(scope);
+			local rhs = self:expressionUnary(scope);
 			curr = Ast.MulExpression(curr, rhs, true);
 			found = true;
 		end
 	
 		if(consume(self, TokenKind.Symbol, "/")) then
-			local rhs = self:expressionMod(scope);
+			local rhs = self:expressionUnary(scope);
 			curr = Ast.DivExpression(curr, rhs, true);
 			found = true;
 		end
-	until not found;
 
-	return curr;
-end
-
-function Parser:expressionMod(scope)
-	local curr = self:expressionUnary(scope);
-	
-	repeat
-		local found = false;
 		if(consume(self, TokenKind.Symbol, "%")) then
 			local rhs = self:expressionUnary(scope);
 			curr = Ast.ModExpression(curr, rhs, true);
 			found = true;
 		end
 	until not found;
-	
+
 	return curr;
 end
 

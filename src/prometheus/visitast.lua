@@ -16,7 +16,9 @@ function visitAst(ast, previsit, postvisit, data)
 	data = data or {};
 	data.scopeStack = {};
 	data.functionData = {
+		depth = 0;
 		scope = ast.body.scope;
+		node = ast;
 	};
 	data.scope = ast.globalScope;
 	data.globalScope = ast.globalScope;
@@ -103,7 +105,9 @@ function visitStatement(statement, previsit, postvisit, data)
 	elseif(statement.kind == AstKind.FunctionDeclaration or statement.kind == AstKind.LocalFunctionDeclaration) then
 		local parentFunctionData = data.functionData;
 		data.functionData = {
+			depth = parentFunctionData.depth + 1;
 			scope = statement.body.scope;
+			node = statement;
 		};
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;
@@ -197,7 +201,9 @@ function visitExpression(expression, previsit, postvisit, data)
 	if(expression.kind == AstKind.FunctionLiteralExpression) then
 		local parentFunctionData = data.functionData;
 		data.functionData = {
+			depth = parentFunctionData.depth + 1;
 			scope = expression.body.scope;
+			node = expression;
 		};
 		expression.body = visitBlock(expression.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;

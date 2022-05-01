@@ -85,7 +85,7 @@ function Scope:addVariable(name, token)
 			logger:error(string.format("A variable with the name \"%s\" was already defined, you should have no variables starting with \"%s\"", name, config.IdentPrefix));
 		end
 		
-		return self.variablesLookup[name];
+		--return self.variablesLookup[name];
 	end
 	
 	table.insert(self.variables, name);
@@ -112,7 +112,7 @@ function Scope:addDisabledVariable(name, token)
 			logger:warn(string.format("a variable with the name \"%s\" was already defined", name));
 		end
 		
-		return self.variablesLookup[name];
+		--return self.variablesLookup[name];
 	end
 	
 	table.insert(self.variables, name);

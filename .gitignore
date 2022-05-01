@@ -10,3 +10,7 @@ buildnotes.txt
 srlua.exe
 glue.exe
 build
+
+# Ignore Local Test Files
+test.lua
+test.obfuscated.lua

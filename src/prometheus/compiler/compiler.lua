@@ -12,6 +12,7 @@ local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
 local logger = require("logger");
 local util = require("prometheus.util");
+local visitast = require("prometheus.visitast")
 
 local lookupify = util.lookupify;
 local AstKind = Ast.AstKind;
@@ -33,6 +34,7 @@ function Compiler:new()
         RETURN_ALL = newproxy(false); 
         POS_REGISTER = newproxy(false);
         RETURN_REGISTER = newproxy(false);
+        UPVALUE = newproxy(false);
 
         BIN_OPS = lookupify{
             AstKind.LessThanExpression,
@@ -81,12 +83,14 @@ function Compiler:setActiveBlock(block)
 end
 
 function Compiler:addStatement(statement, writes, reads, usesUpvals)
-    table.insert(self.activeBlock.statements, {
-        statement = statement,
-        writes = lookupify(writes),
-        reads = lookupify(reads),
-        usesUpvals = usesUpvals or false,
-    });
+    if(self.activeBlock.advanceToNextBlock) then  
+        table.insert(self.activeBlock.statements, {
+            statement = statement,
+            writes = lookupify(writes),
+            reads = lookupify(reads),
+            usesUpvals = usesUpvals or false,
+        });
+    end
 end
 
 function Compiler:compile(ast)
@@ -94,11 +98,16 @@ function Compiler:compile(ast)
     self.registers = {};
     self.activeBlock = nil;
     self.registersForVar = {};
+    self.scopeFunctionDepths = {};
     self.maxUsedRegister = 0;
     self.usedRegisters = 0;
     self.registerVars = {};
     self.usedBlockIds = {};
 
+    self.upvalVars = {};
+    self.registerUsageStack = {};
+
+    self.upvalsProxyLenReturn = math.random(-2^22, 2^22);
 
     local newGlobalScope = Scope:newGlobal();
     local psc = Scope:new(newGlobalScope, nil);
@@ -106,53 +115,108 @@ function Compiler:compile(ast)
     local _, getfenvVar = newGlobalScope:resolve("getfenv");
     local _, tableVar  = newGlobalScope:resolve("table");
     local _, unpackVar = newGlobalScope:resolve("unpack");
+    local _, envVar = newGlobalScope:resolve("_ENV");
+    local _, newproxyVar = newGlobalScope:resolve("newproxy");
+    local _, setmetatableVar = newGlobalScope:resolve("setmetatable");
+    local _, getmetatableVar = newGlobalScope:resolve("getmetatable");
+
+    psc:addReferenceToHigherScope(newGlobalScope, getfenvVar, 2);
+    psc:addReferenceToHigherScope(newGlobalScope, tableVar);
+    psc:addReferenceToHigherScope(newGlobalScope, unpackVar);
+    psc:addReferenceToHigherScope(newGlobalScope, envVar);
+    psc:addReferenceToHigherScope(newGlobalScope, newproxyVar);
+    psc:addReferenceToHigherScope(newGlobalScope, setmetatableVar);
+    psc:addReferenceToHigherScope(newGlobalScope, getmetatableVar);
 
     self.scope = Scope:new(psc);
     self.envVar = self.scope:addVariable();
     self.containerFuncVar = self.scope:addVariable();
     self.unpackVar = self.scope:addVariable();
+    self.newproxyVar = self.scope:addVariable();
+    self.setmetatableVar = self.scope:addVariable();
+    self.getmetatableVar = self.scope:addVariable();
 
     self.containerFuncScope = Scope:new(self.scope);
     self.whileScope = Scope:new(self.containerFuncScope);
 
     self.posVar = self.containerFuncScope:addVariable();
     self.argsVar = self.containerFuncScope:addVariable();
-    self.regsVar = self.containerFuncScope:addVariable();
+    self.currentUpvaluesVar = self.containerFuncScope:addVariable();
+    self.detectGcCollectVar = self.containerFuncScope:addVariable();
     self.returnVar  = self.containerFuncScope:addVariable();
+
+    -- Upvalues Handling
+    self.upvaluesTable = self.scope:addVariable();
+    self.upvaluesReferenceCountsTable = self.scope:addVariable();
+    self.allocUpvalFunction = self.scope:addVariable();
+    self.currentUpvalId = self.scope:addVariable();
+
+    -- Gc Handling for Upvalues
+    self.upvaluesProxyFunctionVar = self.scope:addVariable();
+    self.upvaluesGcFunctionVar = self.scope:addVariable();
+    self.freeUpvalueFunc = self.scope:addVariable();
 
     
     self.createClosureVar = self.scope:addVariable();
     local createClosureScope = Scope:new(self.scope);
     local createClosurePosArg = createClosureScope:addVariable();
+    local createClosureUpvalsArg = createClosureScope:addVariable();
+    local createClosureProxyObject = createClosureScope:addVariable();
 
-    local createClosureSubScope =Scope:new(createClosureScope);
+    local createClosureSubScope = Scope:new(createClosureScope);
+
+    local upvalEntries = {};
+    local upvalueIds   = {};
+    self.getUpvalueId = function(self, scope, id)
+        local expression;
+        local scopeFuncDepth = self.scopeFunctionDepths[scope];
+        if(scopeFuncDepth == 0) then
+            if upvalueIds[id] then
+                return upvalueIds[id];
+            end
+            expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {});
+        else
+            logger:error("Unresolved Upvalue, this error should not occur!");
+        end
+        table.insert(upvalEntries, Ast.TableEntry(expression));
+        local uid = #upvalEntries;
+        upvalueIds[id] = uid;
+        return uid;
+    end
 
     -- Invoke Compiler
     self:compileTopNode(ast);
 
     -- Reference to Higher Scopes
-    createClosureScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
+    createClosureSubScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
     createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosurePosArg)
+    createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureUpvalsArg, 1)
+    createClosureScope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
+    createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureProxyObject);
 
-    -- Emit Code
-    local functionNode = Ast.FunctionLiteralExpression({
-        Ast.VariableExpression(self.scope, self.envVar),
-        Ast.VariableExpression(self.scope, self.unpackVar),
-        Ast.VariableExpression(self.scope, self.containerFuncVar),
-        Ast.VariableExpression(self.scope, self.createClosureVar),
-    }, Ast.Block({
-        Ast.AssignmentStatement({
-            Ast.AssignmentVariable(self.scope, self.containerFuncVar),
-            Ast.AssignmentVariable(self.scope, self.createClosureVar)
-        }, {
-            Ast.FunctionLiteralExpression({
+    local functionNodeAssignments = {
+        {
+            var = Ast.AssignmentVariable(self.scope, self.containerFuncVar),
+            val = Ast.FunctionLiteralExpression({
                 Ast.VariableExpression(self.containerFuncScope, self.posVar),
                 Ast.VariableExpression(self.containerFuncScope, self.argsVar),
-                Ast.VariableExpression(self.containerFuncScope, self.regsVar)
+                Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar),
+                Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar)
             }, self:emitContainerFuncBody());
-
-            Ast.FunctionLiteralExpression({Ast.VariableExpression(createClosureScope, createClosurePosArg)},
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.createClosureVar),
+            val = Ast.FunctionLiteralExpression({
+                    Ast.VariableExpression(createClosureScope, createClosurePosArg),
+                    Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
+                },
                 Ast.Block({
+                    Ast.LocalVariableDeclaration(createClosureScope, {
+                        createClosureProxyObject
+                    }, {
+                        Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar), {
+                            Ast.VariableExpression(createClosureScope, createClosureUpvalsArg)
+                        })
+                    }),
                     Ast.ReturnStatement{
                         Ast.FunctionLiteralExpression({
                             Ast.VarargExpression();
@@ -161,31 +225,268 @@ function Compiler:compile(ast)
                             Ast.ReturnStatement{
                                 Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.containerFuncVar), {
                                     Ast.VariableExpression(createClosureScope, createClosurePosArg),
-                                    Ast.TableConstructorExpression({Ast.TableEntry(Ast.VarargExpression())});
-                                    Ast.TableConstructorExpression({}); -- Registers
+                                    Ast.TableConstructorExpression({Ast.TableEntry(Ast.VarargExpression())}),
+                                    Ast.VariableExpression(createClosureScope, createClosureUpvalsArg), -- Upvalues
+                                    Ast.VariableExpression(createClosureScope, createClosureProxyObject)
                                 })
                             }
                         }, createClosureSubScope)
                         );
                     }
-                }, self.containerFuncScope)
+                }, createClosureScope)
             );
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.upvaluesTable),
+            val = Ast.TableConstructorExpression({}),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.upvaluesReferenceCountsTable),
+            val = Ast.TableConstructorExpression({}),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.allocUpvalFunction),
+            val = self:createAllocUpvalFunction(),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.currentUpvalId),
+            val = Ast.NumberExpression(0),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.upvaluesProxyFunctionVar),
+            val = self:createUpvaluesProxyFunc(),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.upvaluesGcFunctionVar),
+            val = self:createUpvaluesGcFunc(),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.freeUpvalueFunc),
+            val = self:createFreeUpvalueFunc(),
+        }
+    }
 
-        });
+    util.shuffle(functionNodeAssignments);
+    local assignmentStatLhs, assignmentStatRhs = {}, {};
+    for i, v in ipairs(functionNodeAssignments) do
+        assignmentStatLhs[i] = v.var;
+        assignmentStatRhs[i] = v.val;
+    end
 
+    -- Emit Code
+    local functionNode = Ast.FunctionLiteralExpression({
+        Ast.VariableExpression(self.scope, self.envVar),
+        Ast.VariableExpression(self.scope, self.unpackVar),
+        Ast.VariableExpression(self.scope, self.newproxyVar),
+        Ast.VariableExpression(self.scope, self.setmetatableVar),
+        Ast.VariableExpression(self.scope, self.getmetatableVar),
+        unpack(util.shuffle({
+            Ast.VariableExpression(self.scope, self.containerFuncVar),
+            Ast.VariableExpression(self.scope, self.createClosureVar),
+            Ast.VariableExpression(self.scope, self.upvaluesTable),
+            Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable),
+            Ast.VariableExpression(self.scope, self.allocUpvalFunction),
+            Ast.VariableExpression(self.scope, self.currentUpvalId),
+            Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar),
+            Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
+            Ast.VariableExpression(self.scope, self.freeUpvalueFunc)
+        }))
+    }, Ast.Block({
+        Ast.AssignmentStatement(assignmentStatLhs, assignmentStatRhs);
         Ast.ReturnStatement{
             Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createClosureVar), {
                     Ast.NumberExpression(self.startBlockId);
+                    Ast.TableConstructorExpression(upvalEntries);
                 }), {});
         }
     }, self.scope));
 
     return Ast.TopNode(Ast.Block({
         Ast.ReturnStatement{Ast.FunctionCallExpression(functionNode, {
-            Ast.FunctionCallExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), {});
+            Ast.OrExpression(Ast.AndExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), Ast.FunctionCallExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), {})), Ast.VariableExpression(newGlobalScope, envVar));
             Ast.OrExpression(Ast.VariableExpression(newGlobalScope, unpackVar), Ast.IndexExpression(Ast.VariableExpression(newGlobalScope, tableVar), Ast.StringExpression("unpack")));
+            Ast.VariableExpression(newGlobalScope, newproxyVar);
+            Ast.VariableExpression(newGlobalScope, setmetatableVar);
+            Ast.VariableExpression(newGlobalScope, getmetatableVar);
         })};
     }, psc), newGlobalScope);
+end
+
+function Compiler:pushRegisterUsageInfo()
+    table.insert(self.registerUsageStack, {
+        usedRegisters = self.usedRegisters;
+        registers = self.registers;
+    });
+    self.usedRegisters = 0;
+    self.registers = {};
+end
+
+function Compiler:popRegisterUsageInfo()
+    local info = table.remove(self.registerUsageStack);
+    self.usedRegisters = info.usedRegisters;
+    self.registers = info.registers;
+end
+
+function Compiler:createUpvaluesGcFunc()
+    local scope = Scope:new(self.scope);
+    local selfVar = scope:addVariable();
+
+    local iteratorVar = scope:addVariable();
+    local valueVar = scope:addVariable();
+
+    local whileScope = Scope:new(scope);
+    whileScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 3);
+    whileScope:addReferenceToHigherScope(scope, valueVar, 3);
+    whileScope:addReferenceToHigherScope(scope, iteratorVar, 3);
+
+    local ifScope = Scope:new(whileScope);
+    ifScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 1);
+    ifScope:addReferenceToHigherScope(self.scope, self.upvaluesTable, 1);
+    
+
+    return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, selfVar)}, Ast.Block({
+        Ast.LocalVariableDeclaration(scope, {iteratorVar, valueVar}, {Ast.NumberExpression(1), Ast.IndexExpression(Ast.VariableExpression(scope, selfVar), Ast.NumberExpression(1))}),
+        Ast.WhileStatement(Ast.Block({
+            Ast.AssignmentStatement({
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)),
+                Ast.AssignmentVariable(scope, iteratorVar),
+            }, {
+                Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)), Ast.NumberExpression(1)),
+                Ast.AddExpression(unpack(util.shuffle{Ast.VariableExpression(scope, iteratorVar), Ast.NumberExpression(1)})),
+            }),
+            Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)), Ast.NumberExpression(0)})), Ast.Block({
+                Ast.AssignmentStatement({
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), Ast.VariableExpression(scope, valueVar)),
+                }, {
+                    Ast.NilExpression(),
+                    Ast.NilExpression(),
+                })
+            }, ifScope), {}, nil),
+            Ast.AssignmentStatement({
+                Ast.AssignmentVariable(scope, valueVar),
+            }, {
+                Ast.IndexExpression(Ast.VariableExpression(scope, selfVar), Ast.VariableExpression(scope, iteratorVar)),
+            }),
+        }, whileScope), Ast.VariableExpression(scope, valueVar), scope);
+    }, scope));
+end
+
+function Compiler:createFreeUpvalueFunc()
+    local scope = Scope:new(self.scope);
+    local argVar = scope:addVariable();
+    local ifScope = Scope:new(scope);
+    ifScope:addReferenceToHigherScope(scope, argVar, 3);
+    scope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 2);
+    return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, argVar)}, Ast.Block({
+        Ast.AssignmentStatement({
+            Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar))
+        }, {
+            Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)), Ast.NumberExpression(1));
+        }),
+        Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)), Ast.NumberExpression(0)})), Ast.Block({
+            Ast.AssignmentStatement({
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)),
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), Ast.VariableExpression(scope, argVar)),
+            }, {
+                Ast.NilExpression(),
+                Ast.NilExpression(),
+            })
+        }, ifScope), {}, nil)
+    }, scope))
+end
+
+function Compiler:createUpvaluesProxyFunc()
+    local scope = Scope:new(self.scope);
+    scope:addReferenceToHigherScope(self.scope, self.newproxyVar);
+
+    local entriesVar = scope:addVariable();
+
+    local ifScope = Scope:new(scope);
+    local proxyVar = ifScope:addVariable();
+    local metatableVar = ifScope:addVariable();
+    local elseScope = Scope:new(scope);
+    ifScope:addReferenceToHigherScope(self.scope, self.newproxyVar);
+    ifScope:addReferenceToHigherScope(self.scope, self.getmetatableVar);
+    ifScope:addReferenceToHigherScope(self.scope, self.upvaluesGcFunctionVar);
+    ifScope:addReferenceToHigherScope(scope, entriesVar);
+    elseScope:addReferenceToHigherScope(self.scope, self.setmetatableVar);
+    elseScope:addReferenceToHigherScope(scope, entriesVar);
+    elseScope:addReferenceToHigherScope(self.scope, self.upvaluesGcFunctionVar);
+
+    local forScope = Scope:new(scope);
+    local forArg = forScope:addVariable();
+    forScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 2);
+    forScope:addReferenceToHigherScope(scope, entriesVar, 2);
+
+    return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, entriesVar)}, Ast.Block({
+        Ast.ForStatement(forScope, forArg, Ast.NumberExpression(1), Ast.LenExpression(Ast.VariableExpression(scope, entriesVar)), Ast.NumberExpression(1), Ast.Block({
+            Ast.AssignmentStatement({
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(scope, entriesVar), Ast.VariableExpression(forScope, forArg)))
+            }, {
+                Ast.AddExpression(unpack(util.shuffle{
+                    Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(scope, entriesVar), Ast.VariableExpression(forScope, forArg))),
+                    Ast.NumberExpression(1),
+                }))
+            })
+        }, forScope), scope);
+        Ast.IfStatement(Ast.VariableExpression(self.scope, self.newproxyVar), Ast.Block({
+            Ast.LocalVariableDeclaration(ifScope, {proxyVar}, {
+                Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.newproxyVar), {
+                    Ast.BooleanExpression(true)
+                });
+            });
+            Ast.LocalVariableDeclaration(ifScope, {metatableVar}, {
+                Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.getmetatableVar), {
+                    Ast.VariableExpression(ifScope, proxyVar);
+                });
+            });
+            Ast.AssignmentStatement({
+                Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__index")),
+                Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__gc")),
+                Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__len")),
+            }, {
+                Ast.VariableExpression(scope, entriesVar),
+                Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
+                Ast.FunctionLiteralExpression({}, Ast.Block({
+                    Ast.ReturnStatement({Ast.NumberExpression(self.upvalsProxyLenReturn)})
+                }, Scope:new(ifScope)));
+            });
+            Ast.ReturnStatement({
+                Ast.VariableExpression(ifScope, proxyVar)
+            })
+        }, ifScope), {}, Ast.Block({
+            Ast.ReturnStatement({Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.setmetatableVar), {
+                Ast.TableConstructorExpression({}),
+                Ast.TableConstructorExpression({
+                    Ast.KeyedTableEntry(Ast.StringExpression("__gc"), Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar)),
+                    Ast.KeyedTableEntry(Ast.StringExpression("__index"), Ast.VariableExpression(scope, entriesVar)),
+                    Ast.KeyedTableEntry(Ast.StringExpression("__len"), Ast.FunctionLiteralExpression({}, Ast.Block({
+                        Ast.ReturnStatement({Ast.NumberExpression(self.upvalsProxyLenReturn)})
+                    }, Scope:new(ifScope)))),
+                })
+            })})
+        }, elseScope));
+    }, scope));
+end
+
+function Compiler:createAllocUpvalFunction()
+    local scope = Scope:new(self.scope);
+    scope:addReferenceToHigherScope(self.scope, self.currentUpvalId, 4);
+    scope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 1);
+
+    return Ast.FunctionLiteralExpression({}, Ast.Block({
+        Ast.AssignmentStatement({
+                Ast.AssignmentVariable(self.scope, self.currentUpvalId),
+            },{
+                Ast.AddExpression(unpack(util.shuffle({
+                    Ast.VariableExpression(self.scope, self.currentUpvalId),
+                    Ast.NumberExpression(1),
+                }))),
+            }
+        ),
+        Ast.AssignmentStatement({
+            Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(self.scope, self.currentUpvalId)),
+        }, {
+            Ast.NumberExpression(1),
+        }),
+        Ast.ReturnStatement({
+            Ast.VariableExpression(self.scope, self.currentUpvalId),
+        })
+    }, scope));
 end
 
 function Compiler:emitContainerFuncBody()
@@ -305,6 +606,11 @@ function Compiler:emitContainerFuncBody()
     local stats = {
         Ast.LocalVariableDeclaration(self.containerFuncScope, util.shuffle(declarations), {});
         Ast.WhileStatement(whileBody, Ast.VariableExpression(self.containerFuncScope, self.posVar));
+        Ast.AssignmentStatement({
+            Ast.VariableExpression(self.containerFuncScope, self.posVar)
+        }, {
+            Ast.LenExpression(Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar))
+        }),
         Ast.ReturnStatement{
             Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
                 Ast.VariableExpression(self.containerFuncScope, self.returnVar)
@@ -371,9 +677,21 @@ function Compiler:allocRegister(isVar)
     return id;
 end
 
-function Compiler:getVarRegister(scope, id, potentialId)
+function Compiler:isUpvalue(scope, id)
+    return self.upvalVars[scope] and self.upvalVars[scope][id];
+end
+
+function Compiler:makeUpvalue(scope, id)
+    if(not self.upvalVars[scope]) then
+        self.upvalVars[scope] = {}
+    end
+    self.upvalVars[scope][id] = true;
+end
+
+function Compiler:getVarRegister(scope, id, functionDepth, potentialId)
     if(not self.registersForVar[scope]) then
         self.registersForVar[scope] = {};
+        self.scopeFunctionDepths[scope] = functionDepth;
     end
 
     local reg = self.registersForVar[scope][id];
@@ -544,21 +862,142 @@ function Compiler:returnAssignment(scope)
     return Ast.AssignmentVariable(self.containerFuncScope, self.returnVar);
 end
 
+function Compiler:setUpvalueMember(scope, idExpr, valExpr)
+    scope:addReferenceToHigherScope(self.scope, self.upvaluesTable);
+    return Ast.AssignmentStatement({Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr)}, {valExpr});
+end
+
+function Compiler:getUpvalueMember(scope, idExpr)
+    scope:addReferenceToHigherScope(self.scope, self.upvaluesTable);
+    return Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr);
+end
+
 function Compiler:compileTopNode(node)
     -- Create Initial Block
     local startBlock = self:createBlock();
     self.startBlockId = startBlock.id;
     self:setActiveBlock(startBlock);
 
+    local varAccessLookup = lookupify{
+        AstKind.AssignmentVariable,
+        AstKind.VariableExpression,
+        AstKind.FunctionDeclaration,
+        AstKind.LocalFunctionDeclaration,
+    }
+
+    local functionLookup = lookupify{
+        AstKind.FunctionDeclaration,
+        AstKind.LocalFunctionDeclaration,
+        AstKind.FunctionLiteralExpression,
+        AstKind.TopNode,
+    }
+    -- Collect Upvalues
+    visitast(node, function(node, data) 
+        if node.kind == AstKind.Block then
+            node.scope.__depth = data.functionData.depth;
+        end
+
+        if varAccessLookup[node.kind] then
+            if not node.scope.isGlobal then
+                if node.scope.__depth < data.functionData.depth then
+                    if not self:isUpvalue(node.scope, node.id) then
+                        self:makeUpvalue(node.scope, node.id);
+                    end
+                end
+            end
+        end
+    end, nil, nil)
+
     -- Compile Block
     self:compileBlock(node.body, 0);
     if(self.activeBlock.advanceToNextBlock) then
-        self.activeBlock.advanceToNextBlock = false;
         self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
         self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {}, false)
+        self.activeBlock.advanceToNextBlock = false;
     end
 
     self:resetRegisters();
+end
+
+function Compiler:compileFunction(node, funcDepth)
+    funcDepth = funcDepth + 1;
+    local oldActiveBlock = self.activeBlock;
+
+    local upvalueExpressions = {};
+    local upvalueIds = {};
+    local usedRegs = {};
+
+    local oldGetUpvalueId = self.getUpvalueId;
+    self.getUpvalueId = function(self, scope, id)
+        if(not upvalueIds[scope]) then
+            upvalueIds[scope] = {};
+        end
+        if(upvalueIds[scope][id]) then
+            return upvalueIds[scope][id];
+        end
+        local scopeFuncDepth = self.scopeFunctionDepths[scope];
+        local expression;
+        if(scopeFuncDepth == funcDepth) then
+            oldActiveBlock.scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+            expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {});
+        elseif(scopeFuncDepth == funcDepth - 1) then
+            local varReg = self:getVarRegister(scope, id, scopeFuncDepth, nil);
+            expression = self:register(oldActiveBlock.scope, varReg);
+            table.insert(usedRegs, varReg);
+        else
+            local higherId = oldGetUpvalueId(self, scope, id);
+            oldActiveBlock.scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
+            expression = Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(higherId));
+        end
+        table.insert(upvalueExpressions, Ast.TableEntry(expression));
+        local uid = #upvalueExpressions;
+        upvalueIds[scope][id] = uid;
+        return uid;
+    end
+
+    local block = self:createBlock();
+    self:setActiveBlock(block);
+    local scope = self.activeBlock.scope;
+    self:pushRegisterUsageInfo();
+    for i, arg in ipairs(node.args) do
+        if(arg.kind == AstKind.VariableExpression) then
+            if(self:isUpvalue(arg.scope, arg.id)) then
+                scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+                local argReg = self:getVarRegister(arg.scope, arg.id, funcDepth, nil);
+                self:addStatement(self:setRegister(scope, argReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {argReg}, {}, false);
+                self:addStatement(self:setUpvalueMember(scope, self:register(scope, argReg), Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.argsVar), Ast.NumberExpression(i))), {}, {argReg}, true);
+            else
+                local argReg = self:getVarRegister(arg.scope, arg.id, funcDepth, nil);
+                scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
+                self:addStatement(self:setRegister(scope, argReg, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.argsVar), Ast.NumberExpression(i))), {argReg}, {}, false);
+            end
+        end
+    end
+
+    self:compileBlock(node.body, funcDepth);
+    if(self.activeBlock.advanceToNextBlock) then
+        self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
+        self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {}, false);
+        self.activeBlock.advanceToNextBlock = false;
+    end
+
+    self.getUpvalueId = oldGetUpvalueId;
+
+    self:popRegisterUsageInfo();
+    self:setActiveBlock(oldActiveBlock);
+
+    local scope = self.activeBlock.scope;
+    
+    local retReg = self:allocRegister(false);
+
+    scope:addReferenceToHigherScope(self.scope, self.createClosureVar);
+    local retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createClosureVar), {
+        Ast.NumberExpression(block.id),
+        Ast.TableConstructorExpression(upvalueExpressions)
+    });
+
+    self:addStatement(self:setRegister(scope, retReg, retrieveExpression), {retReg}, usedRegs, false);
+    return retReg;
 end
 
 function Compiler:compileBlock(block, funcDepth)
@@ -566,14 +1005,23 @@ function Compiler:compileBlock(block, funcDepth)
         self:compileStatement(stat, funcDepth);
     end
 
+    local scope = self.activeBlock.scope;
     for id, name in ipairs(block.scope.variables) do
-        self:freeRegister(self:getVarRegister(block.scope, id, nil), true);
+        local varReg = self:getVarRegister(block.scope, id, funcDepth, nil);
+        if self:isUpvalue(block.scope, id) then -- TODO
+            scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
+            self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
+                self:register(scope, varReg)
+            })), {varReg}, {varReg}, false);
+        else
+            self:addStatement(self:setRegister(scope, varReg, Ast.NilExpression()), {varReg}, {}, false);
+        end
+        self:freeRegister(varReg, true);
     end
 end
 
 function Compiler:compileStatement(statement, funcDepth)
     local scope = self.activeBlock.scope;
-
     -- Return Statement
     if(statement.kind == AstKind.ReturnStatement) then
         local entries = {};
@@ -598,9 +1046,8 @@ function Compiler:compileStatement(statement, funcDepth)
         end
 
         self:addStatement(self:setReturn(scope, Ast.TableConstructorExpression(entries)), {self.RETURN_REGISTER}, regs, false);
-        self.activeBlock.advanceToNextBlock = false;
         self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-
+        self.activeBlock.advanceToNextBlock = false;
         return;
     end
 
@@ -610,34 +1057,41 @@ function Compiler:compileStatement(statement, funcDepth)
         for i, expr in ipairs(statement.expressions) do
             if(i == #statement.expressions and #statement.ids > #statement.expressions) then
                 local regs = self:compileExpression(expr, funcDepth, #statement.ids - #statement.expressions + 1);
-
                 for i, reg in ipairs(regs) do
-                    if(self:isVarRegister(reg)) then
-                        local ro = reg;
-                        reg = self:allocRegister(false);
-                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
-                    end
                     table.insert(exprregs, reg);
                 end
             else
                 if statement.ids[i] or expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression then
                     local reg = self:compileExpression(expr, funcDepth, 1)[1];
-                    if(self:isVarRegister(reg)) then
-                        local ro = reg;
-                        reg = self:allocRegister(false);
-                        self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
-                    end
                     table.insert(exprregs, reg);
                 end
             end
         end
 
+        if #exprregs == 0 then
+            for i=1, #statement.ids do
+                table.insert(exprregs, self:compileExpression(Ast.NilExpression(), funcDepth, 1)[1]);
+            end
+        end
+
         for i, id in ipairs(statement.ids) do
             if(exprregs[i]) then
-                local varreg = self:getVarRegister(statement.scope, id, exprregs[i]);
-                self:addStatement(self:copyRegisters(scope, {varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
-                self:freeRegister(exprregs[i], false);
+                local varreg = self:getVarRegister(statement.scope, id, funcDepth, exprregs[i]);
+                if(self:isUpvalue(statement.scope, id)) then
+                    local varReg = self:getVarRegister(statement.scope, id, funcDepth, nil);
+                    scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+                    self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
+                    self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, exprregs[i])), {}, {varReg, exprregs[i]}, true);
+                    self:freeRegister(exprregs[i], false);
+                else
+                    self:addStatement(self:copyRegisters(scope, {varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
+                    self:freeRegister(exprregs[i], false);
+                end
             end
+        end
+
+        if not self.scopeFunctionDepths[statement.scope] then
+            self.scopeFunctionDepths[statement.scope] = funcDepth;
         end
 
         return;
@@ -647,17 +1101,27 @@ function Compiler:compileStatement(statement, funcDepth)
     if(statement.kind == AstKind.FunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
         local retReg  = self:allocRegister(false);
-        local argRegs = {};
+        local regs = {};
+        local args = {};
 
-        -- TODO: Function call multi return pass
         for i, expr in ipairs(statement.args) do
-            table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
+            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+                local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
+                table.insert(args, Ast.FunctionCallExpression(
+                    self:unpack(scope),
+                    {self:register(scope, reg)}));
+                table.insert(regs, reg);
+            else
+                local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                table.insert(args, self:register(scope, reg));
+                table.insert(regs, reg);
+            end
         end
 
-        self:addStatement(self:setRegister(scope, retReg, Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retReg}, {baseReg, unpack(argRegs)}, true);
+        self:addStatement(self:setRegister(scope, retReg, Ast.FunctionCallExpression(self:register(scope, baseReg), args)), {retReg}, {baseReg, unpack(regs)}, true);
         self:freeRegister(baseReg, false);
         self:freeRegister(retReg, false);
-        for i, reg in ipairs(argRegs) do
+        for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
         end
         
@@ -668,30 +1132,90 @@ function Compiler:compileStatement(statement, funcDepth)
     if(statement.kind == AstKind.PassSelfFunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
         local tmpReg  = self:allocRegister(false);
-        local argRegs = { baseReg };
+        local args = {};
+        local regs = {};
 
-        -- TODO: Function call multi return pass
         for i, expr in ipairs(statement.args) do
-            table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
+            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+                local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
+                table.insert(args, Ast.FunctionCallExpression(
+                    self:unpack(scope),
+                    {self:register(scope, reg)}));
+                table.insert(regs, reg);
+            else
+                local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                table.insert(args, self:register(scope, reg));
+                table.insert(regs, reg);
+            end
         end
-
         self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(statement.passSelfFunctionName)), {tmpReg}, {}, false);
         self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {tmpReg, baseReg}, false);
 
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))), {tmpReg}, {tmpReg, unpack(argRegs)}, true);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {tmpReg}, {tmpReg, unpack(regs)}, true);
         self:freeRegister(baseReg, false);
         self:freeRegister(tmpReg, false);
-        for i, reg in ipairs(argRegs) do
+        for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
         end
         
         return;
     end
 
+    -- Local Function Declaration
+    if(statement.kind == AstKind.LocalFunctionDeclaration) then
+        local retReg = self:compileFunction(statement, funcDepth);
+        local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
+        if(self:isUpvalue(statement.scope, statement.id)) then
+            scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+            self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
+            self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, retReg)), {}, {varReg, retReg}, true);
+            self:freeRegister(retReg, false);
+        else
+            self:addStatement(self:copyRegisters(scope, {varReg}, {retReg}), {varReg}, {retReg}, false);
+            self:freeRegister(retReg, false);
+        end
+        return;
+    end
+
+    -- Function Declaration
+    if(statement.kind == AstKind.FunctionDeclaration) then
+        local retReg = self:compileFunction(statement, funcDepth);
+        if statement.scope.isGlobal then
+            local tmpReg = self:allocRegister(false);
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(statement.scope:getVariableName(statement.id))), {tmpReg}, {}, false);
+            self:addStatement(Ast.AssignmentStatement({Ast.AssignmentIndexing(self:env(scope), self:register(scope, tmpReg))},
+             {self:register(scope, retReg)}), {}, {tmpReg, retReg}, true);
+            self:freeRegister(tmpReg, false);
+        else
+            if self.scopeFunctionDepths[statement.scope] == funcDepth then
+                local reg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
+                if self:isUpvalue(statement.scope, statement.id) then
+                    self:addStatement(self:setUpvalueMember(scope, self:register(scope, reg), self:register(scope, retReg)), {}, {reg, retReg}, true);
+                elseif reg ~= retReg then
+                    self:addStatement(self:setRegister(scope, reg, self:register(scope, retReg)), {reg}, {retReg}, false);
+                end
+            else
+                local upvalId = self:getUpvalueId(statement.scope, statement.id);
+                scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
+                self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, retReg)), {}, {retReg}, true);
+            end
+        end
+        self:freeRegister(retReg, false);
+        return;
+     end
+
     -- Assignment Statement
     if(statement.kind == AstKind.AssignmentStatement) then
         local exprregs = {};
-        local assignments = {};
+        local assignmentIndexingRegs = {};
+        for i, primaryExpr in ipairs(statement.lhs) do
+            if(primaryExpr.kind == AstKind.AssignmentIndexing) then
+                assignmentIndexingRegs [i] = {
+                    base = self:compileExpression(primaryExpr.base, funcDepth, 1)[1],
+                    index = self:compileExpression(primaryExpr.index, funcDepth, 1)[1],
+                };
+            end
+        end
 
         for i, expr in ipairs(statement.rhs) do
             if(i == #statement.rhs and #statement.lhs > #statement.rhs) then
@@ -727,12 +1251,32 @@ function Compiler:compileStatement(statement, funcDepth)
                      {self:register(scope, exprregs[i])}), {}, {tmpReg, exprregs[i]}, true);
                     self:freeRegister(tmpReg, false);
                 else
-                    -- TODO: Support Upvalues
-                   local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, exprregs[i]);
-                   if reg ~= exprregs[i] then
-                       self:addStatement(self:setRegister(scope, reg, self:register(scope, exprregs[i])), {reg}, {exprregs[i]}, false);
-                   end
+                    if self.scopeFunctionDepths[primaryExpr.scope] == funcDepth then
+                        local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth, exprregs[i]);
+                        if self:isUpvalue(primaryExpr.scope, primaryExpr.id) then
+                            self:addStatement(self:setUpvalueMember(scope, self:register(scope, reg), self:register(scope, exprregs[i])), {}, {reg, exprregs[i]}, true);
+                        elseif reg ~= exprregs[i] then
+                            self:addStatement(self:setRegister(scope, reg, self:register(scope, exprregs[i])), {reg}, {exprregs[i]}, false);
+                        end
+                    else
+                        local upvalId = self:getUpvalueId(primaryExpr.scope, primaryExpr.id);
+                        scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
+                        self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, exprregs[i])), {}, {exprregs[i]}, true);
+                    end
                 end
+            elseif primaryExpr.kind == AstKind.AssignmentIndexing then
+                local baseReg = assignmentIndexingRegs[i].base;
+                local indexReg = assignmentIndexingRegs[i].index;
+                self:addStatement(Ast.AssignmentStatement({
+                    Ast.AssignmentIndexing(self:register(scope, baseReg), self:register(scope, indexReg))
+                }, {
+                    self:register(scope, exprregs[i])
+                }), {}, {exprregs[i], baseReg, indexReg}, true);
+                self:freeRegister(exprregs[i], false);
+                self:freeRegister(baseReg, false);
+                self:freeRegister(indexReg, false);
+            else
+                error(string.format("Invalid Assignment lhs: %s", statement.lhs));
             end
         end
 
@@ -757,28 +1301,26 @@ function Compiler:compileStatement(statement, funcDepth)
         self:freeRegister(conditionReg, false);
 
         self:setActiveBlock(innerBlock);
+        scope = innerBlock.scope
         self:compileBlock(statement.body, funcDepth);
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 
         for i, eif in ipairs(statement.elseifs) do
             self:setActiveBlock(nextBlock);
             conditionReg = self:compileExpression(eif.condition, funcDepth, 1)[1];
-
-            
-
-            self:setActiveBlock(nextBlock);
             local innerBlock = self:createBlock();
             if statement.elsebody or i < #statement.elseifs then
                 nextBlock = self:createBlock();
             else
                 nextBlock = finalBlock;
             end
-
+            local scope = self.activeBlock.scope;
             self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(nextBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
         
             self:freeRegister(conditionReg, false);
 
             self:setActiveBlock(innerBlock);
+            scope = innerBlock.scope;
             self:compileBlock(eif.body, funcDepth);
             self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
         end
@@ -804,19 +1346,24 @@ function Compiler:compileStatement(statement, funcDepth)
     if(statement.kind == AstKind.WhileStatement) then
         local innerBlock = self:createBlock();
         local finalBlock = self:createBlock();
+        local checkBlock = self:createBlock();
 
+        statement.__start_block = checkBlock;
+        statement.__final_block = finalBlock;
+
+        self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+
+        self:setActiveBlock(checkBlock);
+        local scope = self.activeBlock.scope;
         local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(finalBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
         self:freeRegister(conditionReg, false);
 
         self:setActiveBlock(innerBlock);
+        local scope = self.activeBlock.scope;
         self:compileBlock(statement.body, funcDepth);
-        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
-        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(finalBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
-        self:freeRegister(conditionReg, false);
-
+        self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
         self:setActiveBlock(finalBlock);
-
         return;
     end
 
@@ -824,6 +1371,9 @@ function Compiler:compileStatement(statement, funcDepth)
     if(statement.kind == AstKind.RepeatStatement) then
         local innerBlock = self:createBlock();
         local finalBlock = self:createBlock();
+        local checkBlock = self:createBlock();
+        statement.__start_block = checkBlock;
+        statement.__final_block = finalBlock;
 
         local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(innerBlock.id)), {self.POS_REGISTER}, {}, false);
@@ -831,6 +1381,10 @@ function Compiler:compileStatement(statement, funcDepth)
 
         self:setActiveBlock(innerBlock);
         self:compileBlock(statement.body, funcDepth);
+        local scope = self.activeBlock.scope
+        self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+        self:setActiveBlock(checkBlock);
+        local scope = self.activeBlock.scope;
         local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(finalBlock.id)), Ast.NumberExpression(innerBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
         self:freeRegister(conditionReg, false);
@@ -845,6 +1399,9 @@ function Compiler:compileStatement(statement, funcDepth)
         local checkBlock = self:createBlock();
         local innerBlock = self:createBlock();
         local finalBlock = self:createBlock();
+
+        statement.__start_block = checkBlock;
+        statement.__final_block = finalBlock;
 
         local posState = self.registers[self.POS_REGISTER];
         self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
@@ -895,10 +1452,20 @@ function Compiler:compileStatement(statement, funcDepth)
         self:freeRegister(tmpReg2);
 
         self:setActiveBlock(innerBlock);
+        scope = innerBlock.scope;
         self.registers[self.POS_REGISTER] = posState;
 
-        local varReg = self:getVarRegister(statement.scope, statement.id, nil);
-        self:addStatement(self:setRegister(scope, varReg, self:register(scope, currentReg)), {varReg}, {currentReg}, false);
+        local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, nil);
+
+        if(self:isUpvalue(statement.scope, statement.id)) then
+            scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+            self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
+            self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, currentReg)), {}, {varReg, currentReg}, true);
+        else
+            self:addStatement(self:setRegister(scope, varReg, self:register(scope, currentReg)), {varReg}, {currentReg}, false);
+        end
+
+        
         self:compileBlock(statement.body, funcDepth);
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
         
@@ -914,12 +1481,104 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
+    -- For in Statement
+    if(statement.kind == AstKind.ForInStatement) then
+        local expressionsLength = #statement.expressions;
+        local exprregs = {};
+        for i, expr in ipairs(statement.expressions) do
+            if(i == expressionsLength and expressionsLength < 3) then
+                local regs = self:compileExpression(expr, funcDepth, 4 - expressionsLength);
+                for i = 1, 4 - expressionsLength do
+                    table.insert(exprregs, regs[i]);
+                end
+            else
+                if i <= 3 then
+                    table.insert(exprregs, self:compileExpression(expr, funcDepth, 1)[1])
+                else
+                    self:freeRegister(self:compileExpression(expr, funcDepth, 1)[1], false);
+                end
+            end
+        end
+
+        for i, reg in ipairs(exprregs) do
+            if reg and self.registers[reg] ~= self.VAR_REGISTER and reg ~= self.POS_REGISTER and reg ~= self.RETURN_REGISTER then
+                self.registers[reg] = self.VAR_REGISTER;
+            else
+                exprregs[i] = self:allocRegister(true);
+                self:addStatement(self:copyRegisters(scope, {exprregs[i]}, {reg}), {exprregs[i]}, {reg}, false);
+            end
+        end
+
+        local checkBlock = self:createBlock();
+        local bodyBlock = self:createBlock();
+        local finalBlock = self:createBlock();
+
+        statement.__start_block = checkBlock;
+        statement.__final_block = finalBlock;
+
+        self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+
+        self:setActiveBlock(checkBlock);
+        local scope = self.activeBlock.scope;
+
+        local varRegs = {};
+        for i, id in ipairs(statement.ids) do
+            varRegs[i] = self:getVarRegister(statement.scope, id, funcDepth)
+        end
+
+        self:addStatement(Ast.AssignmentStatement({
+            self:registerAssignment(scope, exprregs[3]),
+            varRegs[2] and self:registerAssignment(scope, varRegs[2]),
+        }, {
+            Ast.FunctionCallExpression(self:register(scope, exprregs[1]), {
+                self:register(scope, exprregs[2]),
+                self:register(scope, exprregs[3]),
+            })
+        }), {exprregs[3], varRegs[2]}, {exprregs[1], exprregs[2], exprregs[3]}, true);
+
+        self:addStatement(Ast.AssignmentStatement({
+            self:posAssignment(scope)
+        }, {
+            Ast.OrExpression(Ast.AndExpression(self:register(scope, exprregs[3]), Ast.NumberExpression(bodyBlock.id)), Ast.NumberExpression(finalBlock.id))
+        }), {self.POS_REGISTER}, {exprregs[3]}, false);
+
+        self:setActiveBlock(bodyBlock);
+        local scope = self.activeBlock.scope;
+        self:addStatement(self:copyRegisters(scope, {varRegs[1]}, {exprregs[3]}), {varRegs[1]}, {exprregs[3]}, false);
+        for i=3, #varRegs do
+            self:addStatement(self:setRegister(scope, varRegs[i], Ast.NilExpression()), {varRegs[i]}, {}, false);
+        end
+
+        self:compileBlock(statement.body, funcDepth);
+        self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+        self:setActiveBlock(finalBlock);
+
+        for i, reg in ipairs(exprregs) do
+            self:freeRegister(exprregs[i], true)
+        end
+
+        return;
+    end
+
     -- Do Statement
     if(statement.kind == AstKind.DoStatement) then
         self:compileBlock(statement.body, funcDepth);
+        return;
     end
 
-    -- TODO
+    -- Break Statement
+    if(statement.kind == AstKind.BreakStatement) then
+        self:addStatement(self:setPos(scope, statement.loop.__final_block.id), {self.POS_REGISTER}, {}, false);
+        self.activeBlock.advanceToNextBlock = false;
+        return;
+    end
+
+    -- Contiue Statement
+    if(statement.kind == AstKind.BreakStatement) then
+        self:addStatement(self:setPos(scope, statement.loop.__start_block.id), {self.POS_REGISTER}, {}, false);
+        self.activeBlock.advanceToNextBlock = false;
+        return;
+    end
 
     logger:error(string.format("%s is not a compileable statement!", statement.kind));
 end
@@ -984,7 +1643,6 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         local regs = {};
         for i=1, numReturns do
             if(i == 1) then
-                -- TODO: Implement Upvalues
                 if(expression.scope.isGlobal) then
                     -- Global Variable
                     regs[i] = self:allocRegister(false);
@@ -994,7 +1652,22 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                     self:freeRegister(tmpReg, false);
                 else
                     -- Local Variable
-                    regs[i] = self:getVarRegister(expression.scope, expression.id);
+                    if(self.scopeFunctionDepths[expression.scope] == funcDepth) then
+                        if self:isUpvalue(expression.scope, expression.id) then
+                            local reg = self:allocRegister(false);
+                            local varReg = self:getVarRegister(expression.scope, expression.id, funcDepth, nil);
+                            self:addStatement(self:setRegister(scope, reg, self:getUpvalueMember(scope, self:register(scope, varReg))), {reg}, {varReg}, true);
+                            regs[i] = reg;
+                        else
+                            regs[i] = self:getVarRegister(expression.scope, expression.id, funcDepth, nil);
+                        end
+                    else
+                        local reg = self:allocRegister(false);
+                        local upvalId = self:getUpvalueId(expression.scope, expression.id);
+                        scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
+                        self:addStatement(self:setRegister(scope, reg, self:getUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)))), {reg}, {}, true);
+                        regs[i] = reg;
+                    end
                 end
             else
                 regs[i] = self:allocRegister();
@@ -1007,9 +1680,15 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
     -- Function call Expression
     if(expression.kind == AstKind.FunctionCallExpression) then
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
+
         local retRegs  = {};
-        for i = 1, numReturns do
-            retRegs[i] = self:allocRegister(false);
+        local returnAll = numReturns == self.RETURN_ALL;
+        if returnAll then
+            retRegs[1] = self:allocRegister(false);
+        else
+            for i = 1, numReturns do
+                retRegs[i] = self:allocRegister(false);
+            end
         end
         local argRegs = {};
 
@@ -1018,21 +1697,25 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        
-
-        if(numReturns > 1) then
-            local tmpReg = self:allocRegister(false);
-
-            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
-
-            for i, reg in ipairs(retRegs) do
-                self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
-            end
-
-            self:freeRegister(tmpReg, false);
+        if(returnAll) then
+            self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs)))}), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
         else
-            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+            if(numReturns > 1) then
+                local tmpReg = self:allocRegister(false);
+    
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
+    
+                for i, reg in ipairs(retRegs) do
+                    self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
+                end
+    
+                self:freeRegister(tmpReg, false);
+            else
+                self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, baseReg), self:registerList(scope, argRegs))), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+            end
         end
+
+        
         
 
         self:freeRegister(baseReg, false);
@@ -1047,9 +1730,15 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
     if(expression.kind == AstKind.PassSelfFunctionCallExpression) then
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
         local retRegs  = {};
-        for i = 1, numReturns do
-            retRegs[i] = self:allocRegister(false);
+        local returnAll = numReturns == self.RETURN_ALL;
+        if returnAll then
+            retRegs[1] = self:allocRegister(false);
+        else
+            for i = 1, numReturns do
+                retRegs[i] = self:allocRegister(false);
+            end
         end
+        local argRegs = {};
 
         local argRegs = { baseReg };
 
@@ -1057,16 +1746,20 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
 
-        if(numReturns > 1) then
+        if(numReturns > 1 or returnAll) then
             local tmpReg = self:allocRegister(false);
 
             self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
             self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
-            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
+            if returnAll then
+                self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+            else
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
 
-            for i, reg in ipairs(retRegs) do
-                self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
+                for i, reg in ipairs(retRegs) do
+                    self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
+                end
             end
 
             self:freeRegister(tmpReg, false);
@@ -1157,6 +1850,22 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return regs;
     end
 
+    if(expression.kind == AstKind.LenExpression) then
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i == 1) then
+                local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+
+                self:addStatement(self:setRegister(scope, regs[i], Ast.LenExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, true);
+                self:freeRegister(rhsReg, false)
+            else
+               self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+        return regs;
+    end
+
     if(expression.kind == AstKind.OrExpression) then      
         local posState = self.registers[self.POS_REGISTER];
         self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
@@ -1177,22 +1886,36 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:copyRegisters(scope, {tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
         end
 
-        local block1, block2 = self:createBlock(), self:createBlock();
         local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
+        if(expression.rhs.isConstant) then
+            local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            self:addStatement(self:setRegister(scope, resReg, Ast.OrExpression(self:register(scope, lhsReg), self:register(scope, rhsReg))), {resReg}, {lhsReg, rhsReg}, false);
+            if tmpReg then
+                self:freeRegister(tmpReg, false);
+            end
+            self:freeRegister(lhsReg, false);
+            self:freeRegister(rhsReg, false);
+            return regs;
+        end
 
-        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block2.id)), Ast.NumberExpression(block1.id))), {self.POS_REGISTER}, {lhsReg}, false);
+        local block1, block2 = self:createBlock(), self:createBlock();
         self:addStatement(self:copyRegisters(scope, {resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block2.id)), Ast.NumberExpression(block1.id))), {self.POS_REGISTER}, {lhsReg}, false);
+        self:freeRegister(lhsReg, false);
 
         do
             self:setActiveBlock(block1);
+            local scope = block1.scope;
             local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
             self:addStatement(self:copyRegisters(scope, {resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
+            self:freeRegister(rhsReg, false);
             self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
         end
 
         self.registers[self.POS_REGISTER] = posState;
 
         self:setActiveBlock(block2);
+        scope = block2.scope;
 
         if tmpReg then
             self:addStatement(self:copyRegisters(scope, {self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
@@ -1222,22 +1945,37 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:copyRegisters(scope, {tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
         end
 
-        local block1, block2 = self:createBlock(), self:createBlock();
+       
         local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
+        if(expression.rhs.isConstant) then
+            local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            self:addStatement(self:setRegister(scope, resReg, Ast.AndExpression(self:register(scope, lhsReg), self:register(scope, rhsReg))), {resReg}, {lhsReg, rhsReg}, false);
+            if tmpReg then
+                self:freeRegister(tmpReg, false);
+            end
+            self:freeRegister(lhsReg, false);
+            self:freeRegister(rhsReg, false)
+            return regs;
+        end
 
-        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block1.id)), Ast.NumberExpression(block2.id))), {self.POS_REGISTER}, {lhsReg}, false);
+
+        local block1, block2 = self:createBlock(), self:createBlock();
         self:addStatement(self:copyRegisters(scope, {resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
-
+        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block1.id)), Ast.NumberExpression(block2.id))), {self.POS_REGISTER}, {lhsReg}, false);
+        self:freeRegister(lhsReg, false);
         do
             self:setActiveBlock(block1);
+            scope = block1.scope;
             local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
             self:addStatement(self:copyRegisters(scope, {resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
+            self:freeRegister(rhsReg, false);
             self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
         end
 
         self.registers[self.POS_REGISTER] = posState;
 
         self:setActiveBlock(block2);
+        scope = block2.scope;
 
         if tmpReg then
             self:addStatement(self:copyRegisters(scope, {self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
@@ -1247,7 +1985,57 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return regs;
     end
 
-    -- TODO
+    if(expression.kind == AstKind.TableConstructorExpression) then
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister();
+            if(i == 1) then
+                local entries = {};
+                local entryRegs = {};
+                for i, entry in ipairs(expression.entries) do
+                    if(entry.kind == AstKind.TableEntry) then
+                        if i == #expression.entries and entry.kind == AstKind.FunctionCallExpression then
+                            local reg = self:compileExpression(entry.value, funcDepth, self.RETURN_ALL)[1];
+                            table.insert(entries, Ast.TableEntry(Ast.FunctionCallExpression(
+                                self:unpack(scope),
+                                {self:register(scope, reg)})));
+                            table.insert(entryRegs, reg);
+                        else
+                            local reg = self:compileExpression(entry.value, funcDepth, 1)[1];
+                            table.insert(entries, Ast.TableEntry(self:register(scope, reg)));
+                            table.insert(entryRegs, reg);
+                        end
+                    else
+                        local keyReg = self:compileExpression(entry.key, funcDepth, 1)[1];
+                        local valReg = self:compileExpression(entry.value, funcDepth, 1)[1];
+                        table.insert(entries, Ast.KeyedTableEntry(self:register(scope, keyReg), self:register(scope, valReg)));
+                        table.insert(entryRegs, valReg);
+                        table.insert(entryRegs, keyReg);
+                    end
+                end
+                self:addStatement(self:setRegister(scope, regs[i], Ast.TableConstructorExpression(entries)), {regs[i]}, entryRegs, false);
+                for i, reg in ipairs(entryRegs) do
+                    self:freeRegister(reg, false);
+                end
+            else
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+        return regs;
+    end
+
+    if(expression.kind == AstKind.FunctionLiteralExpression) then
+        local regs = {};
+        for i=1, numReturns do
+            if(i == 1) then
+                regs[i] = self:compileFunction(expression, funcDepth);
+            else
+                regs[i] = self:allocRegister();
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            end
+        end
+        return regs;
+    end
 
     logger:error(string.format("%s is not an compileable expression!", expression.kind));
 end

@@ -11,14 +11,8 @@ local Prometheus = require("src.prometheus")
 
 -- Config Variables - Later passed as Parameters
 local noColors    = false; -- Wether Colors in the Console output should be enabled
-local noHighlight = false; -- Disable Syntax Highlighting of Outputed Code
 local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
 local ciMode = false; 	   -- Wether the Test error are ignored or not
-
--- The Code to Obfuscate
-local code = [=[
-	
-]=];
 
 for _, currArg in pairs(arg) do
 	if currArg == "--Linux" then
@@ -101,7 +95,7 @@ local function validate(a, b)
 end
 
 
-local steps = pipeline.Steps;
+local presets = Prometheus.Presets;
 local testdir = "./tests/"
 local failed = {};
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error;
@@ -112,24 +106,33 @@ for i, filename in ipairs(scandir(testdir)) do
 
 	local code = file:read("*a");
 	print(Prometheus.colors("[CURRENT] ", "magenta") .. filename);
-	for key, step in pairs(steps) do
-		pipeline:resetSteps();
-		pipeline:addStep(step:new({}));
+	for name, preset in pairs(presets) do
+		pipeline = Prometheus.Pipeline:fromConfig(preset);
 		local obfuscated = pipeline:apply(code);
 
 		local funca = loadstring(code);
 		local funcb = loadstring(obfuscated);
-	
-		local validated, outa, outb = validate(funca, funcb);
-	
-		if not validated then
-			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. ") " .. step.Name);
-			print("[OUTA]    ",    outa);
-			print("[OUTB]    ", outb);
+
+		if funcb == nil then
+			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name .. ", Invalid Lua!");
 			if ciMode then
 				error("Test Failed!")
 			end
+			print("[SOURCE]", obfuscated);
 			fc = fc + 1;
+		else
+			local validated, outa, outb = validate(funca, funcb);
+	
+			if not validated then
+				print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name);
+				print("[OUTA]    ",    outa);
+				print("[OUTB]    ", outb);
+				print("[SOURCE]", obfuscated);
+				if ciMode then
+					error("Test Failed!")
+				end
+				fc = fc + 1;
+			end
 		end
 	end
 	file:close();

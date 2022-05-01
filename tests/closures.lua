@@ -1,8 +1,12 @@
-local count = 0;
-for i = 0, 100, 1 do
-    local x = function()
-        i = i + 1;
-    end
-    x();
+local arr = {}
+for i = 1, 100 do
+	local x;
+	x = (x or 1) + i;
+	arr[i] = function()
+		return x;
+	end
 end
-print(count);
+
+for i, func in ipairs(arr) do
+	print(func())
+end

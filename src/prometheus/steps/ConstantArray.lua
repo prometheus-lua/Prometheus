@@ -79,6 +79,16 @@ ConstantArray.SettingsDescriptor = {
 		type = "number",
 		min = 0,
 		default = 65535,
+	};
+	Encoding = {
+		name = "Encoding",
+		description = "The Encoding to use for the Strings",
+		type = "enum",
+		default = "base64",
+		values = {
+			"none",
+			"base64",
+		},
 	}
 }
 
@@ -96,6 +106,9 @@ end
 function ConstantArray:createArray()
 	local entries = {};
 	for i, v in ipairs(self.constants) do
+		if type(v) == "string" then
+			v = self:encode(v);
+		end
 		entries[i] = Ast.TableEntry(Ast.ConstantNode(v));
 	end
 	return Ast.TableConstructorExpression(entries);
@@ -176,12 +189,13 @@ function ConstantArray:addRotateCode(ast, shift)
 		LuaVersion = LuaVersion.Lua51;
 	});
 
-	local doStat = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants))).body.statements[1];
-	doStat.body.scope:setParent(ast.body.scope);
-	visitast(doStat, nil, function(node, data)
+	local newAst = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants)));
+	local forStat = newAst.body.statements[1];
+	forStat.body.scope:setParent(ast.body.scope);
+	visitast(newAst, nil, function(node, data)
 		if(node.kind == AstKind.VariableExpression) then
 			if(node.scope:getVariableName(node.id) == "ARR") then
-				doStat.body.scope:removeReferenceToHigherScope(node.scope, node.id);
+				data.scope:removeReferenceToHigherScope(node.scope, node.id);
 				data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
 				node.scope = self.rootScope;
 				node.id    = self.arrId;
@@ -189,12 +203,124 @@ function ConstantArray:addRotateCode(ast, shift)
 		end
 	end)
 
-	table.insert(ast.body.statements, 1, doStat);
+	table.insert(ast.body.statements, 1, forStat);
+end
+
+function ConstantArray:addDecodeCode(ast)
+	if self.Encoding == "base64" then
+		local base64DecodeCode = [[
+	do ]] .. table.concat(util.shuffle{
+		"local lookup = LOOKUP_TABLE;",
+		"local len = string.len;",
+		"local sub = string.sub;",
+		"local floor = math.floor;",
+		"local strchar = string.char;",
+		"local insert = table.insert;",
+		"local concat = table.concat;",
+		"local type = type;",
+		"local arr = ARR;",
+	}) .. [[
+		for i = 1, #arr do
+			local data = arr[i];
+			if type(data) == "string" then
+				local length = len(data)
+				local parts = {}
+				local index = 1
+				local value = 0
+				local count = 0
+				while index <= length do
+					local char = sub(data, index, index)
+					local code = lookup[char]
+					if code then
+						value = value + code * (64 ^ (3 - count))
+						count = count + 1
+						if count == 4 then
+							count = 0
+							local c1 = floor(value / 65536)
+							local c2 = floor(value % 65536 / 256)
+							local c3 = value % 256
+							insert(parts, strchar(c1, c2, c3))
+							value = 0
+						end
+					elseif char == "=" then
+						insert(parts, strchar(floor(value / 65536)));
+						if index >= length or sub(data, index + 1, index + 1) ~= "=" then
+							insert(parts, strchar(floor(value % 65536 / 256)));
+						end
+						break
+					end
+					index = index + 1
+				end
+				arr[i] = concat(parts)
+			end
+		end
+	end
+]];
+
+		local parser = Parser:new({
+			LuaVersion = LuaVersion.Lua51;
+		});
+
+		local newAst = parser:parse(base64DecodeCode);
+		local forStat = newAst.body.statements[1];
+		forStat.body.scope:setParent(ast.body.scope);
+
+		visitast(newAst, nil, function(node, data)
+			if(node.kind == AstKind.VariableExpression) then
+				if(node.scope:getVariableName(node.id) == "ARR") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
+					node.scope = self.rootScope;
+					node.id    = self.arrId;
+				end
+
+				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					return self:createBase64Lookup();
+				end
+			end
+		end)
+	
+		table.insert(ast.body.statements, 1, forStat);
+	end
+end
+
+function ConstantArray:createBase64Lookup()
+	local entries = {};
+	local i = 0;
+	for char in string.gmatch(self.base64chars, ".") do
+		table.insert(entries, Ast.KeyedTableEntry(Ast.StringExpression(char), Ast.NumberExpression(i)));
+		i = i + 1;
+	end
+	util.shuffle(entries);
+	return Ast.TableConstructorExpression(entries);
+end
+
+function ConstantArray:encode(str)
+	if self.Encoding == "base64" then
+		return ((str:gsub('.', function(x) 
+			local r,b='',x:byte()
+			for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+			return r;
+		end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+			if (#x < 6) then return '' end
+			local c=0
+			for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+			return self.base64chars:sub(c+1,c+1)
+		end)..({ '', '==', '=' })[#str%3+1]);
+	end
 end
 
 function ConstantArray:apply(ast, pipeline)
 	self.rootScope = ast.body.scope;
 	self.arrId     = self.rootScope:addVariable();
+
+	self.base64chars = table.concat(util.shuffle{
+		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		"+", "/",
+	});
 
 	self.constants = {};
 	self.lookup    = {};
@@ -330,6 +456,8 @@ function ConstantArray:apply(ast, pipeline)
 			}));
 		end
 	end);
+
+	self:addDecodeCode(ast);
 
 	local steps = util.shuffle({
 		-- Add Wrapper Function Code

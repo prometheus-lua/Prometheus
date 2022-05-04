@@ -5,6 +5,7 @@
 
 -- The max Number of variables used as registers
 local MAX_REGS = 100;
+local MAX_REGS_MUL = 0;
 
 local Compiler = {};
 
@@ -655,7 +656,7 @@ function Compiler:allocRegister(isVar)
     
 
     local id = 0;
-    if self.usedRegisters < MAX_REGS * 0.75 then
+    if self.usedRegisters < MAX_REGS * MAX_REGS_MUL then
         repeat
             id = math.random(1, MAX_REGS - 1);
         until not self.registers[id];
@@ -1008,7 +1009,7 @@ function Compiler:compileBlock(block, funcDepth)
     local scope = self.activeBlock.scope;
     for id, name in ipairs(block.scope.variables) do
         local varReg = self:getVarRegister(block.scope, id, funcDepth, nil);
-        if self:isUpvalue(block.scope, id) then -- TODO
+        if self:isUpvalue(block.scope, id) then
             scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
             self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
                 self:register(scope, varReg)
@@ -1076,14 +1077,15 @@ function Compiler:compileStatement(statement, funcDepth)
 
         for i, id in ipairs(statement.ids) do
             if(exprregs[i]) then
-                local varreg = self:getVarRegister(statement.scope, id, funcDepth, exprregs[i]);
                 if(self:isUpvalue(statement.scope, id)) then
+                    local varreg = self:getVarRegister(statement.scope, id, funcDepth);
                     local varReg = self:getVarRegister(statement.scope, id, funcDepth, nil);
                     scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
                     self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
                     self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, exprregs[i])), {}, {varReg, exprregs[i]}, true);
                     self:freeRegister(exprregs[i], false);
                 else
+                    local varreg = self:getVarRegister(statement.scope, id, funcDepth, exprregs[i]);
                     self:addStatement(self:copyRegisters(scope, {varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
                     self:freeRegister(exprregs[i], false);
                 end
@@ -1132,8 +1134,8 @@ function Compiler:compileStatement(statement, funcDepth)
     if(statement.kind == AstKind.PassSelfFunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
         local tmpReg  = self:allocRegister(false);
-        local args = {};
-        local regs = {};
+        local args = { self:register(scope, baseReg) };
+        local regs = { baseReg };
 
         for i, expr in ipairs(statement.args) do
             if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
@@ -1163,14 +1165,17 @@ function Compiler:compileStatement(statement, funcDepth)
 
     -- Local Function Declaration
     if(statement.kind == AstKind.LocalFunctionDeclaration) then
-        local retReg = self:compileFunction(statement, funcDepth);
-        local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
+        
         if(self:isUpvalue(statement.scope, statement.id)) then
+            local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, nil);
             scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
             self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
+            local retReg = self:compileFunction(statement, funcDepth);
             self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, retReg)), {}, {varReg, retReg}, true);
             self:freeRegister(retReg, false);
         else
+            local retReg = self:compileFunction(statement, funcDepth);
+            local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
             self:addStatement(self:copyRegisters(scope, {varReg}, {retReg}), {varReg}, {retReg}, false);
             self:freeRegister(retReg, false);
         end
@@ -1188,11 +1193,14 @@ function Compiler:compileStatement(statement, funcDepth)
             self:freeRegister(tmpReg, false);
         else
             if self.scopeFunctionDepths[statement.scope] == funcDepth then
-                local reg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
                 if self:isUpvalue(statement.scope, statement.id) then
+                    local reg = self:getVarRegister(statement.scope, statement.id, funcDepth);
                     self:addStatement(self:setUpvalueMember(scope, self:register(scope, reg), self:register(scope, retReg)), {}, {reg, retReg}, true);
-                elseif reg ~= retReg then
-                    self:addStatement(self:setRegister(scope, reg, self:register(scope, retReg)), {reg}, {retReg}, false);
+                else
+                    local reg = self:getVarRegister(statement.scope, statement.id, funcDepth, retReg);
+                    if reg ~= retReg then
+                        self:addStatement(self:setRegister(scope, reg, self:register(scope, retReg)), {reg}, {retReg}, false);
+                    end
                 end
             else
                 local upvalId = self:getUpvalueId(statement.scope, statement.id);
@@ -1252,11 +1260,14 @@ function Compiler:compileStatement(statement, funcDepth)
                     self:freeRegister(tmpReg, false);
                 else
                     if self.scopeFunctionDepths[primaryExpr.scope] == funcDepth then
-                        local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth, exprregs[i]);
                         if self:isUpvalue(primaryExpr.scope, primaryExpr.id) then
+                            local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth);
                             self:addStatement(self:setUpvalueMember(scope, self:register(scope, reg), self:register(scope, exprregs[i])), {}, {reg, exprregs[i]}, true);
-                        elseif reg ~= exprregs[i] then
-                            self:addStatement(self:setRegister(scope, reg, self:register(scope, exprregs[i])), {reg}, {exprregs[i]}, false);
+                        else
+                            local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth, exprregs[i]);
+                            if reg ~= exprregs[i] then
+                                self:addStatement(self:setRegister(scope, reg, self:register(scope, exprregs[i])), {reg}, {exprregs[i]}, false);
+                            end
                         end
                     else
                         local upvalId = self:getUpvalueId(primaryExpr.scope, primaryExpr.id);
@@ -1568,13 +1579,63 @@ function Compiler:compileStatement(statement, funcDepth)
 
     -- Break Statement
     if(statement.kind == AstKind.BreakStatement) then
+        local toFreeVars = {};
+        local statScope;
+        repeat
+            statScope = statScope and statScope.parentScope or statement.scope;
+            for id, name in ipairs(statScope.variables) do
+                table.insert(toFreeVars, {
+                    scope = statScope,
+                    id = id;
+                });
+            end
+        until statScope == statement.loop.body.scope;
+
+        for i, var in pairs(toFreeVars) do
+            local varScope, id = var.scope, var.id;
+            local varReg = self:getVarRegister(varScope, id, nil, nil);
+            if self:isUpvalue(varScope, id) then
+                scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
+                self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
+                    self:register(scope, varReg)
+                })), {varReg}, {varReg}, false);
+            else
+                self:addStatement(self:setRegister(scope, varReg, Ast.NilExpression()), {varReg}, {}, false);
+            end
+        end
+
         self:addStatement(self:setPos(scope, statement.loop.__final_block.id), {self.POS_REGISTER}, {}, false);
         self.activeBlock.advanceToNextBlock = false;
         return;
     end
 
     -- Contiue Statement
-    if(statement.kind == AstKind.BreakStatement) then
+    if(statement.kind == AstKind.ContinueStatement) then
+        local toFreeVars = {};
+        local statScope;
+        repeat
+            statScope = statScope and statScope.parentScope or statement.scope;
+            for id, name in pairs(statScope.variables) do
+                table.insert(toFreeVars, {
+                    scope = statScope,
+                    id = id;
+                });
+            end
+        until statScope == statement.loop.body.scope;
+
+        for i, var in ipairs(toFreeVars) do
+            local varScope, id = var.scope, var.id;
+            local varReg = self:getVarRegister(varScope, id, nil, nil);
+            if self:isUpvalue(varScope, id) then
+                scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
+                self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
+                    self:register(scope, varReg)
+                })), {varReg}, {varReg}, false);
+            else
+                self:addStatement(self:setRegister(scope, varReg, Ast.NilExpression()), {varReg}, {}, false);
+            end
+        end
+
         self:addStatement(self:setPos(scope, statement.loop.__start_block.id), {self.POS_REGISTER}, {}, false);
         self.activeBlock.advanceToNextBlock = false;
         return;
@@ -1692,7 +1753,6 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         end
         local argRegs = {};
 
-        -- TODO: Function call multi return pass
         for i, expr in ipairs(expression.args) do
             table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
         end
@@ -1738,12 +1798,22 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 retRegs[i] = self:allocRegister(false);
             end
         end
-        local argRegs = {};
 
-        local argRegs = { baseReg };
+        local args = { self:register(scope, baseReg) };
+        local regs = { baseReg };
 
         for i, expr in ipairs(expression.args) do
-            table.insert(argRegs, self:compileExpression(expr, funcDepth, 1)[1]);
+            if i == #expression.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+                local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
+                table.insert(args, Ast.FunctionCallExpression(
+                    self:unpack(scope),
+                    {self:register(scope, reg)}));
+                table.insert(regs, reg);
+            else
+                local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                table.insert(args, self:register(scope, reg));
+                table.insert(regs, reg);
+            end
         end
 
         if(numReturns > 1 or returnAll) then
@@ -1753,9 +1823,9 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
             if returnAll then
-                self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+                self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {retRegs[1]}, {baseReg, unpack(regs)}, true);
             else
-                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs)))}), {tmpReg}, {baseReg, unpack(argRegs)}, true);
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {tmpReg}, {baseReg, unpack(regs)}, true);
 
                 for i, reg in ipairs(retRegs) do
                     self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
@@ -1769,11 +1839,11 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
             self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
-            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, tmpReg), self:registerList(scope, argRegs))), {retRegs[1]}, {baseReg, unpack(argRegs)}, true);
+            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
         end
 
         self:freeRegister(baseReg, false);
-        for i, reg in ipairs(argRegs) do
+        for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
         end
         

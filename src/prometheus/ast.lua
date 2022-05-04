@@ -371,8 +371,10 @@ end
 
 function Ast.OrExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value or rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value or rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -385,8 +387,10 @@ end
 
 function Ast.AndExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value and rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value and rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -399,8 +403,10 @@ end
 
 function Ast.LessThanExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value < rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value < rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -413,8 +419,10 @@ end
 
 function Ast.GreaterThanExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value > rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value > rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -427,8 +435,10 @@ end
 
 function Ast.LessThanOrEqualsExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value <= rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value <= rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -441,8 +451,10 @@ end
 
 function Ast.GreaterThanOrEqualsExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value >= rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value >= rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -455,8 +467,10 @@ end
 
 function Ast.NotEqualsExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value ~= rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value ~= rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -469,8 +483,10 @@ end
 
 function Ast.EqualsExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value == rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value == rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -483,8 +499,10 @@ end
 
 function Ast.StrCatExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value .. rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value .. rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -497,8 +515,10 @@ end
 
 function Ast.AddExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value + rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value + rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -511,8 +531,10 @@ end
 
 function Ast.SubExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value - rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value - rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -525,8 +547,10 @@ end
 
 function Ast.MulExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value * rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value * rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -539,8 +563,10 @@ end
 
 function Ast.DivExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value / rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value / rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -553,8 +579,10 @@ end
 
 function Ast.ModExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value % rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value % rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -567,8 +595,10 @@ end
 
 function Ast.NotExpression(rhs, simplify)
 	if(simplify and rhs.isConstant) then
-		local val = not rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return not rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -580,8 +610,10 @@ end
 
 function Ast.NegateExpression(rhs, simplify)
 	if(simplify and rhs.isConstant) then
-		local val = -rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return -rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -593,8 +625,10 @@ end
 
 function Ast.LenExpression(rhs, simplify)
 	if(simplify and rhs.isConstant) then
-		local val = #(rhs.value);
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return #rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {
@@ -606,8 +640,10 @@ end
 
 function Ast.PowExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
-		local val = lhs.value ^ rhs.value;
-		return Ast.ConstantNode(val);
+		local success, val = pcall(function() return lhs.value ^ rhs.value end);
+		if success then
+			return Ast.ConstantNode(val);
+		end
 	end
 
 	return {

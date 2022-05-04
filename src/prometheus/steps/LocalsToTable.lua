@@ -95,8 +95,6 @@ function LocalsToTable:apply(ast)
 	end, function(node, data)
 		-- Postvisit Function
 		local snode;
-		
-		
 		-- Variable Expressions
 		if(node.kind == AstKind.VariableExpression) then
 			if not node.scope.isGlobal then

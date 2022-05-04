@@ -149,9 +149,7 @@ do
 
 	local realStrings = {};
 	STRINGS = setmetatable({}, {
-		__index = function(tb, idx)
-			return realStrings[idx];
-		end
+		__index = realStrings;
 	});
   	function DECRYPT(str, seed) 
 		if(realStrings[seed]) then

@@ -22,19 +22,14 @@ local function unlookupify(tb)
 	return tb2;
 end
 
-
-local InvalidStringCharsMatch = "[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ %+%/!?%_-=,\n\r\t\a\b\v\\\"\'%.:;%&/()%%%[%]%*%^]"
 local function escape(str)
-	if(string.match(str, InvalidStringCharsMatch)) then
-		local ret = "";
-		local bytes = {string.byte(str, 1, -1)};
-		for i, byte in ipairs(bytes) do
-			ret = ret .. string.format("\\%03d", byte);
-		end
-		return ret;
-	end
-	
 	return str:gsub(".", function(char)
+		if char:match('[^ -~\n\t\a\b\v\r\"\']') then -- Check if non Printable Ascii Character
+			return string.format("\\%03d", string.byte(char))
+		end
+		if(char == "\\") then
+			return "\\\\";
+		end
 		if(char == "\n") then
 			return "\\n";
 		end
@@ -53,16 +48,12 @@ local function escape(str)
 		if(char == "\v") then
 			return "\\v";
 		end
-		if(char == "\\") then
-			return "\\\\";
-		end
 		if(char == "\"") then
 			return "\\\"";
 		end
 		if(char == "\'") then
 			return "\\\'";
 		end
-
 		return char;
 	end)
 end

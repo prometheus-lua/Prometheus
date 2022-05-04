@@ -21,12 +21,12 @@ return {
 
         }
     };
-    ["Vm"] = {
+    ["Test"] = {
         -- The default LuaVersion is Lua51
         LuaVersion = "Lua51";
         -- For minifying no VarNamePrefix is applied
         VarNamePrefix = "";
-        -- Name Generator for Variables that look like this: IlI1lI1l
+        -- Name Generator for Variables
         NameGenerator = "MangledShuffled";
         -- No pretty printing
         PrettyPrint = false;
@@ -35,9 +35,21 @@ return {
         -- Obfuscation steps
         Steps = {
             {
+                Name = "EncryptStrings";
+                Settings = {
+
+                };
+            },
+            {
+                Name = "BreakBeautify";
+                Settings = {
+
+                };
+            },
+            {
                 Name = "Vmify";
                 Settings = {
- 
+                    
                 };
             },
             {
@@ -52,6 +64,18 @@ return {
                     LocalWrapperArgCount = 1;
                 }
             },
+            {
+                Name = "NumbersToExpressions";
+                Settings = {
+
+                }
+            },
+            {
+                Name = "WrapInFunction",
+                Settings = {
+                    Iterations = 1,
+                }
+            }
         }
     };
     ["Weak"] = {

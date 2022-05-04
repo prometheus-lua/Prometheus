@@ -103,11 +103,29 @@ function EncryptStrings:CreateEncrypionService()
         local code = [[
 do
 	local floor = math.floor
+	local random = math.random;
+	local remove = table.remove;
+	local char = string.char;
 	local param_mul_8 = ]] .. tostring(param_mul_8) .. [[
 	local param_mul_45 = ]] .. tostring(param_mul_45) .. [[
 	local param_add_45 = ]] .. tostring(param_add_45) .. [[
 	local state_45 = 0
 	local state_8 = 2
+	local digits = {}
+	local charmap = {};
+	local i = 0;
+
+	local nums = {};
+	for i = 1, 256 do
+		nums[i] = i;
+	end
+
+	repeat
+		local idx = random(1, #nums);
+		local n = remove(nums, idx);
+		charmap[n] = char(n - 1);
+	until #nums == 0;
+
 	local prev_values = {}
 	local function get_next_pseudo_random_byte()
 		if #prev_values == 0 then
@@ -145,7 +163,7 @@ do
 		local len = string.len(str);
 		local out = "";
 		for i=1, len do
-			out = out .. string.char((string.byte(str, i) - get_next_pseudo_random_byte()) % 256);
+			out = out .. charmap[(string.byte(str, i) - get_next_pseudo_random_byte()) % 256 + 1];
 		end
 		realStrings[seed] = out;
 		return seed;

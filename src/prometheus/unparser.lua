@@ -814,10 +814,11 @@ function Unparser:unparseExpression(expression, tabbing)
 		local p = false;
 		for i, entry in ipairs(expression.entries) do
 			p = true;
+			local sep = self.prettyPrint and "," or (math.random(1, 2) == 1 and "," or ";");
 			if i > 1 and not inlineTable then
-				code = code .. "," .. self:optionalWhitespace(self:newline() .. self:tabs(tableTabbing));
+				code = code .. sep .. self:optionalWhitespace(self:newline() .. self:tabs(tableTabbing));
 			elseif i > 1 then
-				code = code .. "," .. self:optionalWhitespace();
+				code = code .. sep .. self:optionalWhitespace();
 			end
 			if(entry.kind == AstKind.KeyedTableEntry) then
 				if(entry.key.kind == AstKind.StringExpression and self:isValidIdentifier(entry.key.value)) then

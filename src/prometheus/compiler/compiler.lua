@@ -612,7 +612,7 @@ function Compiler:emitContainerFuncBody()
         Ast.LocalVariableDeclaration(self.containerFuncScope, util.shuffle(declarations), {});
         Ast.WhileStatement(whileBody, Ast.VariableExpression(self.containerFuncScope, self.posVar));
         Ast.AssignmentStatement({
-            Ast.VariableExpression(self.containerFuncScope, self.posVar)
+            Ast.AssignmentVariable(self.containerFuncScope, self.posVar)
         }, {
             Ast.LenExpression(Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar))
         }),

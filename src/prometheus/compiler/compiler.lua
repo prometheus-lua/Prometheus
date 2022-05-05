@@ -120,7 +120,8 @@ function Compiler:compile(ast)
     local _, newproxyVar = newGlobalScope:resolve("newproxy");
     local _, setmetatableVar = newGlobalScope:resolve("setmetatable");
     local _, getmetatableVar = newGlobalScope:resolve("getmetatable");
-
+    local _, selectVar = newGlobalScope:resolve("select");
+    
     psc:addReferenceToHigherScope(newGlobalScope, getfenvVar, 2);
     psc:addReferenceToHigherScope(newGlobalScope, tableVar);
     psc:addReferenceToHigherScope(newGlobalScope, unpackVar);
@@ -136,6 +137,7 @@ function Compiler:compile(ast)
     self.newproxyVar = self.scope:addVariable();
     self.setmetatableVar = self.scope:addVariable();
     self.getmetatableVar = self.scope:addVariable();
+    self.selectVar = self.scope:addVariable();
 
     self.containerFuncScope = Scope:new(self.scope);
     self.whileScope = Scope:new(self.containerFuncScope);
@@ -274,6 +276,7 @@ function Compiler:compile(ast)
         Ast.VariableExpression(self.scope, self.newproxyVar),
         Ast.VariableExpression(self.scope, self.setmetatableVar),
         Ast.VariableExpression(self.scope, self.getmetatableVar),
+        Ast.VariableExpression(self.scope, self.selectVar),
         unpack(util.shuffle({
             Ast.VariableExpression(self.scope, self.containerFuncVar),
             Ast.VariableExpression(self.scope, self.createClosureVar),
@@ -302,6 +305,7 @@ function Compiler:compile(ast)
             Ast.VariableExpression(newGlobalScope, newproxyVar);
             Ast.VariableExpression(newGlobalScope, setmetatableVar);
             Ast.VariableExpression(newGlobalScope, getmetatableVar);
+            Ast.VariableExpression(newGlobalScope, selectVar);
         })};
     }, psc), newGlobalScope);
 end
@@ -924,6 +928,9 @@ function Compiler:compileFunction(node, funcDepth)
     funcDepth = funcDepth + 1;
     local oldActiveBlock = self.activeBlock;
 
+    local upperVarargReg = self.varargReg;
+    self.varargReg = nil;
+
     local upvalueExpressions = {};
     local upvalueIds = {};
     local usedRegs = {};
@@ -972,6 +979,19 @@ function Compiler:compileFunction(node, funcDepth)
                 scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
                 self:addStatement(self:setRegister(scope, argReg, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.argsVar), Ast.NumberExpression(i))), {argReg}, {}, false);
             end
+        else
+            self.varargReg = self:allocRegister(true);
+            scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
+            scope:addReferenceToHigherScope(self.scope, self.selectVar);
+            scope:addReferenceToHigherScope(self.scope, self.unpackVar);
+            self:addStatement(self:setRegister(scope, self.varargReg, Ast.TableConstructorExpression({
+                Ast.TableEntry(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.selectVar), {
+                    Ast.NumberExpression(i);
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
+                        Ast.VariableExpression(self.containerFuncScope, self.argsVar),
+                    });
+                })),
+            })), {self.varargReg}, {}, false);
         end
     end
 
@@ -982,6 +1002,10 @@ function Compiler:compileFunction(node, funcDepth)
         self.activeBlock.advanceToNextBlock = false;
     end
 
+    if(self.varargReg) then
+        self:freeRegister(self.varargReg, true);
+    end
+    self.varargReg = upperVarargReg;
     self.getUpvalueId = oldGetUpvalueId;
 
     self:popRegisterUsageInfo();
@@ -1029,7 +1053,7 @@ function Compiler:compileStatement(statement, funcDepth)
         local regs = {};
 
         for i, expr in ipairs(statement.args) do
-            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
                 local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
                 table.insert(entries, Ast.TableEntry(Ast.FunctionCallExpression(
                     self:unpack(scope),
@@ -1107,7 +1131,7 @@ function Compiler:compileStatement(statement, funcDepth)
         local args = {};
 
         for i, expr in ipairs(statement.args) do
-            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
                 local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
                 table.insert(args, Ast.FunctionCallExpression(
                     self:unpack(scope),
@@ -1138,7 +1162,7 @@ function Compiler:compileStatement(statement, funcDepth)
         local regs = { baseReg };
 
         for i, expr in ipairs(statement.args) do
-            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+            if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
                 local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
                 table.insert(args, Ast.FunctionCallExpression(
                     self:unpack(scope),
@@ -1803,7 +1827,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         local regs = { baseReg };
 
         for i, expr in ipairs(expression.args) do
-            if i == #expression.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression) then
+            if i == #expression.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
                 local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
                 table.insert(args, Ast.FunctionCallExpression(
                     self:unpack(scope),
@@ -1816,7 +1840,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             end
         end
 
-        if(numReturns > 1 or returnAll) then
+        if(returnAll or numReturns > 1) then
             local tmpReg = self:allocRegister(false);
 
             self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
@@ -2064,7 +2088,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local entryRegs = {};
                 for i, entry in ipairs(expression.entries) do
                     if(entry.kind == AstKind.TableEntry) then
-                        if i == #expression.entries and entry.kind == AstKind.FunctionCallExpression then
+                        if i == #expression.entries and entry.kind == AstKind.FunctionCallExpression or expression.kind == AstKind.PassSelfFunctionCallExpression or expression.kind == AstKind.VarargExpression then
                             local reg = self:compileExpression(entry.value, funcDepth, self.RETURN_ALL)[1];
                             table.insert(entries, Ast.TableEntry(Ast.FunctionCallExpression(
                                 self:unpack(scope),
@@ -2103,6 +2127,18 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 regs[i] = self:allocRegister();
                 self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
             end
+        end
+        return regs;
+    end
+
+    if(expression.kind == AstKind.VarargExpression) then
+        if numReturns == self.RETURN_ALL then
+            return {self.varargReg};
+        end
+        local regs = {};
+        for i=1, numReturns do
+            regs[i] = self:allocRegister(false);
+            self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, self.varargReg), Ast.NumberExpression(i))), {regs[i]}, {self.varargReg}, false);
         end
         return regs;
     end

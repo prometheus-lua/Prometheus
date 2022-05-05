@@ -165,6 +165,12 @@ return {
                 }
             },
             {
+                Name = "NumbersToExpressions";
+                Settings = {
+
+                }
+            },
+            {
                 Name = "WrapInFunction";
                 Settings = {
                     Iterations = 1;

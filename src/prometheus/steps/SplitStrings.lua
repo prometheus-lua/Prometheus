@@ -82,6 +82,7 @@ local function generateTableConcatNode(chunks, data)
 		table.insert(chunkNodes, Ast.TableEntry(Ast.StringExpression(chunk)));
 	end
 	local tb = Ast.TableConstructorExpression(chunkNodes);
+	data.scope:addReferenceToHigherScope(data.tableConcatScope, data.tableConcatId);
 	return Ast.FunctionCallExpression(Ast.VariableExpression(data.tableConcatScope, data.tableConcatId), {tb});	
 end
 

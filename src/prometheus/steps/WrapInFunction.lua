@@ -36,7 +36,7 @@ function WrapInFunction:apply(ast)
 
 		ast.body = Ast.Block({
 			Ast.ReturnStatement({
-				Ast.FunctionCallExpression(Ast.FunctionLiteralExpression({}, body),{})
+				Ast.FunctionCallExpression(Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body), {Ast.VarargExpression()})
 			});
 		}, scope);
 	end

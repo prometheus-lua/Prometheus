@@ -159,11 +159,10 @@ do
 		state_8 = seed % 255 + 2
     	prev_values = {};
 		local len = string.len(str);
-		local out = "";
+		realStrings[seed] = "";
 		for i=1, len do
-			out = out .. charmap[(string.byte(str, i) - get_next_pseudo_random_byte()) % 256 + 1];
+			realStrings[seed] = realStrings[seed] .. charmap[(string.byte(str, i) - get_next_pseudo_random_byte()) % 256 + 1];
 		end
-		realStrings[seed] = out;
 		return seed;
 	end
 end]]

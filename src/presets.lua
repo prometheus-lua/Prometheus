@@ -47,6 +47,12 @@ return {
                     StringsOnly = true;
                 }
             },
+            {
+                Name = "WrapInFunction";
+                Settings = {
+
+                }
+            },
         }
     };
     ["Medium"] = {
@@ -69,7 +75,7 @@ return {
                 };
             },
             {
-                Name = "BreakBeautify";
+                Name = "AntiTamper";
                 Settings = {
 
                 };
@@ -88,8 +94,6 @@ return {
                     Shuffle     = true;
                     Rotate      = true;
                     LocalWrapperTreshold = 0;
-                    LocalWrapperCount = 1;
-                    LocalWrapperArgCount = 1;
                 }
             },
             {
@@ -99,11 +103,11 @@ return {
                 }
             },
             {
-                Name = "WrapInFunction",
+                Name = "WrapInFunction";
                 Settings = {
-                    Iterations = 1,
+
                 }
-            }
+            },
         }
     };
     ["Strong"] = {
@@ -120,13 +124,19 @@ return {
         -- Obfuscation steps
         Steps = {
             {
+                Name = "Vmify";
+                Settings = {
+                    
+                };
+            },
+            {
                 Name = "EncryptStrings";
                 Settings = {
 
                 };
             },
             {
-                Name = "BreakBeautify";
+                Name = "AntiTamper";
                 Settings = {
 
                 };
@@ -138,30 +148,13 @@ return {
                 };
             },
             {
-                Name = "SplitStrings";
-                Settings = {
-                    Treshold = 0.8;
-                    MinLength = 8;
-                    MaxLength = 20;
-                    ConcatenationType = "table";
-                }
-            },
-            {
                 Name = "ConstantArray";
                 Settings = {
                     Treshold    = 1;
                     StringsOnly = true;
                     Shuffle     = true;
                     Rotate      = true;
-                    LocalWrapperTreshold = 1;
-                    LocalWrapperCount = 3;
-                    LocalWrapperArgCount = 3;
-                }
-            },
-            {
-                Name = "ProxifyLocals";
-                Settings = {
-                    
+                    LocalWrapperTreshold = 0;
                 }
             },
             {
@@ -173,9 +166,9 @@ return {
             {
                 Name = "WrapInFunction";
                 Settings = {
-                    Iterations = 1;
+
                 }
-            }
+            },
         }
-    }
+    },
 }

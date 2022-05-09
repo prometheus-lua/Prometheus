@@ -30,6 +30,7 @@ function EncryptStrings:CreateEncrypionService()
 	local secret_key_6 = math.random(0, 63) -- 6-bit  arbitrary integer (0..63)
 	local secret_key_7 = math.random(0, 127) -- 7-bit  arbitrary integer (0..127)
 	local secret_key_44 = math.random(0, 17592186044415) -- 44-bit arbitrary integer (0..17592186044415)
+	local secret_key_8 = math.random(0, 255); -- 8-bit  arbitrary integer (0..255)
 
 	local floor = math.floor
 
@@ -93,8 +94,11 @@ function EncryptStrings:CreateEncrypionService()
 		set_seed(seed)
 		local len = string.len(str)
 		local out = {}
+		local prevVal = secret_key_8;
 		for i = 1, len do
-			out[i] = string.char((string.byte(str, i) + get_next_pseudo_random_byte()) % 256);
+			local byte = string.byte(str, i);
+			out[i] = string.char((byte - (get_next_pseudo_random_byte() + prevVal)) % 256);
+			prevVal = byte;
 		end
 		return table.concat(out), seed;
 	end
@@ -106,9 +110,6 @@ do
 	local random = math.random;
 	local remove = table.remove;
 	local char = string.char;
-	local param_mul_8 = ]] .. tostring(param_mul_8) .. [[
-	local param_mul_45 = ]] .. tostring(param_mul_45) .. [[
-	local param_add_45 = ]] .. tostring(param_add_45) .. [[
 	local state_45 = 0
 	local state_8 = 2
 	local digits = {}
@@ -129,9 +130,9 @@ do
 	local prev_values = {}
 	local function get_next_pseudo_random_byte()
 		if #prev_values == 0 then
-			state_45 = (state_45 * param_mul_45 + param_add_45) % 35184372088832
+			state_45 = (state_45 * ]] .. tostring(param_mul_45) .. [[ + ]] .. tostring(param_add_45) .. [[) % 35184372088832
 			repeat
-				state_8 = state_8 * param_mul_8 % 257
+				state_8 = state_8 * ]] .. tostring(param_mul_8) .. [[ % 257
 			until state_8 ~= 1
 			local r = state_8 % 32
 			local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
@@ -150,18 +151,22 @@ do
 	local realStrings = {};
 	STRINGS = setmetatable({}, {
 		__index = realStrings;
+		__metatable = nil;
 	});
-  	function DECRYPT(str, seed) 
-		if(realStrings[seed]) then
-			return seed;
-		end
-		state_45 = seed % 35184372088832
-		state_8 = seed % 255 + 2
-    	prev_values = {};
-		local len = string.len(str);
-		realStrings[seed] = "";
-		for i=1, len do
-			realStrings[seed] = realStrings[seed] .. charmap[(string.byte(str, i) - get_next_pseudo_random_byte()) % 256 + 1];
+  	function DECRYPT(str, seed)
+		local realStringsLocal = realStrings;
+		if(realStringsLocal[seed]) then else
+			prev_values = {};
+			local chars = charmap;
+			state_45 = seed % 35184372088832
+			state_8 = seed % 255 + 2
+			local len = string.len(str);
+			realStringsLocal[seed] = "";
+			local prevVal = ]] .. tostring(secret_key_8) .. [[;
+			for i=1, len do
+				prevVal = (string.byte(str, i) + get_next_pseudo_random_byte() + prevVal) % 256
+				realStringsLocal[seed] = realStringsLocal[seed] .. chars[prevVal + 1];
+			end
 		end
 		return seed;
 	end
@@ -175,6 +180,7 @@ end]]
         param_mul_45 = param_mul_45,
         param_mul_8 = param_mul_8,
         param_add_45 = param_add_45,
+		secret_key_8 = secret_key_8,
         genCode = genCode,
     }
 end

@@ -107,6 +107,11 @@ for i, filename in ipairs(scandir(testdir)) do
 	local code = file:read("*a");
 	print(Prometheus.colors("[CURRENT] ", "magenta") .. filename);
 	for name, preset in pairs(presets) do
+		for i = #preset.Steps, 1, -1 do
+			if preset.Steps[i].Name == "AntiTamper" then
+				table.remove(preset.Steps, i);
+			end
+		end
 		pipeline = Prometheus.Pipeline:fromConfig(preset);
 		local obfuscated = pipeline:apply(code);
 
@@ -115,9 +120,6 @@ for i, filename in ipairs(scandir(testdir)) do
 
 		if funcb == nil then
 			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name .. ", Invalid Lua!");
-			if ciMode then
-				error("Test Failed!")
-			end
 			print("[SOURCE]", obfuscated);
 			fc = fc + 1;
 		else
@@ -128,9 +130,6 @@ for i, filename in ipairs(scandir(testdir)) do
 				print("[OUTA]    ",    outa);
 				print("[OUTB]    ", outb);
 				print("[SOURCE]", obfuscated);
-				if ciMode then
-					error("Test Failed!")
-				end
 				fc = fc + 1;
 			end
 		end
@@ -143,5 +142,8 @@ if fc < 1 then
 	return 0;
 else
 	print(Prometheus.colors("[FAILED]  ", "red") .. "Some tests failed!");
+	if ciMode then
+		error("Test Failed!")
+	end
 	return -1;
 end

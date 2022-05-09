@@ -5,7 +5,7 @@ return {
 	Vmify          = require("prometheus.steps.Vmify");
 	ConstantArray  = require("prometheus.steps.ConstantArray");
 	ProxifyLocals  = require("prometheus.steps.ProxifyLocals");
-	BreakBeautify  = require("prometheus.steps.BreakBeautify");
+	AntiTamper  = require("prometheus.steps.AntiTamper");
 	EncryptStrings = require("prometheus.steps.EncryptStrings");
 	NumbersToExpressions = require("prometheus.steps.NumbersToExpressions");
 	AddVararg 	= require("prometheus.steps.AddVararg");

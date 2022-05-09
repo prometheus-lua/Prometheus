@@ -29,7 +29,7 @@ end) then
             a, b = b, a;
         end
         local diff = b - a;
-        assert(diff > 0);
+        assert(diff >= 0);
         if diff > 2 ^ 31 - 1 then
             return math.floor(oldMathRandom() * diff + a);
         else

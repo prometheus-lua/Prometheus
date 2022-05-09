@@ -1261,7 +1261,7 @@ function Compiler:compileStatement(statement, funcDepth)
 
         for i, expr in ipairs(statement.rhs) do
             if(i == #statement.rhs and #statement.lhs > #statement.rhs) then
-                local regs = self:compileExpression(expr, funcDepth, #statement.lhs - #statement.expressions + 1);
+                local regs = self:compileExpression(expr, funcDepth, #statement.lhs - #statement.rhs + 1);
 
                 for i, reg in ipairs(regs) do
                     if(self:isVarRegister(reg)) then

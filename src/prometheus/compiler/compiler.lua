@@ -14,6 +14,7 @@ local Scope = require("prometheus.scope");
 local logger = require("logger");
 local util = require("prometheus.util");
 local visitast = require("prometheus.visitast")
+local randomStrings = require("prometheus.randomStrings")
 
 local lookupify = util.lookupify;
 local AstKind = Ast.AstKind;
@@ -138,6 +139,8 @@ function Compiler:compile(ast)
     self.setmetatableVar = self.scope:addVariable();
     self.getmetatableVar = self.scope:addVariable();
     self.selectVar = self.scope:addVariable();
+
+    local argVar = self.scope:addVariable();
 
     self.containerFuncScope = Scope:new(self.scope);
     self.whileScope = Scope:new(self.containerFuncScope);
@@ -277,6 +280,7 @@ function Compiler:compile(ast)
         Ast.VariableExpression(self.scope, self.setmetatableVar),
         Ast.VariableExpression(self.scope, self.getmetatableVar),
         Ast.VariableExpression(self.scope, self.selectVar),
+        Ast.VariableExpression(self.scope, argVar),
         unpack(util.shuffle({
             Ast.VariableExpression(self.scope, self.containerFuncVar),
             Ast.VariableExpression(self.scope, self.createClosureVar),
@@ -294,7 +298,7 @@ function Compiler:compile(ast)
             Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createClosureVar), {
                     Ast.NumberExpression(self.startBlockId);
                     Ast.TableConstructorExpression(upvalEntries);
-                }), {});
+                }), {Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {Ast.VariableExpression(self.scope, argVar)})});
         }
     }, self.scope));
 
@@ -306,6 +310,9 @@ function Compiler:compile(ast)
             Ast.VariableExpression(newGlobalScope, setmetatableVar);
             Ast.VariableExpression(newGlobalScope, getmetatableVar);
             Ast.VariableExpression(newGlobalScope, selectVar);
+            Ast.TableConstructorExpression({
+                Ast.TableEntry(Ast.VarargExpression());
+            })
         })};
     }, psc), newGlobalScope);
 end
@@ -839,12 +846,8 @@ end
 
 function Compiler:setPos(scope, val)
     if not val then
-        local v;
-        if math.random(1, 2) == 1 then
-            v = Ast.NilExpression();
-        else
-            v = Ast.BooleanExpression(false);
-        end
+       
+        local v =  Ast.IndexExpression(self:env(scope), randomStrings.randomStringNode(math.random(12, 14))); --Ast.NilExpression();
         scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {v});
     end
@@ -880,6 +883,7 @@ end
 function Compiler:compileTopNode(node)
     -- Create Initial Block
     local startBlock = self:createBlock();
+    local scope = startBlock.scope;
     self.startBlockId = startBlock.id;
     self:setActiveBlock(startBlock);
 
@@ -912,6 +916,12 @@ function Compiler:compileTopNode(node)
             end
         end
     end, nil, nil)
+
+    self.varargReg = self:allocRegister(true);
+    scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
+    scope:addReferenceToHigherScope(self.scope, self.selectVar);
+    scope:addReferenceToHigherScope(self.scope, self.unpackVar);
+    self:addStatement(self:setRegister(scope, self.varargReg, Ast.VariableExpression(self.containerFuncScope, self.argsVar)), {self.varargReg}, {}, false);
 
     -- Compile Block
     self:compileBlock(node.body, 0);
@@ -2088,7 +2098,8 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
                 local entryRegs = {};
                 for i, entry in ipairs(expression.entries) do
                     if(entry.kind == AstKind.TableEntry) then
-                        if i == #expression.entries and entry.kind == AstKind.FunctionCallExpression or expression.kind == AstKind.PassSelfFunctionCallExpression or expression.kind == AstKind.VarargExpression then
+                        local value = entry.value;
+                        if i == #expression.entries and (value.kind == AstKind.FunctionCallExpression or value.kind == AstKind.PassSelfFunctionCallExpression or value.kind == AstKind.VarargExpression) then
                             local reg = self:compileExpression(entry.value, funcDepth, self.RETURN_ALL)[1];
                             table.insert(entries, Ast.TableEntry(Ast.FunctionCallExpression(
                                 self:unpack(scope),

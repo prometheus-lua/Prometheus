@@ -23,7 +23,7 @@ function Step:new(settings)
 	end
 	
 	for key, data in pairs(self.SettingsDescriptor) do
-		if not settings[key] then
+		if settings[key] == nil then
 			if data.default == nil then
 				logger:error(string.format("The Setting \"%s\" was not provided for the Step \"%s\"", key, self.Name));
 			end

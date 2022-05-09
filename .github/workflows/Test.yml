@@ -13,12 +13,6 @@ jobs:
           luaVersion: 5.1
       - name: Run test case
         run: lua ./tests.lua --Linux --CI
-      - uses: LouisBrunner/checks-action@v1.1.1
-        if: always()
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Test Linux
-          conclusion: ${{ job.status }}
   
   test-windows:
     runs-on: windows-latest
@@ -32,9 +26,3 @@ jobs:
           tar -xf Lua51.zip
       - name: Run test case
         run: ./lua.exe ./tests.lua --CI
-      - uses: LouisBrunner/checks-action@v1.1.1
-        if: always()
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Test Windows
-          conclusion: ${{ job.status }}

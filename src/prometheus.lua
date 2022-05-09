@@ -12,6 +12,33 @@ end
 local oldPkgPath = package.path;
 package.path = script_path() .. "?.lua;" .. package.path;
 
+-- Math.random Fix
+-- Check if fix is needed
+if not pcall(function()
+    return math.random(1, 2^40);
+end) then
+    local oldMathRandom = math.random;
+    math.random = function(a, b)
+        if not a and b then
+            return oldMathRandom();
+        end
+        if not b then
+            return math.random(1, a);
+        end
+        if a > b then
+            a, b = b, a;
+        end
+        local diff = b - a;
+        assert(diff > 0);
+        if diff > 2 ^ 31 - 1 then
+            return math.floor(oldMathRandom() * diff + a);
+        else
+            return oldMathRandom(a, b);
+        end
+    end
+end
+
+
 -- Require Prometheus Submodules
 local Pipeline  = require("prometheus.pipeline");
 local highlight = require("highlightlua");

@@ -12,7 +12,7 @@ end
 local oldPkgPath = package.path;
 package.path = script_path() .. "?.lua;" .. package.path;
 
--- Math.random Fix
+-- Math.random Fix for Lua5.1
 -- Check if fix is needed
 if not pcall(function()
     return math.random(1, 2^40);
@@ -36,6 +36,14 @@ end) then
             return oldMathRandom(a, b);
         end
     end
+end
+
+-- newproxy polyfill
+_G.newproxy = _G.newproxy or function(arg)
+    if arg then
+        return setmetatable({}, {});
+    end
+    return {};
 end
 
 

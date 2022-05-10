@@ -35,6 +35,7 @@ function AntiTamper:apply(ast, pipeline)
     end
 	local code = "do local valid = true;";
     if self.UseDebug then
+        local string = RandomStrings.randomString();
         code = code .. [[
             -- Anti Beautify
             local sethook = debug and debug.sethook or function() end;
@@ -64,28 +65,27 @@ function AntiTamper:apply(ast, pipeline)
                     valid = false;
                 end
             end
+
+            -- Anti Beautify
+            local function getTraceback()
+                local str = (function(arg)
+                    return debug.traceback(arg)
+                end)("]] .. string .. [[");
+                return str;
+            end
+    
+            local traceback = getTraceback();
+            valid = valid and traceback:sub(1, traceback:find("\n") - 1) == "]] .. string .. [[";
+            local iter = traceback:gmatch(":(%d*):");
+            local v, c = iter(), 1;
+            for i in iter do
+                valid = valid and i == v;
+                c = c + 1;
+            end
+            valid = valid and c >= 2;
         ]]
     end
-    local string = RandomStrings.randomString();
     code = code .. [[
-    -- Anti Beautify
-    local function getTraceback()
-        local str = (function(arg)
-            return debug.traceback(arg)
-        end)("]] .. string .. [[");
-        return str;
-    end
-    
-    local traceback = getTraceback();
-    valid = valid and traceback:sub(1, traceback:find("\n") - 1) == "]] .. string .. [[";
-    local iter = traceback:gmatch(":(%d*):");
-    local v, c = iter(), 1;
-    for i in iter do
-        valid = valid and i == v;
-        c = c + 1;
-    end
-    valid = valid and c >= 2;
-
     local gmatch = string.gmatch;
     local err = function() error("Tamper Detected!") end;
 

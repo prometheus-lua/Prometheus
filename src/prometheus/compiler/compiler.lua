@@ -162,12 +162,13 @@ function Compiler:compile(ast)
     self.upvaluesGcFunctionVar = self.scope:addVariable();
     self.freeUpvalueFunc = self.scope:addVariable();
 
-    
-    self.createClosureVar = self.scope:addVariable();
+    self.createClosureVars = {};
+    self.createVarargClosureVar = self.scope:addVariable();
     local createClosureScope = Scope:new(self.scope);
     local createClosurePosArg = createClosureScope:addVariable();
     local createClosureUpvalsArg = createClosureScope:addVariable();
     local createClosureProxyObject = createClosureScope:addVariable();
+    local createClosureFuncVar = createClosureScope:addVariable();
 
     local createClosureSubScope = Scope:new(createClosureScope);
 
@@ -190,15 +191,15 @@ function Compiler:compile(ast)
         return uid;
     end
 
-    -- Invoke Compiler
-    self:compileTopNode(ast);
-
     -- Reference to Higher Scopes
     createClosureSubScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
     createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosurePosArg)
     createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureUpvalsArg, 1)
     createClosureScope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
     createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureProxyObject);
+
+    -- Invoke Compiler
+    self:compileTopNode(ast);
 
     local functionNodeAssignments = {
         {
@@ -210,7 +211,7 @@ function Compiler:compile(ast)
                 Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar)
             }, self:emitContainerFuncBody());
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.createClosureVar),
+            var = Ast.AssignmentVariable(self.scope, self.createVarargClosureVar),
             val = Ast.FunctionLiteralExpression({
                     Ast.VariableExpression(createClosureScope, createClosurePosArg),
                     Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
@@ -223,7 +224,7 @@ function Compiler:compile(ast)
                             Ast.VariableExpression(createClosureScope, createClosureUpvalsArg)
                         })
                     }),
-                    Ast.ReturnStatement{
+                    Ast.LocalVariableDeclaration(createClosureScope, {createClosureFuncVar},{
                         Ast.FunctionLiteralExpression({
                             Ast.VarargExpression();
                         },
@@ -238,7 +239,8 @@ function Compiler:compile(ast)
                             }
                         }, createClosureSubScope)
                         );
-                    }
+                    });
+                    Ast.ReturnStatement{Ast.VariableExpression(createClosureScope, createClosureFuncVar)};
                 }, createClosureScope)
             );
         }, {
@@ -262,8 +264,24 @@ function Compiler:compile(ast)
         }, {
             var = Ast.AssignmentVariable(self.scope, self.freeUpvalueFunc),
             val = self:createFreeUpvalueFunc(),
-        }
+        },
     }
+
+    local tbl = {
+        Ast.VariableExpression(self.scope, self.containerFuncVar),
+        Ast.VariableExpression(self.scope, self.createVarargClosureVar),
+        Ast.VariableExpression(self.scope, self.upvaluesTable),
+        Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable),
+        Ast.VariableExpression(self.scope, self.allocUpvalFunction),
+        Ast.VariableExpression(self.scope, self.currentUpvalId),
+        Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar),
+        Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
+        Ast.VariableExpression(self.scope, self.freeUpvalueFunc),
+    };
+    for i, entry in pairs(self.createClosureVars) do
+        table.insert(functionNodeAssignments, entry);
+        table.insert(tbl, Ast.VariableExpression(entry.var.scope, entry.var.id));
+    end
 
     util.shuffle(functionNodeAssignments);
     local assignmentStatLhs, assignmentStatRhs = {}, {};
@@ -281,21 +299,11 @@ function Compiler:compile(ast)
         Ast.VariableExpression(self.scope, self.getmetatableVar),
         Ast.VariableExpression(self.scope, self.selectVar),
         Ast.VariableExpression(self.scope, argVar),
-        unpack(util.shuffle({
-            Ast.VariableExpression(self.scope, self.containerFuncVar),
-            Ast.VariableExpression(self.scope, self.createClosureVar),
-            Ast.VariableExpression(self.scope, self.upvaluesTable),
-            Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable),
-            Ast.VariableExpression(self.scope, self.allocUpvalFunction),
-            Ast.VariableExpression(self.scope, self.currentUpvalId),
-            Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar),
-            Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
-            Ast.VariableExpression(self.scope, self.freeUpvalueFunc)
-        }))
+        unpack(util.shuffle(tbl))
     }, Ast.Block({
         Ast.AssignmentStatement(assignmentStatLhs, assignmentStatRhs);
         Ast.ReturnStatement{
-            Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createClosureVar), {
+            Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
                     Ast.NumberExpression(self.startBlockId);
                     Ast.TableConstructorExpression(upvalEntries);
                 }), {Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {Ast.VariableExpression(self.scope, argVar)})});
@@ -315,6 +323,69 @@ function Compiler:compile(ast)
             })
         })};
     }, psc), newGlobalScope);
+end
+
+function Compiler:getCreateClosureVar(argCount)
+    if not self.createClosureVars[argCount] then
+        local var = Ast.AssignmentVariable(self.scope, self.scope:addVariable());
+        local createClosureScope = Scope:new(self.scope);
+        local createClosureSubScope = Scope:new(createClosureScope);
+        
+        local createClosurePosArg = createClosureScope:addVariable();
+        local createClosureUpvalsArg = createClosureScope:addVariable();
+        local createClosureProxyObject = createClosureScope:addVariable();
+        local createClosureFuncVar = createClosureScope:addVariable();
+
+        createClosureSubScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
+        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosurePosArg)
+        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureUpvalsArg, 1)
+        createClosureScope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
+        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureProxyObject);
+
+        local  argsTb, argsTb2 = {}, {};
+        for i = 1, argCount do
+            local arg = createClosureSubScope:addVariable()
+            argsTb[i] = Ast.VariableExpression(createClosureSubScope, arg);
+            argsTb2[i] = Ast.TableEntry(Ast.VariableExpression(createClosureSubScope, arg));
+        end
+
+        local val = Ast.FunctionLiteralExpression({
+            Ast.VariableExpression(createClosureScope, createClosurePosArg),
+            Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
+        }, Ast.Block({
+                Ast.LocalVariableDeclaration(createClosureScope, {
+                    createClosureProxyObject
+                }, {
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar), {
+                        Ast.VariableExpression(createClosureScope, createClosureUpvalsArg)
+                    })
+                }),
+                Ast.LocalVariableDeclaration(createClosureScope, {createClosureFuncVar},{
+                    Ast.FunctionLiteralExpression(argsTb,
+                    Ast.Block({
+                        Ast.ReturnStatement{
+                            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.containerFuncVar), {
+                                Ast.VariableExpression(createClosureScope, createClosurePosArg),
+                                Ast.TableConstructorExpression(argsTb2),
+                                Ast.VariableExpression(createClosureScope, createClosureUpvalsArg), -- Upvalues
+                                Ast.VariableExpression(createClosureScope, createClosureProxyObject)
+                            })
+                        }
+                    }, createClosureSubScope)
+                    );
+                });
+                Ast.ReturnStatement{Ast.VariableExpression(createClosureScope, createClosureFuncVar)}
+            }, createClosureScope)
+        );
+        self.createClosureVars[argCount] = {
+            var = var,
+            val = val,
+        }
+    end
+
+    
+    local var = self.createClosureVars[argCount].var;
+    return var.scope, var.id;
 end
 
 function Compiler:pushRegisterUsageInfo()
@@ -1025,11 +1096,23 @@ function Compiler:compileFunction(node, funcDepth)
     
     local retReg = self:allocRegister(false);
 
-    scope:addReferenceToHigherScope(self.scope, self.createClosureVar);
-    local retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createClosureVar), {
-        Ast.NumberExpression(block.id),
-        Ast.TableConstructorExpression(upvalueExpressions)
-    });
+    local isVarargFunction = #node.args > 0 and node.args[#node.args].kind == AstKind.VarargExpression;
+
+    local retrieveExpression
+    if isVarargFunction then
+        scope:addReferenceToHigherScope(self.scope, self.createVarargClosureVar);
+        retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
+            Ast.NumberExpression(block.id),
+            Ast.TableConstructorExpression(upvalueExpressions)
+        });
+    else
+        local varScope, var = self:getCreateClosureVar(#node.args + math.random(0, 5));
+        scope:addReferenceToHigherScope(varScope, var);
+        retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(varScope, var), {
+            Ast.NumberExpression(block.id),
+            Ast.TableConstructorExpression(upvalueExpressions)
+        });
+    end
 
     self:addStatement(self:setRegister(scope, retReg, retrieveExpression), {retReg}, usedRegs, false);
     return retReg;

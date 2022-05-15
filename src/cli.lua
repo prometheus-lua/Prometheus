@@ -41,6 +41,7 @@ local function lines_from(file)
 local config;
 local sourceFile;
 local outFile;
+local luaVersion;
 
 Prometheus.colors.enabled = true;
 
@@ -82,6 +83,10 @@ while i <= #arg do
             outFile = arg[i];
         elseif curr == "--nocolors" then
             Prometheus.colors.enabled = false;
+        elseif curr == "--Lua51" then
+            luaVersion = "Lua51";
+        elseif curr == "--LuaU" then
+            luaVersion = "LuaU";
         else
             Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored", curr));
         end
@@ -102,6 +107,9 @@ if not config then
     Prometheus.Logger:warn("No config was specified, falling back to Minify preset");
     config = Prometheus.Presets.Minify;
 end
+
+-- Add Option to override Lua Version
+config.LuaVersion = luaVersion or config.LuaVersion;
 
 if not file_exists(sourceFile) then
     Prometheus.Logger:error(string.format("The File \"%s\" was not found!", sourceFile));

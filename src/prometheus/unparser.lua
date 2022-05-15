@@ -15,6 +15,7 @@ local config = require("config");
 local Ast    = require("prometheus.ast");
 local Enums  = require("prometheus.enums");
 local util = require("prometheus.util");
+local logger = require("logger");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;
@@ -104,7 +105,7 @@ end
 
 function Unparser:unparse(ast)
 	if(ast.kind ~= AstKind.TopNode) then
-		error("Unparser:unparse expects a TopNode as first argument")
+		logger:error("Unparser:unparse expects a TopNode as first argument")
 	end
 	
 	return self:unparseBlock(ast.body);
@@ -381,9 +382,26 @@ function Unparser:unparseStatement(statement, tabbing)
 				code = code .. "," .. self:optionalWhitespace() .. exprcode;
 			end
 		end
-	-- While Statement
+	elseif self.luaVersion == LuaVersion.LuaU then
+		if statement.kind == AstKind.CompoundAddStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "+=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundSubStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "-=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundMulStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "*=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundDivStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "/=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundModStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "%=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundPowStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "^=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		elseif statement.kind == AstKind.CompoundConcatStatement then
+			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "..=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		else
+			logger:error(string.format("\"%s\" is not a valid unparseable statement in %s!", statement.kind, self.luaVersion));
+		end
 	else
-		error(string.format("\"%s\" is not a valid unparseable statement", statement.kind));
+		logger:error(string.format("\"%s\" is not a valid unparseable statement in %s!", statement.kind, self.luaVersion));
 	end
 	
 	return self:tabs(tabbing, false) .. code;
@@ -839,7 +857,7 @@ function Unparser:unparseExpression(expression, tabbing)
 		return code .. self:optionalWhitespace((p and "," or "") .. self:newline() .. self:tabs(tabbing)) .. "}";
 	end
 
-	error(string.format("\"%s\" is not a valid unparseable expression", expression.kind));
+	logger:error(string.format("\"%s\" is not a valid unparseable expression", expression.kind));
 end
 
 return Unparser

@@ -404,6 +404,45 @@ function Parser:statement(scope, currentLoop)
 			if(expr.kind == AstKind.VariableExpression) then
 				expr.kind = AstKind.AssignmentVariable
 			end
+
+			if(self.luaVersion == LuaVersion.LuaU) then
+				-- LuaU Compound Assignment
+				if(consume(self, TokenKind.Symbol, "+=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundAddStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "-=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundSubStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "*=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundMulStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "/=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundDivStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "%=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundModStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "^=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundPowStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "..=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundConcatStatement(expr, rhs);
+				end
+			end
+
 			local lhs = {
 				expr
 			}

@@ -26,6 +26,15 @@ local AstKind = {
 	PassSelfFunctionCallStatement = "PassSelfFunctionCallStatement";
 	AssignmentStatement = "AssignmentStatement";
 
+	-- LuaU Compound Statements
+	CompoundAddStatement = "CompoundAddStatement";
+	CompoundSubStatement = "CompoundSubStatement";
+	CompoundMulStatement = "CompoundMulStatement";
+	CompoundDivStatement = "CompoundDivStatement";
+	CompoundModStatement = "CompoundModStatement";
+	CompoundPowStatement = "CompoundPowStatement";
+	CompoundConcatStatement = "CompoundConcatStatement";
+
 	-- Assignment Index
 	AssignmentIndexing = "AssignmentIndexing";
 	AssignmentVariable = "AssignmentVariable";  
@@ -212,6 +221,62 @@ function Ast.AssignmentStatement(lhs, rhs)
 	end
 	return {
 		kind = AstKind.AssignmentStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundAddStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundAddStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundSubStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundSubStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundMulStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundMulStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundDivStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundDivStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundPowStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundPowStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundModStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundModStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundConcatStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundConcatStatement,
 		lhs = lhs,
 		rhs = rhs,
 	}

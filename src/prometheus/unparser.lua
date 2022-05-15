@@ -180,7 +180,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 		code = "repeat" ..  self:whitespaceIfNeeded(bodyCode, self:newline(true))
 			.. bodyCode
-			.. self:whitespaceIfNeeded2(bodyCode, self:tabs(tabbing, true)) .. "until" .. self:whitespaceIfNeeded(expressionCode) .. expressionCode;
+			.. self:whitespaceIfNeeded2(bodyCode, self:newline() .. self:tabs(tabbing, true)) .. "until" .. self:whitespaceIfNeeded(expressionCode) .. expressionCode;
 
 	-- For Statement
 	elseif(statement.kind == AstKind.ForStatement) then

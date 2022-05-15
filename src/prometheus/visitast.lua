@@ -39,6 +39,16 @@ function visitAst(ast, previsit, postvisit, data)
 	return ast;
 end
 
+local compundStats = lookupify{
+	AstKind.CompoundAddStatement,
+	AstKind.CompoundSubStatement,
+	AstKind.CompoundMulStatement,
+	AstKind.CompoundDivStatement,
+	AstKind.CompoundModStatement,
+	AstKind.CompoundPowStatement,
+	AstKind.CompoundConcatStatement,
+}
+
 function visitBlock(block, previsit, postvisit, data, isFunctionBlock)
 	block.isBlock = true;
 	block.isFunctionBlock = isFunctionBlock or false;
@@ -143,6 +153,9 @@ function visitStatement(statement, previsit, postvisit, data)
 		for i, expression in ipairs(statement.expressions) do
 			statement.expressions[i] = visitExpression(expression, previsit, postvisit, data);
 		end
+	elseif compundStats[statement.kind] then
+		statement.lhs = visitExpression(statement.lhs, previsit, postvisit, data);
+		statement.rhs = visitExpression(statement.rhs, previsit, postvisit, data);
 	end
 
 	if(type(postvisit) == "function") then

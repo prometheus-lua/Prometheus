@@ -42,6 +42,7 @@ local config;
 local sourceFile;
 local outFile;
 local luaVersion;
+local prettyPrint;
 
 Prometheus.colors.enabled = true;
 
@@ -87,6 +88,8 @@ while i <= #arg do
             luaVersion = "Lua51";
         elseif curr == "--LuaU" then
             luaVersion = "LuaU";
+        elseif curr == "--pretty" then
+            prettyPrint = true;
         else
             Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored", curr));
         end
@@ -110,6 +113,7 @@ end
 
 -- Add Option to override Lua Version
 config.LuaVersion = luaVersion or config.LuaVersion;
+config.PrettyPrint = prettyPrint ~= nil and prettyPrint or config.PrettyPrint;
 
 if not file_exists(sourceFile) then
     Prometheus.Logger:error(string.format("The File \"%s\" was not found!", sourceFile));

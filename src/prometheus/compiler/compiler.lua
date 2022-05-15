@@ -848,7 +848,10 @@ function Compiler:registerAssignment(scope, id)
 end
 
 -- Maybe convert ids to strings
-function Compiler:setRegister(scope, id, val)
+function Compiler:setRegister(scope, id, val, compundArg)
+    if(compundArg) then
+        return compundArg(self:registerAssignment(scope, id), val);
+    end
     return Ast.AssignmentStatement({
         self:registerAssignment(scope, id)
     }, {
@@ -941,8 +944,11 @@ function Compiler:returnAssignment(scope)
     return Ast.AssignmentVariable(self.containerFuncScope, self.returnVar);
 end
 
-function Compiler:setUpvalueMember(scope, idExpr, valExpr)
+function Compiler:setUpvalueMember(scope, idExpr, valExpr, compoundConstructor)
     scope:addReferenceToHigherScope(self.scope, self.upvaluesTable);
+    if compoundConstructor then
+        return compoundConstructor(Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr), valExpr);
+    end
     return Ast.AssignmentStatement({Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr)}, {valExpr});
 end
 
@@ -1755,6 +1761,55 @@ function Compiler:compileStatement(statement, funcDepth)
 
         self:addStatement(self:setPos(scope, statement.loop.__start_block.id), {self.POS_REGISTER}, {}, false);
         self.activeBlock.advanceToNextBlock = false;
+        return;
+    end
+
+    -- Compund Statements
+    local compoundConstructors = {
+        [AstKind.CompoundAddStatement] = Ast.CompoundAddStatement,
+        [AstKind.CompoundSubStatement] = Ast.CompoundSubStatement,
+        [AstKind.CompoundMulStatement] = Ast.CompoundMulStatement,
+        [AstKind.CompoundDivStatement] = Ast.CompoundDivStatement,
+        [AstKind.CompoundModStatement] = Ast.CompoundModStatement,
+        [AstKind.CompoundPowStatement] = Ast.CompoundPowStatement,
+        [AstKind.CompoundConcatStatement] = Ast.CompoundConcatStatement,
+    }
+    if compoundConstructors[statement.kind] then
+        local compoundConstructor = compoundConstructors[statement.kind];
+        if statement.lhs.kind == AstKind.AssignmentIndexing then
+            local indexing = statement.lhs;
+            local baseReg = self:compileExpression(indexing.base, funcDepth, 1)[1];
+            local indexReg = self:compileExpression(indexing.index, funcDepth, 1)[1];
+            local valueReg = self:compileExpression(statement.rhs, funcDepth, 1)[1];
+
+            self:addStatement(compoundConstructor(Ast.AssignmentIndexing(self:register(scope, baseReg), self:register(scope, indexReg)), self:register(scope, valueReg)), {}, {baseReg, indexReg, valueReg}, true);
+        else
+            local valueReg = self:compileExpression(statement.rhs, funcDepth, 1)[1];
+            local primaryExpr = statement.lhs;
+            if primaryExpr.scope.isGlobal then
+                local tmpReg = self:allocRegister(false);
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(primaryExpr.scope:getVariableName(primaryExpr.id))), {tmpReg}, {}, false);
+                self:addStatement(Ast.AssignmentStatement({Ast.AssignmentIndexing(self:env(scope), self:register(scope, tmpReg))},
+                 {self:register(scope, valueReg)}), {}, {tmpReg, valueReg}, true);
+                self:freeRegister(tmpReg, false);
+            else
+                if self.scopeFunctionDepths[primaryExpr.scope] == funcDepth then
+                    if self:isUpvalue(primaryExpr.scope, primaryExpr.id) then
+                        local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth);
+                        self:addStatement(self:setUpvalueMember(scope, self:register(scope, reg), self:register(scope, valueReg), compoundConstructor), {}, {reg, valueReg}, true);
+                    else
+                        local reg = self:getVarRegister(primaryExpr.scope, primaryExpr.id, funcDepth, valueReg);
+                        if reg ~= valueReg then
+                            self:addStatement(self:setRegister(scope, reg, self:register(scope, valueReg), compoundConstructor), {reg}, {valueReg}, false);
+                        end
+                    end
+                else
+                    local upvalId = self:getUpvalueId(primaryExpr.scope, primaryExpr.id);
+                    scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
+                    self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, valueReg), compoundConstructor), {}, {valueReg}, true);
+                end
+            end
+        end
         return;
     end
 

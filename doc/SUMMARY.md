@@ -17,7 +17,6 @@
 * [Vmify](steps/vmify.md)
 * [SplitStrings](steps/splitstrings.md)
 * [ProxifyLocals](steps/proxifylocals.md)
-* [LocalsToTable](steps/localstotable.md)
 * [EncryptStrings](steps/encryptstrings.md)
 * [ConstantArray](steps/constantarray.md)
 

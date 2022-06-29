@@ -627,7 +627,7 @@ function Ast.MulExpression(lhs, rhs, simplify)
 end
 
 function Ast.DivExpression(lhs, rhs, simplify)
-	if(simplify and rhs.isConstant and lhs.isConstant) then
+	if(simplify and rhs.isConstant and lhs.isConstant and rhs.value ~= 0) then
 		local success, val = pcall(function() return lhs.value / rhs.value end);
 		if success then
 			return Ast.ConstantNode(val);

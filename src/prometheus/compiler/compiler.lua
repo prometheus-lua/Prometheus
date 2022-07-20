@@ -1277,7 +1277,7 @@ function Compiler:compileStatement(statement, funcDepth)
         self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {tmpReg, baseReg}, false);
 
         self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {tmpReg}, {tmpReg, unpack(regs)}, true);
-        self:freeRegister(baseReg, false);
+
         self:freeRegister(tmpReg, false);
         for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
@@ -2004,9 +2004,6 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             end
         end
 
-        
-        
-
         self:freeRegister(baseReg, false);
         for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
@@ -2052,9 +2049,9 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
             if returnAll then
-                self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {retRegs[1]}, {baseReg, unpack(regs)}, true);
+                self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {retRegs[1]}, {tmpReg, unpack(regs)}, true);
             else
-                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {tmpReg}, {baseReg, unpack(regs)}, true);
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {tmpReg}, {tmpReg, unpack(regs)}, true);
 
                 for i, reg in ipairs(retRegs) do
                     self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
@@ -2071,7 +2068,6 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
             self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
         end
 
-        self:freeRegister(baseReg, false);
         for i, reg in ipairs(regs) do
             self:freeRegister(reg, false);
         end

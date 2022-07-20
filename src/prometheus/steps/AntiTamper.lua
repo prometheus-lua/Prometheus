@@ -165,8 +165,6 @@ end
     repeat until valid;
     ]]
 
-    print(code);
-
     local parsed = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(code);
     local doStat = parsed.body.statements[1];
     doStat.body.scope:setParent(ast.body.scope);

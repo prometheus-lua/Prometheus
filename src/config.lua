@@ -3,9 +3,7 @@
 -- config.lua
 --
 -- In this Script, some Global config Variables are defined
--- These may be changed
 
--- You are not allowed to change the following Variables
 local NAME    = "Prometheus";
 local REVISION = "Alpha";
 local VERSION = "v0.2";

@@ -56,7 +56,7 @@ local function generateWarning(token, message)
 end
 
 function Parser:new(settings)
-	local luaVersion = (settings and settings.LuaVersion) or LuaVersion.LuaU;
+	local luaVersion = (settings and (settings.luaVersion or settings.LuaVersion)) or LuaVersion.LuaU;
 	local parser = {
 		luaVersion = luaVersion,
 		tokenizer = Tokenizer:new({

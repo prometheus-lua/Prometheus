@@ -430,46 +430,7 @@ function Tokenizer:multiLineString()
 			local value = "";
 			while true do
 				local char = get(self);
-				if(char == "\\") then
-					char = get(self);
-
-					local escape = self.EscapeSequences[char];
-					if(type(escape) == "string") then
-						char = escape;
-
-					elseif(self.NumericalEscapes and self.NumberCharsLookup[char]) then
-						local numstr = char;
-
-						if(is(self, self.NumberCharsLookup)) then
-							char = get(self);
-							numstr = numstr .. char;
-						end
-
-						if(is(self, self.NumberCharsLookup)) then
-							char = get(self);
-							numstr = numstr .. char;
-						end
-
-						char = string.char(tonumber(numstr));
-
-					elseif(self.UnicodeEscapes and char == "u") then
-						expect(self, "{");
-						local num = "";
-						while (is(self, self.HexNumberCharsLookup)) do
-							num = num .. get(self);
-						end
-						expect(self, "}");
-						char = util.utf8char(tonumber(num, 16));
-					elseif(self.HexEscapes and char == "x") then
-						local hex = expect(self, self.HexNumberCharsLookup) .. expect(self, self.HexNumberCharsLookup);
-						char = string.char(tonumber(hex, 16));
-					elseif(self.EscapeZIgnoreNextWhitespace and char == "z") then
-						char = "";
-						while(is(self, Tokenizer.WHITESPACE_CHARS)) do
-							self.index = self.index + 1;
-						end
-					end
-				elseif(char == ']') then
+				if(char == ']') then
 					local eqCount2 = 0;
 					while(is(self, "=")) do
 						char = char .. get(self);

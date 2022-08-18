@@ -44,7 +44,7 @@ local Pipeline = {
 
 
 function Pipeline:new(settings)
-	local luaVersion = settings.luaVersion or Pipeline.DefaultSettings.LuaVersion;
+	local luaVersion = settings.luaVersion or settings.LuaVersion or Pipeline.DefaultSettings.LuaVersion;
 	local conventions = Enums.Conventions[luaVersion];
 	if(not conventions) then
 		logger:error("The Lua Version \"" .. luaVersion 

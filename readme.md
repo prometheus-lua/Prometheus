@@ -1,4 +1,20 @@
 # :fire: Prometheus
+## Installation
+Prometheus-DiscordBot folder
+```python -m venv .
+Scripts\activate.bat
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+```
+Edit bot.py:
+```
+token = "YOUR-TOKEN-HERE"                    # token
+channel_id = CHANNEL-ID-HERE                 # channel id
+```
+then run your bot
+```
+python bot.py
+```
 ## Description
 Prometheus is a Lua obfuscator written in pure Lua.
 

@@ -1,7 +1,7 @@
 # :fire: Prometheus
 ## Installation
 Install [Python 3.9](https://www.python.org/downloads/release/python-3913/)<br>
-Goto Prometheus-DiscordBot folder and run the following commands via shell/cmd.<br><br>
+Goto Prometheus-DiscordBot folder and run the following commands via shell/cmd:<br>
 Windows:
 ```
 python -m venv .

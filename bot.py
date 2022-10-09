@@ -9,8 +9,8 @@ import shutil
 import string
 import random
 
-token = "token."                    #token
-channel_id = 1021868744525488310    #channel id
+token = "YOUR-TOKEN-HERE"                    # token
+channel_id = CHANNEL-ID-HERE                 # channel id 
 
 file_path = os.path.abspath(os.path.dirname(__file__))
 

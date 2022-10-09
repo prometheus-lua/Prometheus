@@ -26,7 +26,7 @@ def obfuscation(file):
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online ✔️")
-    await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="prometheus lua obfuscator"))
+    await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="🔥Prometheus Lua Obfuscator"))
 
 @bot.event
 async def on_message(message):

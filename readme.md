@@ -8,6 +8,14 @@ Scripts\activate.bat
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 ```
+Linux:
+```
+python -m venv .
+source bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+```
+
 Edit bot.py:
 ```
 token = "YOUR-TOKEN-HERE"                    # token

@@ -2345,7 +2345,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return regs;
     end
 
-    logger:error(string.format("%s is not an compileable expression!", expression.kind));
+    logger:error(string.format("%s is not an compliable expression!", expression.kind));
 end
 
 return Compiler;

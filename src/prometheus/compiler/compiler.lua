@@ -1729,6 +1729,19 @@ function Compiler:compileStatement(statement, funcDepth)
             self:addStatement(self:setRegister(scope, varRegs[i], Ast.NilExpression()), {varRegs[i]}, {}, false);
         end
 
+        -- Upvalue fix
+        for i, id in ipairs(statement.ids) do
+            if(self:isUpvalue(statement.scope, id)) then
+                local varreg = varRegs[i];
+                local tmpReg = self:allocRegister(false);
+                scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
+                self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {tmpReg}, {}, false);
+                self:addStatement(self:setUpvalueMember(scope, self:register(scope, tmpReg), self:register(scope, varreg)), {}, {tmpReg, varreg}, true);
+                self:addStatement(self:copyRegisters(scope, {varreg}, {tmpReg}), {varreg}, {tmpReg}, false);
+                self:freeRegister(tmpReg, false);
+            end
+        end
+
         self:compileBlock(statement.body, funcDepth);
         self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
         self:setActiveBlock(finalBlock);
@@ -2345,7 +2358,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return regs;
     end
 
-    logger:error(string.format("%s is not an compileable expression!", expression.kind));
+    logger:error(string.format("%s is not an compliable expression!", expression.kind));
 end
 
 return Compiler;

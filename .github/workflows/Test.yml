@@ -13,16 +13,3 @@ jobs:
           luaVersion: 5.1
       - name: Run test case
         run: lua ./tests.lua --Linux --CI
-  
-  test-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@master
-      - name: Download Lua5.1
-        run: curl -o Lua51.zip "https://raw.githubusercontent.com/joedf/LuaBuilds/gh-pages/hdata/lua-5.1.5_Win32_bin.zip"
-      - name: Unzip Lua51
-        run: |
-          tar -xf Lua51.zip
-      - name: Run test case
-        run: ./lua.exe ./tests.lua --CI

@@ -54,5 +54,6 @@ lua ./cli.lua [options]
 - [brandonsturgeon](https://github.com/brandonsturgeon)
 - [pnlmon](https://github.com/pnlmon)
 - [britzl](https://github.com/britzl)
+- [SpinnySpiwal](https://github.com/SpinnySpiwal)
 ## License
 This Project is Licensed under the GNU General Public License v3.0. For more details, please refer to [LICENSE](https://github.com/levno-710/Prometheus/blob/master/LICENSE).

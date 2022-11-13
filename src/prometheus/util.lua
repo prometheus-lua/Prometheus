@@ -108,6 +108,18 @@ local function shuffle(tb)
 	end
 	return tb
 end
+local function shuffle_string(str)
+    local len = #str
+    local t = {}
+    for i = 1, len do
+        t[i] = string.sub(str, i, i)
+    end
+    for i = 1, len do
+        local j = math.random(i, len)
+        t[i], t[j] = t[j], t[i]
+    end
+    return table.concat(t)
+end
 
 local function readDouble(bytes) 
 	local sign = 1
@@ -255,6 +267,7 @@ return {
 	chararray = chararray,
 	keys = keys,
 	shuffle = shuffle,
+	shuffle_string = shuffle_string,
 	readDouble = readDouble,
 	writeDouble = writeDouble,
 	readU16 = readU16,

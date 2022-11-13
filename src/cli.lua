@@ -1,6 +1,6 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- test.lua
+-- cli.lua
 -- This script contains the Code for the Prometheus CLI
 
 -- Configure package.path for requiring Prometheus
@@ -13,25 +13,25 @@ package.path = script_path() .. "?.lua;" .. package.path;
 local Prometheus = require("prometheus");
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Info;
 
--- Override Error callback
+-- Override error callback
 --[[Prometheus.Logger.errorCallback = function(...)
     print(Prometheus.colors(Prometheus.Config.NameUpper .. ": " .. ..., "red"))
 	os.exit(1);
 end]]
 
--- see if the file exists
+-- Check if the file exists
 local function file_exists(file)
     local f = io.open(file, "rb")
     if f then f:close() end
     return f ~= nil
 end
-  
--- get all lines from a file, returns an empty 
+
+-- get all lines from a file, returns an empty
 -- list/table if the file does not exist
 local function lines_from(file)
     if not file_exists(file) then return {} end
     local lines = {}
-    for line in io.lines(file) do 
+    for line in io.lines(file) do
       lines[#lines + 1] = line
     end
     return lines

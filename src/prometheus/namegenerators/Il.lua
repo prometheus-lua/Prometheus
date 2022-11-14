@@ -1,6 +1,6 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- namegenerators/mangled.lua
+-- namegenerators/il.lua
 --
 -- This Script provides a function for generation of weird names consisting of I, l and 1
 

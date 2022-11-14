@@ -1,6 +1,6 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- util.lua
+-- step.lua
 --
 -- This file Provides the base class for Obfuscation Steps
 

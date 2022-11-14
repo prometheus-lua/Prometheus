@@ -1,11 +1,5 @@
-local Ast = require("prometheus.ast");
-
-local charset = {}
-
--- qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890
-for i = 48,  57 do table.insert(charset, string.char(i)) end
-for i = 65,  90 do table.insert(charset, string.char(i)) end
-for i = 97, 122 do table.insert(charset, string.char(i)) end
+local Ast, utils = require("prometheus.ast"), require("prometheus.util");
+local charset = utils.chararray("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890")
 
 local function randomString(wordsOrLen)
 	if type(wordsOrLen) == "table" then

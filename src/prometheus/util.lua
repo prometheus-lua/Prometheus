@@ -24,7 +24,7 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match('[^ -~\n\t\a\b\v\r\"\']') then -- Check if non Printable Ascii Character
+		if char:match('[^ -~\n\t\a\b\v\r\"\']') then -- Check if non Printable ASCII Character
 			return string.format("\\%03d", string.byte(char))
 		end
 		if(char == "\\") then
@@ -107,6 +107,18 @@ local function shuffle(tb)
 		tb[i], tb[j] = tb[j], tb[i]
 	end
 	return tb
+end
+local function shuffle_string(str)
+    local len = #str
+    local t = {}
+    for i = 1, len do
+        t[i] = string.sub(str, i, i)
+    end
+    for i = 1, len do
+        local j = math.random(i, len)
+        t[i], t[j] = t[j], t[i]
+    end
+    return table.concat(t)
 end
 
 local function readDouble(bytes) 
@@ -255,6 +267,7 @@ return {
 	chararray = chararray,
 	keys = keys,
 	shuffle = shuffle,
+	shuffle_string = shuffle_string,
 	readDouble = readDouble,
 	writeDouble = writeDouble,
 	readU16 = readU16,

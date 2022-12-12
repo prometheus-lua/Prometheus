@@ -8,5 +8,5 @@ return {
 	EncryptStrings 			 = require("prometheus.steps.EncryptStrings");
 	NumbersToExpressions = require("prometheus.steps.NumbersToExpressions");
 	AddVararg 					 = require("prometheus.steps.AddVararg");
-	Watermark 	         = require("prometheus.steps.Watermark");
+	WatermarkCheck		   = require("prometheus.steps.WatermarkCheck");
 }

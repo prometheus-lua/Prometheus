@@ -19,6 +19,12 @@ Watermark.SettingsDescriptor = {
     type = "string",
     default = "This Script is Part of the Prometheus Obfuscator by Levno_710",
   },
+  CustomVariable = {
+    name = "Custom Variable",
+    description = "The Variable that will be used for the Watermark",
+    type = "string",
+    default = "_WATERMARK",
+  }
 }
 
 function Watermark:init(settings)
@@ -28,8 +34,30 @@ end
 function Watermark:apply(ast)
   local body = ast.body;
   if string.len(self.Content) > 0 then
-    local watermark = body.scope:addVariable();
-    table.insert(body.statements, 1, Ast.LocalVariableDeclaration(body.scope, {watermark}, {Ast.StringExpression(self.Content)}));
+    local scope, variable = ast.globalScope:resolve(self.CustomVariable);
+    local watermark = Ast.AssignmentVariable(ast.globalScope, variable);
+
+    -- body.scope:addReferenceToHigherScope(ast.globalScope, variable);
+    -- table.insert(body.statements, 1, Ast.AssignmentStatement({watermark}, {Ast.StringExpression(self.Content)}));
+  
+    local functionScope = Scope:new(body.scope);
+    functionScope:addReferenceToHigherScope(ast.globalScope, variable);
+    
+    local arg = functionScope:addVariable();
+    local statement = Ast.PassSelfFunctionCallStatement(Ast.StringExpression(self.Content), "gsub", {
+      Ast.StringExpression(".+"),
+      Ast.FunctionLiteralExpression({
+        Ast.VariableExpression(functionScope, arg)
+      }, Ast.Block({
+        Ast.AssignmentStatement({
+          watermark
+        }, {
+          Ast.VariableExpression(functionScope, arg)
+        })
+      }, functionScope))
+    });
+
+    table.insert(ast.body.statements, 1, statement)
   end
 end
 

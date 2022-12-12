@@ -35,6 +35,12 @@ return {
         -- Obfuscation steps
         Steps = {
             {
+                Name = "WatermarkCheck";
+                Settings = {
+                    Content = "This Script was obfuscated using the Weak Preset of Prometheus Obfuscator by Levno_710";
+                }
+            },
+            {
                 Name = "Vmify";
                 Settings = {
                     
@@ -68,6 +74,12 @@ return {
         Seed = 0;
         -- Obfuscation steps
         Steps = {
+            {
+                Name = "WatermarkCheck";
+                Settings = {
+                    Content = "This Script was obfuscated using the Medium Preset of Prometheus Obfuscator by Levno_710";
+                }
+            },
             {
                 Name = "EncryptStrings";
                 Settings = {
@@ -108,12 +120,6 @@ return {
 
                 }
             },
-            {
-                Name = "Watermark";
-                Settings = {
-                    Content = "This Script was obfuscated using the Medium Preset of Prometheus Obfuscator by Levno_710"
-                }
-            }
         }
     };
     ["Strong"] = {
@@ -129,6 +135,12 @@ return {
         Seed = 0;
         -- Obfuscation steps
         Steps = {
+            {
+                Name = "WatermarkCheck";
+                Settings = {
+                    Content = "This Script was obfuscated using the Strong Preset of Prometheus Obfuscator by Levno_710";
+                }
+            },
             {
                 Name = "Vmify";
                 Settings = {

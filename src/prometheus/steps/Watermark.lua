@@ -37,9 +37,6 @@ function Watermark:apply(ast)
     local scope, variable = ast.globalScope:resolve(self.CustomVariable);
     local watermark = Ast.AssignmentVariable(ast.globalScope, variable);
 
-    -- body.scope:addReferenceToHigherScope(ast.globalScope, variable);
-    -- table.insert(body.statements, 1, Ast.AssignmentStatement({watermark}, {Ast.StringExpression(self.Content)}));
-  
     local functionScope = Scope:new(body.scope);
     functionScope:addReferenceToHigherScope(ast.globalScope, variable);
     

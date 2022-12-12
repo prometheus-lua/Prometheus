@@ -108,6 +108,12 @@ return {
 
                 }
             },
+            {
+                Name = "Watermark";
+                Settings = {
+                    Content = "This Script was obfuscated using the Medium Preset of Prometheus Obfuscator by Levno_710"
+                }
+            }
         }
     };
     ["Strong"] = {

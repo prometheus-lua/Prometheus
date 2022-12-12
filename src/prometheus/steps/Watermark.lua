@@ -2,7 +2,7 @@
 --
 -- Watermark.lua
 --
--- This Script provides a Simple Obfuscation Step that will add a watermark to the script
+-- This Script provides a Step that will add a watermark to the script
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");

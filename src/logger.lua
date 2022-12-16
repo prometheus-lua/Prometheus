@@ -49,7 +49,7 @@ function logger:warn(...)
 	end
 end
 
-logger.errorCallback =  function(...)
+logger.errorCallback = function(...)
 	print(colors(config.NameUpper .. ": " .. ..., "red"))
 	error(...);
 end;

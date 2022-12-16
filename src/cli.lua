@@ -13,17 +13,18 @@ package.path = script_path() .. "?.lua;" .. package.path;
 local Prometheus = require("prometheus");
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Info;
 
--- Override error callback
---[[Prometheus.Logger.errorCallback = function(...)
-    print(Prometheus.colors(Prometheus.Config.NameUpper .. ": " .. ..., "red"))
-	os.exit(1);
-end]]
-
 -- Check if the file exists
 local function file_exists(file)
     local f = io.open(file, "rb")
     if f then f:close() end
     return f ~= nil
+end
+
+string.split = function(str, sep)
+    local fields = {}
+    local pattern = string.format("([^%s]+)", sep)
+    str:gsub(pattern, function(c) fields[#fields+1] = c end)
+    return fields
 end
 
 -- get all lines from a file, returns an empty
@@ -90,6 +91,21 @@ while i <= #arg do
             luaVersion = "LuaU";
         elseif curr == "--pretty" then
             prettyPrint = true;
+        elseif curr == "--saveerrors" then
+            -- Override error callback
+            Prometheus.Logger.errorCallback =  function(...)
+                print(Prometheus.colors(Prometheus.Config.NameUpper .. ": " .. ..., "red"))
+                
+                local args = {...};
+                local message = table.concat(args, " ");
+                
+                local fileName = sourceFile:sub(-4) == ".lua" and sourceFile:sub(0, -5) .. ".error.txt" or sourceFile .. ".error.txt";
+                local handle = io.open(fileName, "w");
+                handle:write(message);
+                handle:close();
+
+                os.exit(1);
+            end;
         else
             Prometheus.Logger:warn(string.format("The option \"%s\" is not valid and therefore ignored", curr));
         end

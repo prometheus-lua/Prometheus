@@ -45,19 +45,7 @@ Tokenizer.EOF_TOKEN = {
 }
 
 local function getPosition(source, i)
-	local line = 1;
-	local linePos = 1;
-	
-	for j = 1, i do
-		local c = source:sub(j,j)
-		if c == '\n' then
-			line = line + 1;
-			linePos = 1;
-		else
-			linePos = linePos + 1;
-		end
-	end
-	return line, linePos
+	return source:sub(1, i):gsub("[^\n]", ""):len() + 1, i - source:sub(1, i):gsub("[^\r]", ""):len() + 1;
 end
 
 local function token(self, startPos, kind, value)
@@ -327,10 +315,13 @@ end
 -- Lex the Next Token as Identifier or Keyword
 function Tokenizer:ident()
 	local startPos = self.index;
-	local source = expect(self, self.IdentCharsLookup);
+	local source = expect(self, self.IdentCharsLookup)
+	local sourceAddContent = {source}
 	while(is(self, self.IdentCharsLookup)) do
-		source = source .. get(self);
+		-- source = source .. get(self);
+		table.insert(sourceAddContent, get(self))
 	end
+	source = table.concat(sourceAddContent)
 	if(self.KeywordsLookup[source]) then
 		return token(self, startPos, Tokenizer.TokenKind.Keyword, source);
 	end

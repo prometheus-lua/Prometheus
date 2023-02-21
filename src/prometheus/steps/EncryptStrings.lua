@@ -61,6 +61,7 @@ function EncryptStrings:CreateEncrypionService()
 		repeat
 			seed = math.random(0, 35184372088832);
 		until not usedSeeds[seed];
+		usedSeeds[seed] = true;
 		return seed;
 	end
 

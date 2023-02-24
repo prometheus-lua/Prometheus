@@ -24,7 +24,7 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match('[^ -~\n\t\a\b\v\r\"\']') then -- Check if non Printable ASCII Character
+		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
 			return string.format("\\%03d", string.byte(char))
 		end
 		if(char == "\\") then

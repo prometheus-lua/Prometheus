@@ -36,7 +36,7 @@ Enums.Conventions = {
 		BinaryNumberChars   = {"0", "1"},
 		DecimalExponent     = {"e", "E"},
 		HexadecimalNums     = {"x", "X"},
-		BinaryNums          = false,
+		BinaryNums          = {"b", "B"},,
 		DecimalSeperators   = false,
 		
 		EscapeSequences     = {
@@ -52,9 +52,9 @@ Enums.Conventions = {
 			["\'"] = "\'";
 		},
 		NumericalEscapes = true,
-		EscapeZIgnoreNextWhitespace = false,
-		HexEscapes = false,
-		UnicodeEscapes = false,
+		EscapeZIgnoreNextWhitespace = true,
+		HexEscapes = true,
+		UnicodeEscapes = true,
 	},
 	[Enums.LuaVersion.LuaU] = {
 		Keywords = {

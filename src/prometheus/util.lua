@@ -221,6 +221,7 @@ local function readU32(arr)
 	return val;
 end
 
+-- DEPRECATED! Don't use. Use string.char(table.unpack(arr))
 local function bytesToString(arr)
 	local str = "";
 	for i = 1, #arr do
@@ -281,6 +282,6 @@ return {
 	isInt = isInt,
 	utf8char = utf8char,
 	toBits = toBits,
-	bytesToString = bytesToString,
+	bytesToString = bytesToString, -- DEPRECATED! Don't use. Use string.char(table.unpack(arr))
 	readonly = readonly,
 }

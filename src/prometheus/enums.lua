@@ -36,7 +36,7 @@ Enums.Conventions = {
 		BinaryNumberChars   = {"0", "1"},
 		DecimalExponent     = {"e", "E"},
 		HexadecimalNums     = {"x", "X"},
-		BinaryNums          = {"b", "B"},,
+		BinaryNums          = {"b", "B"},
 		DecimalSeperators   = false,
 		
 		EscapeSequences     = {

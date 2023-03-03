@@ -237,7 +237,7 @@ local function bytesToString(arr)
 		str = str .. string.char(table.unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT));
 	end
 
-	return str..string.char(table.unpack(arr, lenght - overflow + 1, lenght));
+	return str..(overflow > 0 and string.char(table.unpack(arr, lenght - overflow + 1, lenght)) or "");
 end
 
 local function isNaN(n)

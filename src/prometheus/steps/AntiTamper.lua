@@ -38,22 +38,28 @@ function AntiTamper:apply(ast, pipeline)
         local string = RandomStrings.randomString();
         code = code .. [[
             -- Anti Beautify
-            local sethook = debug and debug.sethook or function() end;
-            local allowedLine = nil;
-            local called = 0;
-            sethook(function(s, line)
-                called = called + 1;
-                if allowedLine then
-                    if allowedLine ~= line then
-                        sethook(error, "l");
-                    end
-                else
-                    allowedLine = line;
-                end
-            end, "l");
-            (function() end)();
-            (function() end)();
-            sethook();
+			local sethook = debug and debug.sethook or function() end;
+			local allowedLine = nil;
+			local called = 0;
+			sethook(function(s, line)
+				if not line then
+					return
+				end
+				called = called + 1;
+				if allowedLine then
+					if allowedLine ~= line then
+						sethook(error, "l", 5);
+					end
+				else
+					allowedLine = line;
+				end
+			end, "l", 5);
+			(function() end)();
+			(function() end)();
+			sethook();
+			if called < 2 then
+				valid = false;
+			end
             if called < 2 then
                 valid = false;
             end

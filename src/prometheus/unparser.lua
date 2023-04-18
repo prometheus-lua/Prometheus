@@ -450,6 +450,12 @@ function Unparser:unparseExpression(expression, tabbing)
 	
 	if(expression.kind == AstKind.NumberExpression) then
 		local str = tostring(expression.value);
+		if(str == "inf") then
+			return "2e1024"
+		end
+		if(str == "-inf") then
+			return "-2e1024"
+		end
 		if(str:sub(1, 2) == "0.") then
 			str = str:sub(2);
 		end

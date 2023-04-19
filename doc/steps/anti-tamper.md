@@ -1,5 +1,5 @@
 ---
-description: This step provides an Obfuscation Step, that breaks the script, when someone tries to tamper with it.
+description: This step provides an obbfuscation step, that breaks the script, when someone tries to tamper with it.
 ---
 
 # Anti Tamper
@@ -8,4 +8,4 @@ description: This step provides an Obfuscation Step, that breaks the script, whe
 
 | Name        | type | description                                 | values                                  |
 | ----------- | ---- | ------------------------------------------- | --------------------------------------- |
-| UseDebug | boolean | Uses the debug libary in lua | "true","false" |
+| UseDebug | boolean | Uses the debug library in lua. Disable this if you don't have access to debug library | "true","false" |

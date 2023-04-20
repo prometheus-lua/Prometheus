@@ -1,5 +1,5 @@
 ---
-description: This step provides an obbfuscation step, that breaks the script, when someone tries to tamper with it.
+description: This step provides an obfuscation step, that breaks the script, when someone tries to tamper with it.
 ---
 
 # Anti Tamper

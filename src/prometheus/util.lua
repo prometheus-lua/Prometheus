@@ -6,7 +6,7 @@
 local logger = require("logger");
 local bit32  = require("prometheus.bit").bit32;
 
-local MAX_UNPACK_COUNT = 200;
+local MAX_UNPACK_COUNT = 4096;
 
 local function lookupify(tb)
 	local tb2 = {};

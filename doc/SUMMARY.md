@@ -19,6 +19,8 @@
 * [ProxifyLocals](steps/proxifylocals.md)
 * [EncryptStrings](steps/encryptstrings.md)
 * [ConstantArray](steps/constantarray.md)
+* [AntiTamper](steps/anti-tamper.md)
+
 
 ## advanced
 

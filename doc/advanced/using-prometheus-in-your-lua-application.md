@@ -1,6 +1,6 @@
 # Using Prometheus in your Lua Application
 
-Prometheus can also be used as a library for your custom Lua Applications instead of using it's cli tool.&#x20;
+Prometheus can also be used as a library for your custom Lua Applications instead of using its cli tool.&#x20;
 
 In order to do that you'll first need to clone the github repo:
 

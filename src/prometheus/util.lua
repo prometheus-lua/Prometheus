@@ -6,6 +6,8 @@
 local logger = require("logger");
 local bit32  = require("prometheus.bit").bit32;
 
+local MAX_UNPACK_COUNT = 195;
+
 local function lookupify(tb)
 	local tb2 = {};
 	for _, v in ipairs(tb) do
@@ -24,7 +26,7 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match('[^ -~\n\t\a\b\v\r\"\']') then -- Check if non Printable ASCII Character
+		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
 			return string.format("\\%03d", string.byte(char))
 		end
 		if(char == "\\") then
@@ -222,11 +224,20 @@ local function readU32(arr)
 end
 
 local function bytesToString(arr)
-	local str = "";
-	for i = 1, #arr do
-		str = str .. string.char(arr[i]);
+	local lenght = arr.n or #arr;
+
+	if lenght < MAX_UNPACK_COUNT then
+		return string.char(table.unpack(arr))
 	end
-	return str;
+
+	local str = "";
+	local overflow = lenght % MAX_UNPACK_COUNT;
+
+	for i = 1, (#arr - overflow) / MAX_UNPACK_COUNT do
+		str = str .. string.char(table.unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT));
+	end
+
+	return str..(overflow > 0 and string.char(table.unpack(arr, lenght - overflow + 1, lenght)) or "");
 end
 
 local function isNaN(n)

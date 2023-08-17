@@ -383,25 +383,22 @@ function Unparser:unparseStatement(statement, tabbing)
 			end
 		end
 	elseif self.luaVersion == LuaVersion.LuaU then
-		if statement.kind == AstKind.CompoundAddStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "+=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundSubStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "-=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundMulStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "*=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundDivStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "/=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundModStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "%=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundPowStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "^=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
-		elseif statement.kind == AstKind.CompoundConcatStatement then
-			code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. "..=" .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing);
+		local compoundOperators = {
+		    [AstKind.CompoundAddStatement] = "+=",
+		    [AstKind.CompoundSubStatement] = "-=",
+		    [AstKind.CompoundMulStatement] = "*=",
+		    [AstKind.CompoundDivStatement] = "/=",
+		    [AstKind.CompoundModStatement] = "%=",
+		    [AstKind.CompoundPowStatement] = "^=",
+		    [AstKind.CompoundConcatStatement] = "..=",
+		}
+		
+		local operator = compoundOperators[statement.kind]
+		if operator then
+		    code = code .. self:unparseExpression(statement.lhs, tabbing) .. self:optionalWhitespace() .. operator .. self:optionalWhitespace() .. self:unparseExpression(statement.rhs, tabbing)
 		else
-			logger:error(string.format("\"%s\" is not a valid unparseable statement in %s!", statement.kind, self.luaVersion));
+		    logger:error(string.format("\"%s\" is not a valid unparseable statement in %s!", statement.kind, self.luaVersion))
 		end
-	else
-		logger:error(string.format("\"%s\" is not a valid unparseable statement in %s!", statement.kind, self.luaVersion));
 	end
 	
 	return self:tabs(tabbing, false) .. code;
@@ -450,6 +447,12 @@ function Unparser:unparseExpression(expression, tabbing)
 	
 	if(expression.kind == AstKind.NumberExpression) then
 		local str = tostring(expression.value);
+		if(str == "inf") then
+			return "2e1024"
+		end
+		if(str == "-inf") then
+			return "-2e1024"
+		end
 		if(str:sub(1, 2) == "0.") then
 			str = str:sub(2);
 		end

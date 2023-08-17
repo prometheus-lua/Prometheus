@@ -34,7 +34,7 @@ To perform the Prometheus Tests, just run
 lua ./tests.lua
 ```
 ## Building
-Prometheus can currently only be build for and on Windows.
+Prometheus can currently only build on Windows.
 It requires [srlua.exe](https://github.com/LuaDist/srlua) and [glue.exe](https://github.com/LuaDist/srlua) inside of the root directory. If lua51 was linked dynamically, lua51.dll must also be present. Then Prometheus for Windows can be built using
 ```batch
 build.bat

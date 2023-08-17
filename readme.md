@@ -58,5 +58,6 @@ lua ./cli.lua [options]
 - [britzl](https://github.com/britzl)
 - [SpinnySpiwal](https://github.com/SpinnySpiwal)
 - [oxince](https://github.com/oxince)
+- [NougatBitz](https://github.com/NougatBitz)
 ## License
 This Project is Licensed under the GNU General Public License v3.0. For more details, please refer to [LICENSE](https://github.com/levno-710/Prometheus/blob/master/LICENSE).

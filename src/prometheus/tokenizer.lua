@@ -44,12 +44,8 @@ Tokenizer.EOF_TOKEN = {
 	source = "<EOF>",
 }
 
-local function getPosition(source, i)
-	return source:sub(1, i):gsub("[^\n]", ""):len() + 1, i - source:sub(1, i):gsub("[^\r]", ""):len() + 1;
-end
-
 local function token(self, startPos, kind, value)
-	local line, linePos = getPosition(self.source, self.index);
+	local line, linePos = self:getPosition(self.index);
 	local annotations = self.annotations
 	self.annotations = {};
 	return {
@@ -65,12 +61,38 @@ local function token(self, startPos, kind, value)
 end
 
 local function generateError(self, message)
-	local line, linePos = getPosition(self.source, self.index);
+	local line, linePos = self:getPosition(self.index);
 	return "Lexing Error at Position " .. tostring(line) .. ":" .. tostring(linePos) .. ", " .. message;
 end
 
 local function generateWarning(token, message)
 	return "Warning at Position " .. tostring(token.line) .. ":" .. tostring(token.linePos) .. ", " .. message;
+end
+
+function Tokenizer:getPosition(i)
+	local column = self.columnMap[i]
+	return column.id, column.charMap[i]
+end
+
+--// Prepare columnMap for getPosition
+function Tokenizer:prepareGetPosition()
+	local columnMap, column = {}, { charMap = {}, id = 1, length = 0 }
+
+	for index = 1, self.length do
+		local character = string.sub(self.source, index, index) -- NOTE_1: this could use table.clone to reduce amount of NEWTABLE (if that causes any performance issues)
+
+		local columnLength = column.length + 1
+		column.length = columnLength
+		column.charMap[index] = columnLength
+
+		if character == "\n" then
+			column = { charMap = {}, id = column.id + 1, length = 0 } -- NOTE_1
+		end
+
+		columnMap[index] = column
+	end
+
+	self.columnMap = columnMap
 end
 
 -- Constructor for Tokenizer
@@ -132,12 +154,14 @@ function Tokenizer:reset()
 	self.length = 0;
 	self.source = "";
 	self.annotations = {};
+	self.columnMap = {};
 end
 
 -- Append String to this Tokenizer
 function Tokenizer:append(code)
 	self.source = self.source .. code
 	self.length = self.length + code:len();
+	self:prepareGetPosition();
 end
 
 -- Function to peek the n'th char in the source of the tokenizer

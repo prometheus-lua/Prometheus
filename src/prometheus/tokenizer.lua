@@ -71,6 +71,11 @@ end
 
 function Tokenizer:getPosition(i)
 	local column = self.columnMap[i]
+
+	if not column then --// `i` is bigger than self.length, this shouldnt happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
+		column = self.columnMap[#self.columnMap] 
+	end
+
 	return column.id, column.charMap[i]
 end
 

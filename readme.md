@@ -7,6 +7,8 @@ It can currently obfuscate Lua51 and Roblox's LuaU, however LuaU support is not 
 
 You can find the full Documentation including a getting started guide [here](https://levno-710.gitbook.io/prometheus/).
 
+Prometheus has an official [Discord server](https://discord.gg/U8h4d4Rf64).
+
 ## Installation
 To install Prometheus, simply clone the Github Repository using:
 
@@ -56,5 +58,6 @@ lua ./cli.lua [options]
 - [britzl](https://github.com/britzl)
 - [SpinnySpiwal](https://github.com/SpinnySpiwal)
 - [oxince](https://github.com/oxince)
+- [NougatBitz](https://github.com/NougatBitz)
 ## License
-This Project is Licensed under the GNU General Public License v3.0. For more details, please refer to [LICENSE](https://github.com/levno-710/Prometheus/blob/master/LICENSE).
+This Project is Licensed under the GNU Affero General Public License v3.0. For more details, please refer to [LICENSE](https://github.com/levno-710/Prometheus/blob/master/LICENSE).

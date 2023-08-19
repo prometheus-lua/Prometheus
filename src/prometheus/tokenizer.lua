@@ -221,12 +221,13 @@ end
 function Tokenizer:parseAnnotation()
 	if is(self, Tokenizer.ANNOTATION_START_CHARS) then
 		self.index = self.index + 1;
-		local source = "";
+		local source, length = {}, 0;
 		while(is(self, Tokenizer.ANNOTATION_CHARS)) do
-			source = source .. get(self);
+			source[length + 1] = get(self)
+			length = #source
 		end
-		if #source > 0 then
-			self.annotations[string.lower(source)] = true;
+		if length > 0 then
+			self.annotations[string.lower(table.concat(source))] = true;
 		end
 		return nil;
 	end
@@ -282,17 +283,17 @@ function Tokenizer:skipWhitespaceAndComments()
 end
 
 local function int(self, chars, seperators)
-	local source = "";
+	local buffer = {};
 	while true do
-		if(is(self, chars)) then
-			source = source .. get(self);
-		elseif(is(self, seperators)) then
+		if (is(self, chars)) then
+			buffer[#buffer + 1] = get(self)
+		elseif (is(self, seperators)) then
 			self.index = self.index + 1;
 		else
 			break
 		end
 	end
-	return source;
+	return table.concat(buffer);
 end
 
 -- Lex the next token as a Number
@@ -367,9 +368,9 @@ end
 function Tokenizer:singleLineString()
 	local startPos = self.index;
 	local startChar = expect(self, self.StringStartLookup);
-	local value = "";
+	local buffer = {};
 
-	while(not is(self, startChar)) do
+	while (not is(self, startChar)) do
 		local char = get(self);
 		
 		-- Single Line String may not contain Linebreaks except when they are escaped by \
@@ -393,7 +394,7 @@ function Tokenizer:singleLineString()
 					char = get(self);
 					numstr = numstr .. char;
 				end
-				
+		
 				if(is(self, self.NumberCharsLookup)) then
 					char = get(self);
 					numstr = numstr .. char;
@@ -420,12 +421,13 @@ function Tokenizer:singleLineString()
 			end
 		end
 		
-		value = value .. char;
+		--// since table.insert is slower in lua51
+		buffer[#buffer + 1] = char
 	end
 	
 	expect(self, startChar);
 	
-	return token(self, startPos, Tokenizer.TokenKind.String, value)
+	return token(self, startPos, Tokenizer.TokenKind.String, table.concat(buffer))
 end
 
 function Tokenizer:multiLineString()

@@ -1,4 +1,5 @@
 # :fire: Prometheus
+[![Test](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml/badge.svg)](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml)
 ## Description
 Prometheus is a Lua obfuscator written in pure Lua.
 

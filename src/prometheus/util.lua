@@ -6,7 +6,7 @@
 local logger = require("logger");
 local bit32  = require("prometheus.bit").bit32;
 
-local MAX_UNPACK_COUNT = 195;
+local MAX_UNPACK_COUNT = 4096;
 
 local function lookupify(tb)
 	local tb2 = {};
@@ -223,21 +223,18 @@ local function readU32(arr)
 	return val;
 end
 
-local function bytesToString(arr)
-	local lenght = arr.n or #arr;
+-- Adapted from https://github.com/Reselim/Base64/blob/master/Base64.lua#L16
+local function bytesToString(values)
+	local chunks = {}
+	local lenght = #values
 
-	if lenght < MAX_UNPACK_COUNT then
-		return string.char(table.unpack(arr))
+	for i = 1, lenght, MAX_UNPACK_COUNT do
+		chunks[#chunks + 1] = string.char(
+			unpack(values, i, math.min(i + MAX_UNPACK_COUNT - 1, lenght))
+		)
 	end
 
-	local str = "";
-	local overflow = lenght % MAX_UNPACK_COUNT;
-
-	for i = 1, (#arr - overflow) / MAX_UNPACK_COUNT do
-		str = str .. string.char(table.unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT));
-	end
-
-	return str..(overflow > 0 and string.char(table.unpack(arr, lenght - overflow + 1, lenght)) or "");
+	return table.concat(chunks, "")
 end
 
 local function isNaN(n)

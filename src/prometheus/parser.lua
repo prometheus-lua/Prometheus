@@ -187,15 +187,19 @@ function Parser:statement(scope, currentLoop)
 	
 	-- Goto Statements!
 	if (consume(self, TokenKind.Keyword, "goto")) then
-		local label = expect(self, TokenKind.Ident).value;
-        return Ast.GotoStatement(label), currentLoop
+		local ident = expect(self, TokenKind.Ident);
+		local label = ident.value;
+		local id = scope:addVariable(label, ident);
+        return Ast.GotoStatement(id, scope), currentLoop
     end
     
     -- Labels
     if consume(self, TokenKind.Symbol, "::") then
-        local label = expect(self, TokenKind.Ident).value
+        local ident = expect(self, TokenKind.Ident)
+		local label = ident.value;
+		local id = scope:addVariable(label, ident);
         if expect(self, TokenKind.Symbol, "::") then
-        	return Ast.LabelStatement(label), currentLoop
+        	return Ast.LabelStatement(id, scope), currentLoop
         end
     end
 	

@@ -150,11 +150,13 @@ function Unparser:unparseStatement(statement, tabbing)
 		
 	-- Goto Statements
 	elseif (statement.kind == AstKind.GotoStatement) then
-		code = "goto " .. statement.label;
+		local label = statement.scope:getVariableName(statement.id);
+		code = "goto " .. label;
 		
 	-- Labels
 	elseif (statement.kind == AstKind.LabelStatement) then
-		code = ":: " .. statement.label .. " ::";
+		local label = statement.scope:getVariableName(statement.id);
+		code = ":: " .. label .. " ::";
 		
 	-- Break Statement
 	elseif(statement.kind == AstKind.BreakStatement) then

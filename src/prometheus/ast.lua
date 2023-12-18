@@ -190,18 +190,20 @@ function Ast.Block(statements, scope)
 end
 
 -- Create Goto Statement
-function Ast.GotoStatement(label)
+function Ast.GotoStatement(id, scope)
     return {
         kind = AstKind.GotoStatement,
-        label = label,
+        id = id,
+        scope = scope,
     }
 end
 
 -- Create Label Statement
-function Ast.LabelStatement(label)
+function Ast.LabelStatement(id, scope)
     return {
         kind = AstKind.LabelStatement,
-        label = label,
+        id = id,
+        scope = scope,
     }
 end
 

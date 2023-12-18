@@ -15,6 +15,7 @@ Enums.LuaVersion = {
 Enums.Conventions = {
 	[Enums.LuaVersion.Lua51] = {
 		Keywords = {
+			"goto",
 			"and",    "break",  "do",    "else",     "elseif", 
 			"end",    "false",  "for",   "function", "if",   
 			"in",     "local",  "nil",   "not",      "or",
@@ -27,7 +28,7 @@ Enums.Conventions = {
 			"+",  "-",  "*",  "/",  "%",  "^",  "#",
 			"==", "~=", "<=", ">=", "<",  ">",  "=",
 			"(",  ")",  "{",  "}",  "[",  "]",
-			";",  ":",  ",",  ".",  "..", "...",
+			";",  ":",  "::", ",",  ".",  "..", "...",
 		},
 
 		IdentChars          = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"),
@@ -58,6 +59,7 @@ Enums.Conventions = {
 	},
 	[Enums.LuaVersion.LuaU] = {
 		Keywords = {
+			"goto",
 			"and",    "break",  "do",    "else",     "elseif", "continue",
 			"end",    "false",  "for",   "function", "if",   
 			"in",     "local",  "nil",   "not",      "or",

@@ -144,8 +144,17 @@ function Unparser:unparseStatement(statement, tabbing)
 	tabbing = tabbing and tabbing + 1 or 0;
 	local code = "";
 	
+	-- Continue Statement
 	if(statement.kind == AstKind.ContinueStatement) then
 		code = "continue";
+		
+	-- Goto Statements
+	elseif (statement.kind == AstKind.GotoStatement) then
+		code = "goto " .. statement.label;
+		
+	-- Labels
+	elseif (statement.kind == AstKind.LabelStatement) then
+		code = ":: " .. statement.label .. " ::";
 		
 	-- Break Statement
 	elseif(statement.kind == AstKind.BreakStatement) then

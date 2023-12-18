@@ -10,6 +10,8 @@ local AstKind = {
 	Block = "Block";
 
 	-- Statements
+	GotoStatement = "GotoStatement";
+	LabelStatement = "LabelStatement";
 	ContinueStatement = "ContinueStatement";
 	BreakStatement = "BreakStatement";
 	DoStatement = "DoStatement";
@@ -185,6 +187,22 @@ function Ast.Block(statements, scope)
 		statements = statements,
 		scope = scope,
 	}
+end
+
+-- Create Goto Statement
+function Ast.GotoStatement(label)
+    return {
+        kind = AstKind.GotoStatement,
+        label = label,
+    }
+end
+
+-- Create Label Statement
+function Ast.LabelStatement(label)
+    return {
+        kind = AstKind.LabelStatement,
+        label = label,
+    }
 end
 
 -- Create Break Statement

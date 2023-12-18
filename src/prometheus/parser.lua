@@ -182,8 +182,22 @@ function Parser:statement(scope, currentLoop)
 	-- Skip all semicolons before next real statement
 	-- NOP statements are therefore ignored
 	while(consume(self, TokenKind.Symbol, ";")) do
-		
+		-- Do nothing
 	end
+	
+	-- Goto Statements!
+	if (consume(self, TokenKind.Keyword, "goto")) then
+		local label = expect(self, TokenKind.Ident).value;
+        return Ast.GotoStatement(label), currentLoop
+    end
+    
+    -- Labels
+    if consume(self, TokenKind.Symbol, "::") then
+        local label = expect(self, TokenKind.Ident).value
+        if expect(self, TokenKind.Symbol, "::") then
+        	return Ast.LabelStatement(label), currentLoop
+        end
+    end
 	
 	-- Break Statement - only valid inside of Loops
 	if(consume(self, TokenKind.Keyword, "break")) then

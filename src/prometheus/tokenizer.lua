@@ -535,11 +535,14 @@ function Tokenizer:next()
 end
 
 function Tokenizer:scanAll()
+	logger:info("Tokenizing ...");
+	local StartT = os.clock();
 	local tb = {};
 	repeat
 		local token = self:next();
 		table.insert(tb, token);
 	until token.kind == Tokenizer.TokenKind.Eof
+	logger:info(string.format("Tokenization Done in: %.2f seconds", os.clock() - StartT));
 	return tb
 end
 

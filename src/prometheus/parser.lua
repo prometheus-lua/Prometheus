@@ -185,22 +185,22 @@ function Parser:statement(scope, currentLoop)
 		-- Do nothing
 	end
 	
+	-- Labels
+    if consume(self, TokenKind.Symbol, "::") then
+        local ident = expect(self, TokenKind.Ident)
+        if expect(self, TokenKind.Symbol, "::") then
+        	local label = ident.value;
+			local id = scope:addVariable(label, ident);
+        	return Ast.LabelStatement(id, scope), currentLoop
+        end
+    end
+	
 	-- Goto Statements!
 	if (consume(self, TokenKind.Keyword, "goto")) then
 		local ident = expect(self, TokenKind.Ident);
 		local label = ident.value;
-		local id = scope:addVariable(label, ident);
-        return Ast.GotoStatement(id, scope), currentLoop
-    end
-    
-    -- Labels
-    if consume(self, TokenKind.Symbol, "::") then
-        local ident = expect(self, TokenKind.Ident)
-		local label = ident.value;
-		local id = scope:addVariable(label, ident);
-        if expect(self, TokenKind.Symbol, "::") then
-        	return Ast.LabelStatement(id, scope), currentLoop
-        end
+		local labelScope, labelID = scope:resolve(label)
+		return Ast.GotoStatement(labelID, labelScope), currentLoop
     end
 	
 	-- Break Statement - only valid inside of Loops

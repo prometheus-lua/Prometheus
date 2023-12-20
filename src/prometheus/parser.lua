@@ -187,15 +187,17 @@ function Parser:statement(scope, currentLoop)
 	
 	-- Labels
     if consume(self, TokenKind.Symbol, "::") then
-        local ident = expect(self, TokenKind.Ident)
+        local label = expect(self, TokenKind.Ident).value;
         if expect(self, TokenKind.Symbol, "::") then
-        	local label = ident.value;
+        	if currentLoop then
+        		scope = Scope:new(scope)
+        	end 
         	if scope:hasVariable(label) then
         		local labelScope, labelID = scope:resolve(label);
-        		return Ast.LabelStatement(labelID, labelScope), currentLoop
+        		return Ast.LabelStatement(labelID, labelScope)
         	else
         		local id = scope:addVariable(label, ident);
-        		return Ast.LabelStatement(id, scope), currentLoop;
+        		return Ast.LabelStatement(id, scope)
         	end 
         end
     end
@@ -206,12 +208,12 @@ function Parser:statement(scope, currentLoop)
 		local label = ident.value;
 		if scope:hasVariable(label) then
 			local labelScope, labelID = scope:resolve(label);
-			return Ast.GotoStatement(labelID, labelScope), currentLoop;
+			return Ast.GotoStatement(labelID, labelScope)
 		else
 			local id = scope:addVariable(label, ident);
-			return Ast.GotoStatement(id, scope), currentLoop;
+			return Ast.GotoStatement(id, scope)
 		end
-    end	
+    end
 	
 	-- Break Statement - only valid inside of Loops
 	if(consume(self, TokenKind.Keyword, "break")) then

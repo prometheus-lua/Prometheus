@@ -66,6 +66,7 @@ function Compiler:createBlock()
     repeat
         id = math.random(0, 2^24)
     until not self.usedBlockIds[id];
+    self.usedBlockIds[id] = true;
 
     local scope = Scope:new(self.containerFuncScope);
     local block = {
@@ -660,13 +661,13 @@ function Compiler:emitContainerFuncBody()
         end
 
         local mid = l + math.ceil(len / 2);
-        local bound = math.random(tb[mid - 1].id, tb[mid].id);
+        local bound = math.random(tb[mid - 1].id + 1, tb[mid].id);
         local ifScope = scope or Scope:new(pScope);
 
         local lBlock = buildWhileBody(tb, l, mid - 1, ifScope);
         local rBlock = buildWhileBody(tb, mid, r, ifScope);
 
-        return buildIfBlock(ifScope, bound, lBlock, rBlock)        
+        return buildIfBlock(ifScope, bound, lBlock, rBlock);
     end
 
     local whileBody = buildWhileBody(blocks, 1, #blocks, self.containerFuncScope, self.whileScope);

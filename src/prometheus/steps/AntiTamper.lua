@@ -65,9 +65,21 @@ function AntiTamper:apply(ast, pipeline)
             end
 
             -- Anti Function Hook
-            local funcs = {pcall, string.char, debug.getinfo}
+            local funcs = {pcall, string.char, debug.getinfo, string.dump}
             for i = 1, #funcs do
                 if debug.getinfo(funcs[i]).what ~= "C" then
+                    valid = false;
+                end
+
+                if debug.getlocal(funcs[i], 1) then
+                    valid = false;
+                end
+
+                if debug.getupvalue(funcs[i], 1) then
+                    valid = false;
+                end
+
+                if pcall(string.dump, funcs[i]) then
                     valid = false;
                 end
             end

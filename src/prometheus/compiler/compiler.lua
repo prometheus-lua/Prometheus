@@ -1223,7 +1223,7 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
-    -- Function call Statement
+    -- Function Call Statement
     if(statement.kind == AstKind.FunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
         local retReg  = self:allocRegister(false);
@@ -1254,7 +1254,7 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
-    -- Pass self Function Call Statement
+    -- Pass Self Function Call Statement
     if(statement.kind == AstKind.PassSelfFunctionCallStatement) then
         local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
         local tmpReg  = self:allocRegister(false);
@@ -1662,7 +1662,7 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
-    -- For in Statement
+    -- For In Statement
     if(statement.kind == AstKind.ForInStatement) then
         local expressionsLength = #statement.expressions;
         local exprregs = {};
@@ -1792,7 +1792,7 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
-    -- Contiue Statement
+    -- Continue Statement
     if(statement.kind == AstKind.ContinueStatement) then
         local toFreeVars = {};
         local statScope;
@@ -1824,7 +1824,7 @@ function Compiler:compileStatement(statement, funcDepth)
         return;
     end
 
-    -- Compund Statements
+    -- Compound Statements
     local compoundConstructors = {
         [AstKind.CompoundAddStatement] = Ast.CompoundAddStatement,
         [AstKind.CompoundSubStatement] = Ast.CompoundSubStatement,
@@ -1970,7 +1970,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return regs;
     end
 
-    -- Function call Expression
+    -- Function Call Expression
     if(expression.kind == AstKind.FunctionCallExpression) then
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
 
@@ -2026,7 +2026,7 @@ function Compiler:compileExpression(expression, funcDepth, numReturns)
         return retRegs;
     end
 
-    -- Pass self Function Call Expression
+    -- Pass Self Function Call Expression
     if(expression.kind == AstKind.PassSelfFunctionCallExpression) then
         local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
         local retRegs  = {};

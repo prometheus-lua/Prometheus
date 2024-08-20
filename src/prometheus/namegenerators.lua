@@ -4,4 +4,5 @@ return {
 	Il = require("prometheus.namegenerators.Il");
 	Number = require("prometheus.namegenerators.number");
 	Confuse = require("prometheus.namegenerators.confuse");
+	Underscore = require("prometheus.namegenerators.underscore");
 }

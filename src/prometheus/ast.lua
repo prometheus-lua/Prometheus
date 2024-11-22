@@ -56,6 +56,7 @@ local AstKind = {
 	StrCatExpression = "StrCatExpression";
 	AddExpression = "AddExpression";
 	SubExpression = "SubExpression";
+	HexExpression = "HexExpression";
 	MulExpression = "MulExpression";
 	DivExpression = "DivExpression";
 	ModExpression = "ModExpression";
@@ -79,6 +80,7 @@ local AstKind = {
 }
 
 local astKindExpressionLookup = {
+	[AstKind.HexExpression] = 0;
 	[AstKind.BooleanExpression] = 0;
 	[AstKind.NumberExpression] = 0;
 	[AstKind.StringExpression] = 0;
@@ -576,6 +578,23 @@ function Ast.StrCatExpression(lhs, rhs, simplify)
 		rhs = rhs,
 		isConstant = false,
 	}
+end
+
+function Ast.HexExpression(value, simplify)
+    if simplify and type(value) == "number" then
+        local success, hex = pcall(function() 
+            return string.format("0x%X", value);
+        end);
+        
+        if success then
+            return Ast.ConstantNode(hex);
+        end
+    end
+    return {
+        kind = AstKind.HexExpression,
+        value = value,
+        isConstant = type(value) == "number",
+    }
 end
 
 function Ast.AddExpression(lhs, rhs, simplify)

@@ -51,6 +51,12 @@ function NumberToHex:init(settings)
             local newVal = val - w1 + w2
             return Ast.NumberExpression(string.format("0x%X", newVal))
         end,
+		function(val)
+            local w1 = math.random(1, 9e1)
+            local w2 = w1
+            local newVal = val * w1 / w2
+            return Ast.NumberExpression(string.format("0x%x", newVal))
+        end,
     }
 end
 

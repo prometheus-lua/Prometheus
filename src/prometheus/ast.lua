@@ -80,7 +80,7 @@ local AstKind = {
 }
 
 local astKindExpressionLookup = {
-	[AstKind.HexExpression] = 0;
+        [AstKind.HexExpression] = 0;
 	[AstKind.BooleanExpression] = 0;
 	[AstKind.NumberExpression] = 0;
 	[AstKind.StringExpression] = 0;
@@ -580,23 +580,6 @@ function Ast.StrCatExpression(lhs, rhs, simplify)
 	}
 end
 
-function Ast.HexExpression(value, simplify)
-    if simplify and type(value) == "number" then
-        local success, hex = pcall(function() 
-            return string.format("0x%X", value);
-        end);
-        
-        if success then
-            return Ast.ConstantNode(hex);
-        end
-    end
-    return {
-        kind = AstKind.HexExpression,
-        value = value,
-        isConstant = type(value) == "number",
-    }
-end
-
 function Ast.AddExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
 		local success, val = pcall(function() return lhs.value + rhs.value end);
@@ -612,6 +595,25 @@ function Ast.AddExpression(lhs, rhs, simplify)
 		isConstant = false,
 	}
 end
+
+function Ast.HexExpression(value, simplify)
+    if simplify and type(value) == "number" then
+        local success, hex = pcall(function() 
+            return string.format("0x%X", value);
+        end);
+        
+        if success then
+            return Ast.ConstantNode(hex);
+        end
+    end
+
+    return {
+        kind = AstKind.HexExpression,
+        value = value,
+        isConstant = type(value) == "number",
+    }
+end
+
 
 function Ast.SubExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then

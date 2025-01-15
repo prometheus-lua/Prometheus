@@ -9,5 +9,4 @@ return {
 	NumbersToExpressions = require("prometheus.steps.NumbersToExpressions");
 	AddVararg 					 = require("prometheus.steps.AddVararg");
 	WatermarkCheck		   = require("prometheus.steps.WatermarkCheck");
-	NumbersToHex = require("prometheus.steps.NumbersToHex");
 }

@@ -35,74 +35,18 @@ function AntiTamper:apply(ast, pipeline)
     end
 	local code = "do local valid = true;";
     if self.UseDebug then
-        local string = RandomStrings.randomString();
-        code = code .. [[
-            -- Anti Beautify
-			local sethook = debug and debug.sethook or function() end;
-			local allowedLine = nil;
-			local called = 0;
-			sethook(function(s, line)
-				if not line then
-					return
-				end
-				called = called + 1;
-				if allowedLine then
-					if allowedLine ~= line then
-						sethook(error, "l", 5);
-					end
-				else
-					allowedLine = line;
-				end
-			end, "l", 5);
-			(function() end)();
-			(function() end)();
-			sethook();
-			if called < 2 then
-				valid = false;
-			end
-            if called < 2 then
-                valid = false;
-            end
-
-            -- Anti Function Hook
-            local funcs = {pcall, string.char, debug.getinfo, string.dump}
-            for i = 1, #funcs do
-                if debug.getinfo(funcs[i]).what ~= "C" then
-                    valid = false;
-                end
-
-                if debug.getlocal(funcs[i], 1) then
-                    valid = false;
-                end
-
-                if debug.getupvalue(funcs[i], 1) then
-                    valid = false;
-                end
-
-                if pcall(string.dump, funcs[i]) then
-                    valid = false;
-                end
-            end
-
-            -- Anti Beautify
-            local function getTraceback()
-                local str = (function(arg)
-                    return debug.traceback(arg)
-                end)("]] .. string .. [[");
-                return str;
-            end
-    
-            local traceback = getTraceback();
-            valid = valid and traceback:sub(1, traceback:find("\n") - 1) == "]] .. string .. [[";
-            local iter = traceback:gmatch(":(%d*):");
-            local v, c = iter(), 1;
-            for i in iter do
-                valid = valid and i == v;
-                c = c + 1;
-            end
-            valid = valid and c >= 2;
-        ]]
-    end
+		local string = RandomStrings.randomString();
+		code = code .. [[
+			local _, str = pcall(function() 
+				local a = 1 - ("abcdefg" ^ 2) 
+				return "waa" / a 
+			end)
+		local matched = string.gmatch(tostring(str), ':(%d*):')()
+		local this_line = tonumber(matched)
+		if this_line ~= 1 then
+			return print("          88        88          88\n          88        \"\"          88\n          88                    88\n,adPPYba, 88   ,d8  88  ,adPPYb,88\nI8[    \"\" 88 ,a8\"   88 a8\"    `Y88\n `\"Y8ba,  8888[     88 8b       88\naa    ]8I 88`\"Yba,  88 \"8a,   ,d88\n`\"YbbdP\"' 88   `Y8a 88  `\"8bbdP\"Y8\n                                    \n                                    ")
+		end]]
+	end
     code = code .. [[
     local gmatch = string.gmatch;
     local err = function() error("Tamper Detected!") end;

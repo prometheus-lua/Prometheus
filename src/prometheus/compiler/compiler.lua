@@ -1553,10 +1553,12 @@ function Compiler:compileStatement(statement, funcDepth)
         local innerBlock = self:createBlock();
         local finalBlock = self:createBlock();
         local checkBlock = self:createBlock();
-        statement.__start_block = innerBlock;
+        statement.__start_block = checkBlock;
         statement.__final_block = finalBlock;
 
+        local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
         self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(innerBlock.id)), {self.POS_REGISTER}, {}, false);
+        self:freeRegister(conditionReg, false);
 
         self:setActiveBlock(innerBlock);
         self:compileBlock(statement.body, funcDepth);

@@ -76,6 +76,8 @@ local AstKind = {
 
 	-- Misc
 	NopStatement = "NopStatement";
+
+	IfElseExpression = "IfElseExpression";
 }
 
 local astKindExpressionLookup = {
@@ -141,6 +143,15 @@ end
 function Ast.NopStatement()
 	return {
 		kind = AstKind.NopStatement;
+	}
+end
+
+function Ast.IfElseExpression(condition, true_value, false_value)
+	return {
+		kind = AstKind.IfElseExpression,
+		condition = condition,
+		true_value = true_value,
+		false_value = false_value
 	}
 end
 

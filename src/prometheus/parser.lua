@@ -928,6 +928,19 @@ function Parser:expressionLiteral(scope)
 		local scope, id = scope:resolve(name);
 		return Ast.VariableExpression(scope, id);
 	end
+
+	-- IfElse
+	if(LuaVersion.LuaU) then
+		if(consume(self, TokenKind.Keyword, "if")) then
+			local condition = self:expression(scope);
+			expect(self, TokenKind.Keyword, "then");
+			local true_value = self:expression(scope);
+			expect(self, TokenKind.Keyword, "else");
+			local false_value = self:expression(scope);
+
+			return Ast.IfElseExpression(condition, true_value, false_value);
+		end
+	end
 	
 	if(self.disableLog) then error() end
 	logger:error(generateError(self, "Unexpected Token \"" .. peek(self).source .. "\". Expected a Expression!"))

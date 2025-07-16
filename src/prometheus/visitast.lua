@@ -235,6 +235,11 @@ function visitExpression(expression, previsit, postvisit, data)
 		expression.base = visitExpression(expression.base, previsit, postvisit, data);
 		expression.index = visitExpression(expression.index, previsit, postvisit, data);
 	end
+	if(expression.kind == AstKind.IfElseExpression) then
+		expression.condition = visitExpression(expression.condition, previsit, postvisit, data);
+		expression.true_expr = visitExpression(expression.true_expr, previsit, postvisit, data);
+		expression.false_expr = visitExpression(expression.false_expr, previsit, postvisit, data);
+	end
 
 	if(type(postvisit) == "function") then
 		expression = postvisit(expression, data) or expression;

@@ -738,7 +738,7 @@ function Unparser:unparseExpression(expression, tabbing)
 	k = AstKind.IndexExpression;
 	if(expression.kind == k or expression.kind == AstKind.AssignmentIndexing) then
 		local base = self:unparseExpression(expression.base, tabbing);
-		if(Ast.astKindExpressionToNumber(expression.base.kind) > Ast.astKindExpressionToNumber(k)) then
+		if(expression.base.kind == AstKind.VarargExpression or Ast.astKindExpressionToNumber(expression.base.kind) > Ast.astKindExpressionToNumber(k)) then
 			base = "(" .. base .. ")";
 		end
 		
@@ -858,6 +858,21 @@ function Unparser:unparseExpression(expression, tabbing)
 		end
 		
 		return code .. self:optionalWhitespace((p and "," or "") .. self:newline() .. self:tabs(tabbing)) .. "}";
+	end
+
+	if (self.luaVersion == LuaVersion.LuaU) then
+		k = AstKind.IfElseExpression
+		if(expression.kind == k) then
+			code = "if ";
+
+			code = code .. self:unparseExpression(expression.condition);
+			code = code .. " then ";
+			code = code .. self:unparseExpression(expression.true_value);
+			code = code .. " else ";
+			code = code .. self:unparseExpression(expression.false_value);
+
+			return code
+		end
 	end
 
 	logger:error(string.format("\"%s\" is not a valid unparseable expression", expression.kind));

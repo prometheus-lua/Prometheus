@@ -224,20 +224,20 @@ local function readU32(arr)
 end
 
 local function bytesToString(arr)
-	local lenght = arr.n or #arr;
+	local length = arr.n or #arr;
 
-	if lenght < MAX_UNPACK_COUNT then
+	if length < MAX_UNPACK_COUNT then
 		return string.char(table.unpack(arr))
 	end
 
 	local str = "";
-	local overflow = lenght % MAX_UNPACK_COUNT;
+	local overflow = length % MAX_UNPACK_COUNT;
 
 	for i = 1, (#arr - overflow) / MAX_UNPACK_COUNT do
 		str = str .. string.char(table.unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT));
 	end
 
-	return str..(overflow > 0 and string.char(table.unpack(arr, lenght - overflow + 1, lenght)) or "");
+	return str..(overflow > 0 and string.char(table.unpack(arr, length - overflow + 1, length)) or "");
 end
 
 local function isNaN(n)

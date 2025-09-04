@@ -1,4 +1,5 @@
-local Ast, utils = require("prometheus.ast"), require("prometheus.util");
+local Ast = require("prometheus.ast")
+local utils = require("prometheus.util")
 local charset = utils.chararray("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890")
 
 local function randomString(wordsOrLen)

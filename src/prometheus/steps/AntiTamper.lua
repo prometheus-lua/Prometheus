@@ -105,7 +105,7 @@ function AntiTamper:apply(ast, pipeline)
     end
     code = code .. [[
     local gmatch = string.gmatch;
-    local err = function() error("Tamper Detected!") end;
+    local err = function() return print("Tamper Detected!") end;
 
     local pcallIntact2 = false;
     local pcallIntact = pcall(function()

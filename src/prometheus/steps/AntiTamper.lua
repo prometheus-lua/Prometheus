@@ -71,10 +71,6 @@ function AntiTamper:apply(ast, pipeline)
                     valid = false;
                 end
 
-                if debug.getlocal(funcs[i], 1) then
-                    valid = false;
-                end
-
                 if debug.getupvalue(funcs[i], 1) then
                     valid = false;
                 end

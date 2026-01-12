@@ -461,7 +461,7 @@ function obfuscateScript(script, settings) {
     }
     
     // Header
-    result = '-- Obfuscated with Prometheus Web | ' + new Date().toISOString().split('T')[0] + '\\n' + result;
+    result = '-- Obfuscated with Prometheus Web | ' + new Date().toISOString().split('T')[0] + '\n' + result;
     
     return result;
 }

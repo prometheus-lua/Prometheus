@@ -26,31 +26,11 @@ To quickly obfuscate a script:
 ```batch
 lua ./cli.lua --preset Medium ./your_file.lua
 ```
-When using the windows release:
-```batch
-prometheus.exe --preset Medium ./your_file.lua
-```
 For more advanced use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
 ## Tests
 To perform the Prometheus Tests, just run
 ```batch
 lua ./tests.lua
-```
-
-## Building
-Prometheus can currently only build on Windows.
-It requires [srlua.exe](https://github.com/LuaDist/srlua) and [glue.exe](https://github.com/LuaDist/srlua) inside of the root directory. If lua51 was linked dynamically, lua51.dll must also be present. Then Prometheus for Windows can be built using
-```batch
-build.bat
-```
-This creates a folder named build, that contains prometheus.exe as well as everything that is needed in order to run Prometheus.   
-Then
-```batch
-prometheus.exe [options]
-```
-can be used instead of
-```batch
-lua ./cli.lua [options]
 ```
 
 ## License and Commercial Use

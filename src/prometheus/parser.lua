@@ -38,6 +38,13 @@ local ASSIGNMENT_NO_WARN_LOOKUP = lookupify{
 	AstKind.VarargExpression
 };
 
+local CALLABLE_PREFIX_EXPRESSION_LOOKUP = lookupify{
+	AstKind.VariableExpression,
+	AstKind.IndexExpression,
+	AstKind.FunctionCallExpression,
+	AstKind.PassSelfFunctionCallExpression
+};
+
 local function generateError(self, message)
 	local token;
 	if(self.index > self.length) then
@@ -782,6 +789,10 @@ end
 
 function Parser:expressionFunctionCall(scope, base)
 	base = base or self:expressionIndex(scope);
+
+	if(not (base and (CALLABLE_PREFIX_EXPRESSION_LOOKUP[base.kind] or base.isParenthesizedExpression))) then
+		return base;
+	end
 	
 	-- Normal Function Call
 	local args = {};
@@ -887,6 +898,9 @@ function Parser:expressionLiteral(scope)
 	if(consume(self, TokenKind.Symbol, "(")) then
 		local expr = self:expression(scope);
 		expect(self, TokenKind.Symbol, ")");
+		if expr then
+			expr.isParenthesizedExpression = true;
+		end
 		return expr;
 	end
 	

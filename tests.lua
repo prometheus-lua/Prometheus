@@ -13,6 +13,7 @@ local Prometheus = require("src.prometheus")
 local noColors    = false; -- Wether Colors in the Console output should be enabled
 local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
 local ciMode = false; 	   -- Wether the Test error are ignored or not
+local iterationCount = 20; -- How often each test should be executed
 
 for _, currArg in pairs(arg) do
 	if currArg == "--Linux" then
@@ -20,6 +21,10 @@ for _, currArg in pairs(arg) do
 	end
 	if currArg == "--CI" then
 		ciMode = true
+	end
+	local iterationValue = currArg:match("^%-%-iterations=(%d+)$")
+	if iterationValue then
+		iterationCount = math.max(tonumber(iterationValue), 1)
 	end
 end
 
@@ -38,7 +43,15 @@ local pipeline = Prometheus.Pipeline:new({
 -- "Number" for names like this : _1, _2, _3, ...  - Not recomended
 pipeline:setNameGenerator("MangledShuffled");
 
-print("Performing Prometheus Tests ...")
+local function describePlatform()
+	return isWindows and "Windows" or "Linux"
+end
+
+print(string.format(
+	"Performing Prometheus Tests (iterations=%d per file/preset, platform=%s)...",
+	iterationCount,
+	describePlatform()
+))
 local function scandir(directory)
     local i, t, popen = 0, {}, io.popen
     local pfile = popen(isWindows and 'dir "'..directory..'" /b' or 'ls -a "'..directory..'"')
@@ -112,25 +125,27 @@ for i, filename in ipairs(scandir(testdir)) do
 				table.remove(preset.Steps, i);
 			end
 		end
-		pipeline = Prometheus.Pipeline:fromConfig(preset);
-		local obfuscated = pipeline:apply(code);
+		for iteration = 1, iterationCount do
+			pipeline = Prometheus.Pipeline:fromConfig(preset);
+			local obfuscated = pipeline:apply(code);
 
-		local funca = loadstring(code);
-		local funcb = loadstring(obfuscated);
+			local funca = loadstring(code);
+			local funcb = loadstring(obfuscated);
 
-		if funcb == nil then
-			print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name .. ", Invalid Lua!");
-			print("[SOURCE]", obfuscated);
-			fc = fc + 1;
-		else
-			local validated, outa, outb = validate(funca, funcb);
-	
-			if not validated then
-				print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name);
-				print("[OUTA]    ",    outa);
-				print("[OUTB]    ", outb);
+			if funcb == nil then
+				print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name .. ", Invalid Lua!");
 				print("[SOURCE]", obfuscated);
 				fc = fc + 1;
+			else
+				local validated, outa, outb = validate(funca, funcb);
+		
+				if not validated then
+					print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name);
+					print("[OUTA]    ",    outa);
+					print("[OUTB]    ", outb);
+					print("[SOURCE]", obfuscated);
+					fc = fc + 1;
+				end
 			end
 		end
 	end

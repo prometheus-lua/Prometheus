@@ -26,8 +26,9 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
-			return string.format("\\%03d", string.byte(char))
+		local byte = string.byte(char)
+		if byte >= 32 and byte <= 126 and char ~= "\\" and char ~= "\"" and char ~= "\'" then
+			return char
 		end
 		if(char == "\\") then
 			return "\\\\";
@@ -38,25 +39,13 @@ local function escape(str)
 		if(char == "\r") then
 			return "\\r";
 		end
-		if(char == "\t") then
-			return "\\t";
-		end
-		if(char == "\a") then
-			return "\\a";
-		end
-		if(char == "\b") then
-			return "\\b";
-		end
-		if(char == "\v") then
-			return "\\v";
-		end
 		if(char == "\"") then
 			return "\\\"";
 		end
 		if(char == "\'") then
 			return "\\\'";
 		end
-		return char;
+		return string.format("\\%03d", byte);
 	end)
 end
 

@@ -835,7 +835,7 @@ function Unparser:unparseExpression(expression, tabbing)
 		local p = false;
 		for i, entry in ipairs(expression.entries) do
 			p = true;
-			local sep = self.prettyPrint and "," or (math.random(1, 2) == 1 and "," or ";");
+                    local sep = ","
 			if i > 1 and not inlineTable then
 				code = code .. sep .. self:optionalWhitespace(self:newline() .. self:tabs(tableTabbing));
 			elseif i > 1 then

@@ -4,39 +4,94 @@
 --
 -- This Script provides an Obfuscation Step, that breaks the script, when someone tries to tamper with it.
 
-local Step = require("prometheus.step");
-local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
+local Step = require("prometheus.step")
 local RandomStrings = require("prometheus.randomStrings")
-local Parser = require("prometheus.parser");
-local Enums = require("prometheus.enums");
-local logger = require("logger");
+local Parser = require("prometheus.parser")
+local Enums = require("prometheus.enums")
+local logger = require("logger")
 
-local AntiTamper = Step:extend();
-AntiTamper.Description = "This Step Breaks your Script when it is modified. This is only effective when using the new VM.";
-AntiTamper.Name = "Anti Tamper";
+local AntiTamper = Step:extend()
+AntiTamper.Description =
+	"This Step Breaks your Script when it is modified. This is only effective when using the new VM."
+AntiTamper.Name = "Anti Tamper"
 
 AntiTamper.SettingsDescriptor = {
-    UseDebug = {
-        type = "boolean",
-        default = true,
-        description = "Use debug library. (Recommended, however scripts will not work without debug library.)"
-    }
+	UseDebug = {
+		type = "boolean",
+		default = true,
+		description = "Use debug library. (Recommended, however scripts will not work without debug library.)",
+	},
 }
 
-function AntiTamper:init(settings)
-	
+local function generateSanityCheck()
+	local sanityCheckAnswers = {}
+	local sanityPasses = math.random(1, 10)
+	for i = 1, sanityPasses do
+		sanityCheckAnswers[i] = (math.random(1, 2 ^ 24) % 2 == 1)
+	end
+	local primaryCheck = RandomStrings.randomString()
+	local codeParts = {}
+	local function addCode(fmt, ...)
+		table.insert(codeParts, string.format(fmt, ...))
+	end
+
+	local function generateAssignment(idx)
+		local index = math.min(idx, sanityPasses)
+		addCode("            valid = %s;\n", tostring(sanityCheckAnswers[index]))
+	end
+	local function generateValidation(idx)
+		local index = math.min(idx - 1, sanityPasses)
+		addCode("            if valid == %s then\n", tostring(sanityCheckAnswers[index]))
+		addCode("            else\n")
+		addCode("                while true do end\n")
+		addCode("            end\n")
+	end
+
+	addCode("do local valid = '%s';", primaryCheck)
+	addCode("for i = 0, %d do\n", sanityPasses)
+	for i = 0, sanityPasses do
+		if i == 0 then
+			addCode("        if i == 0 then\n")
+			addCode("            if valid ~= '%s' then\n", primaryCheck)
+			addCode("                while true do end\n")
+			addCode("            end\n")
+			addCode("            valid = %s;\n", tostring(sanityCheckAnswers[1]))
+		elseif i == 1 then
+			addCode("        elseif i == 1 then\n")
+			addCode("            if valid == %s then\n", tostring(sanityCheckAnswers[1]))
+			addCode("            end\n")
+		else
+			addCode("        elseif i == %d then\n", i)
+
+			--[[
+                Basically, even iterations are used to assign a new sanity check value,
+                and odd iterations are used to validate the previous sanity check value.
+            ]]
+			if i % 2 == 0 then
+				generateAssignment(i)
+			else
+				generateValidation(i)
+			end
+		end
+	end
+	addCode("        end\n")
+	addCode("    end\n")
+	addCode("do valid = true end\n")
+	return table.concat(codeParts)
 end
 
+function AntiTamper:init(settings) end
+
 function AntiTamper:apply(ast, pipeline)
-    if pipeline.PrettyPrint then
-        logger:warn(string.format("\"%s\" cannot be used with PrettyPrint, ignoring \"%s\"", self.Name, self.Name));
-        return ast;
-    end
-	local code = "do local valid = true;";
-    if self.UseDebug then
-        local string = RandomStrings.randomString();
-        code = code .. [[
+	if pipeline.PrettyPrint then
+		logger:warn(string.format('"%s" cannot be used with PrettyPrint, ignoring "%s"', self.Name, self.Name))
+		return ast
+	end
+	local code = generateSanityCheck()
+	if self.UseDebug then
+		local string = RandomStrings.randomString()
+		code = code
+			.. [[
             -- Anti Beautify
 			local sethook = debug and debug.sethook or function() end;
 			local allowedLine = nil;
@@ -87,7 +142,7 @@ function AntiTamper:apply(ast, pipeline)
                 end)("]] .. string .. [[");
                 return str;
             end
-    
+
             local traceback = getTraceback();
             valid = valid and traceback:sub(1, traceback:find("\n") - 1) == "]] .. string .. [[";
             local iter = traceback:gmatch(":(%d*):");
@@ -149,13 +204,13 @@ function AntiTamper:apply(ast, pipeline)
     valid = valid and acc1 == acc2;
 
     if valid then else
-        repeat 
+        repeat
             return (function()
                 while true do
                     l1, l2 = l2, l1;
                     err();
                 end
-            end)(); 
+            end)();
         until true;
         while true do
             l2 = random(1, 6);

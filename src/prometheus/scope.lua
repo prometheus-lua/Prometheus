@@ -31,7 +31,7 @@ function Scope:new(parentScope, name)
 		children = {},
 		level = parentScope.level and (parentScope.level + 1) or 1;
 	}
-	
+
 	setmetatable(scope, self);
 	self.__index = self;
 	parentScope:addChild(scope);
@@ -51,10 +51,10 @@ function Scope:newGlobal()
 		children = {},
 		level = 0,
 	};
-	
+
 	setmetatable(scope, self);
 	self.__index = self;
-	
+
 	return scope;
 end
 
@@ -77,17 +77,17 @@ function Scope:addVariable(name, token)
 		name = string.format("%s%i", config.IdentPrefix, next_name_i);
 		next_name_i = next_name_i + 1;
 	end
-	
+
 	if self.variablesLookup[name] ~= nil then
 		if(token) then
 			logger:warn(generateWarning(token, "the variable \"" .. name .. "\" is already defined in that scope"));
 		else
 			logger:error(string.format("A variable with the name \"%s\" was already defined, you should have no variables starting with \"%s\"", name, config.IdentPrefix));
 		end
-		
+
 		--return self.variablesLookup[name];
 	end
-	
+
 	table.insert(self.variables, name);
 	local id = #self.variables;
 	self.variablesLookup[name] = id;
@@ -104,17 +104,17 @@ function Scope:addDisabledVariable(name, token)
 		name = string.format("%s%i", config.IdentPrefix, next_name_i);
 		next_name_i = next_name_i + 1;
 	end
-	
+
 	if self.variablesLookup[name] ~= nil then
 		if(token) then
 			logger:warn(generateWarning(token, "the variable \"" .. name .. "\" is already defined in that scope"));
 		else
 			logger:warn(string.format("a variable with the name \"%s\" was already defined", name));
 		end
-		
+
 		--return self.variablesLookup[name];
 	end
-	
+
 	table.insert(self.variables, name);
 	local id = #self.variables;
 	return id;
@@ -294,7 +294,7 @@ function Scope:renameVariables(settings)
 		for _, keyword in pairs(settings.Keywords) do
 			forbiddenNamesLookup[keyword] = true;
 		end
-		
+
 		for scope, ids in pairs(self.variablesFromHigherScopes) do
 			for id, count in pairs(ids) do
 				if count and count > 0 then
@@ -303,9 +303,9 @@ function Scope:renameVariables(settings)
 				end
 			end
 		end
-		
+
 		self.variablesLookup = {};
-		
+
 		local i = 0;
 		for id, originalName in pairs(self.variables) do
 			if(not self.skipIdLookup[id] and (self.referenceCounts[id] or 0) >= 0) then
@@ -323,7 +323,7 @@ function Scope:renameVariables(settings)
 			end
 		end
 	end
-	
+
 	for _, scope in pairs(self.children) do
 		scope:renameVariables(settings);
 	end

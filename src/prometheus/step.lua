@@ -17,11 +17,11 @@ function Step:new(settings)
 	local instance = {};
 	setmetatable(instance, self);
 	self.__index = self;
-	
+
 	if type(settings) ~= "table" then
 		settings = {};
 	end
-	
+
 	for key, data in pairs(self.SettingsDescriptor) do
 		if settings[key] == nil then
 			if data.default == nil then
@@ -42,17 +42,17 @@ function Step:new(settings)
 					logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". It must be at least %d", key, self.Name, data.min));
 				end
 			end
-			
+
 			if data.max then
 				if  settings[key] > data.max then
 					logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". The biggest allowed value is %d", key, self.Name, data.min));
 				end
 			end
-			
+
 			instance[key] = settings[key];
 		end
 	end
-	
+
 	instance:init();
 
 	return instance;

@@ -73,7 +73,7 @@ function Tokenizer:getPosition(i)
 	local column = self.columnMap[i]
 
 	if not column then --// `i` is bigger than self.length, this shouldnt happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
-		column = self.columnMap[#self.columnMap] 
+		column = self.columnMap[#self.columnMap]
 	end
 
 	return column.id, column.charMap[i]
@@ -101,21 +101,21 @@ function Tokenizer:prepareGetPosition()
 end
 
 -- Constructor for Tokenizer
-function Tokenizer:new(settings) 
+function Tokenizer:new(settings)
 	local luaVersion = (settings and (settings.luaVersion or settings.LuaVersion)) or LuaVersion.LuaU;
 	local conventions = Tokenizer.Conventions[luaVersion];
-	
+
 	if(conventions == nil) then
 		logger:error("The Lua Version \"" .. luaVersion .. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(keys(Tokenizer.Conventions), "\",\"") .. "\"");
 	end
-	
+
 	local tokenizer = {
 		index  = 0,           -- Index where the current char is read
 		length = 0,
 		source = "", -- Source to Tokenize
 		luaVersion = luaVersion, -- LuaVersion to be used while Tokenizing
 		conventions = conventions;
-		
+
 		NumberChars       = conventions.NumberChars,
 		NumberCharsLookup = lookupify(conventions.NumberChars),
 		Keywords          = conventions.Keywords,
@@ -130,26 +130,26 @@ function Tokenizer:new(settings)
 		DecimalSeperators = conventions.DecimalSeperators,
 		IdentChars        = conventions.IdentChars,
 		IdentCharsLookup  = lookupify(conventions.IdentChars),
-		
+
 		EscapeSequences   = conventions.EscapeSequences,
 		NumericalEscapes  = conventions.NumericalEscapes,
 		EscapeZIgnoreNextWhitespace = conventions.EscapeZIgnoreNextWhitespace,
 		HexEscapes        = conventions.HexEscapes,
 		UnicodeEscapes    = conventions.UnicodeEscapes,
-		
+
 		SymbolChars       = conventions.SymbolChars,
 		SymbolCharsLookup = lookupify(conventions.SymbolChars),
 		MaxSymbolLength   = conventions.MaxSymbolLength,
 		Symbols           = conventions.Symbols,
 		SymbolsLookup     = lookupify(conventions.Symbols),
-		
+
 		StringStartLookup = lookupify({"\"", "\'"}),
 		annotations = {},
 	};
-	
+
 	setmetatable(tokenizer, self);
 	self.__index = self;
-	
+
 	return tokenizer;
 end
 
@@ -194,7 +194,7 @@ local function expect(self, charOrLookup)
 	if(type(charOrLookup) == "string") then
 		charOrLookup = {[charOrLookup] = true};
 	end
-	
+
 	local char = peek(self);
 	if charOrLookup[char] ~= true then
 		local etb = unlookupify(charOrLookup);
@@ -204,7 +204,7 @@ local function expect(self, charOrLookup)
 		local errorMessage = "Unexpected char \"" .. escape(char) .. "\"! Expected one of \"" .. table.concat(etb, "\",\"") .. "\"";
 		logger:error(generateError(self, errorMessage));
 	end
-	
+
 	self.index = self.index + 1;
 	return char;
 end
@@ -300,7 +300,7 @@ end
 function Tokenizer:number()
 	local startPos = self.index;
 	local source   = expect(self, setmetatable({["."] = true}, {__index = self.NumberCharsLookup}));
-	
+
 	if source == "0" then
 		if self.BinaryNums and is(self, lookupify(self.BinaryNums)) then
 			self.index = self.index + 1;
@@ -308,7 +308,7 @@ function Tokenizer:number()
 			local value = tonumber(source, 2);
 			return token(self, startPos, Tokenizer.TokenKind.Number, value);
 		end
-		
+
 		if self.HexadecimalNums and is(self, lookupify(self.HexadecimalNums)) then
 			self.index = self.index + 1;
 			source = int(self, self.HexNumberCharsLookup, lookupify(self.DecimalSeperators or {}));
@@ -316,7 +316,7 @@ function Tokenizer:number()
 			return token(self, startPos, Tokenizer.TokenKind.Number, value);
 		end
 	end
-	
+
 	if source == "." then
 		source = source .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
 	else
@@ -325,7 +325,7 @@ function Tokenizer:number()
 			source = source .. get(self) .. int(self, self.NumberCharsLookup, lookupify(self.DecimalSeperators or {}));
 		end
 	end
-	
+
 	if(self.DecimalExponent and is(self, lookupify(self.DecimalExponent))) then
 		source = source .. get(self);
 		if(is(self, lookupify({"+","-"}))) then
@@ -337,7 +337,7 @@ function Tokenizer:number()
 		end
 		source = source .. v;
 	end
-	
+
 	local value = tonumber(source);
 	return token(self, startPos, Tokenizer.TokenKind.Number, value);
 end
@@ -355,13 +355,13 @@ function Tokenizer:ident()
 	if(self.KeywordsLookup[source]) then
 		return token(self, startPos, Tokenizer.TokenKind.Keyword, source);
 	end
-	
+
 	local tk = token(self, startPos, Tokenizer.TokenKind.Ident, source);
-	
+
 	if(string.sub(source, 1, string.len(config.IdentPrefix)) == config.IdentPrefix) then
 		logger:warn(generateWarning(tk, string.format("identifiers should not start with \"%s\" as this may break the program", config.IdentPrefix)));
 	end
-	
+
 	return tk;
 end
 
@@ -372,36 +372,36 @@ function Tokenizer:singleLineString()
 
 	while (not is(self, startChar)) do
 		local char = get(self);
-		
+
 		-- Single Line String may not contain Linebreaks except when they are escaped by \
 		if(char == '\n') then
 			self.index = self.index - 1;
 			logger:error(generateError(self, "Unterminated String"));
 		end
-		
-		
+
+
 		if(char == "\\") then
 			char = get(self);
-			
+
 			local escape = self.EscapeSequences[char];
 			if(type(escape) == "string") then
 				char = escape;
-				
+
 			elseif(self.NumericalEscapes and self.NumberCharsLookup[char]) then
 				local numstr = char;
-				
+
 				if(is(self, self.NumberCharsLookup)) then
 					char = get(self);
 					numstr = numstr .. char;
 				end
-		
+
 				if(is(self, self.NumberCharsLookup)) then
 					char = get(self);
 					numstr = numstr .. char;
 				end
-				
+
 				char = string.char(tonumber(numstr));
-				
+
 			elseif(self.UnicodeEscapes and char == "u") then
 				expect(self, "{");
 				local num = "";
@@ -420,13 +420,13 @@ function Tokenizer:singleLineString()
 				end
 			end
 		end
-		
+
 		--// since table.insert is slower in lua51
 		buffer[#buffer + 1] = char
 	end
-	
+
 	expect(self, startChar);
-	
+
 	return token(self, startPos, Tokenizer.TokenKind.String, table.concat(buffer))
 end
 
@@ -442,13 +442,13 @@ function Tokenizer:multiLineString()
 		if(is(self, "[")) then
 			-- Multiline String
 			-- Parse String to Closing bracket but also consider that the count of equal signs must be the same
-			
+
 			-- Skip Leading newline if existing
 			self.index = self.index + 1;
 			if(is(self, "\n")) then
 				self.index = self.index + 1;
 			end
-			
+
 			local value = "";
 			while true do
 				local char = get(self);
@@ -490,27 +490,27 @@ end
 function Tokenizer:next()
 	-- Skip All Whitespace before the token
 	self:skipWhitespaceAndComments();
-	
+
 	local startPos = self.index;
 	if startPos >= self.length then
 		return token(self, startPos, Tokenizer.TokenKind.Eof);
 	end
-	
+
 	-- Numbers
 	if(is(self, self.NumberCharsLookup)) then
 		return self:number();
 	end
-	
+
 	-- Identifiers and Keywords
 	if(is(self, self.IdentCharsLookup)) then
 		return self:ident();
 	end
-	
+
 	-- Singleline String Literals
 	if(is(self, self.StringStartLookup)) then
 		return self:singleLineString();
 	end
-	
+
 	-- Multiline String Literals
 	if(is(self, "[", 0)) then
 		-- The isString variable is due to the fact that "[" could also be a symbol for indexing
@@ -524,12 +524,12 @@ function Tokenizer:next()
 	if(is(self, ".") and is(self, self.NumberCharsLookup, 1)) then
 		return self:number();
 	end
-	
+
 	-- Symbols
 	if(is(self, self.SymbolCharsLookup)) then
 		return self:symbol();
 	end
-	
+
 
 	logger:error(generateError(self, "Unexpected char \"" .. escape(peek(self)) .. "\"!"));
 end

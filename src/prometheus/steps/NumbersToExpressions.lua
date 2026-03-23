@@ -88,7 +88,6 @@ function NumbersToExpressions:init(settings)
 				false
 			)
 		end,
-
 		function(val, depth) -- Advanced Modulo
 			if val <= 0 then
 				return false

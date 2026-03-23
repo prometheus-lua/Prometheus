@@ -1,6 +1,6 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- pipeline.lua
+-- presets.lua
 --
 -- This Script Provides some configuration presets
 

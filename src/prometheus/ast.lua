@@ -37,7 +37,7 @@ local AstKind = {
 
 	-- Assignment Index
 	AssignmentIndexing = "AssignmentIndexing";
-	AssignmentVariable = "AssignmentVariable";  
+	AssignmentVariable = "AssignmentVariable";
 
 	-- Expression Nodes
 	BooleanExpression = "BooleanExpression";
@@ -769,7 +769,7 @@ end
 function Ast.VariableExpression(scope, id)
 	scope:addReference(id);
 	return {
-		kind = AstKind.VariableExpression, 
+		kind = AstKind.VariableExpression,
 		scope = scope,
 		id = id,
 		getName = function(self)
@@ -781,7 +781,7 @@ end
 function Ast.AssignmentVariable(scope, id)
 	scope:addReference(id);
 	return {
-		kind = AstKind.AssignmentVariable, 
+		kind = AstKind.AssignmentVariable,
 		scope = scope,
 		id = id,
 		getName = function(self)

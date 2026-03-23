@@ -10,7 +10,7 @@ local Prometheus = require("src.prometheus")
 -- logger.logLevel = logger.LogLevel.Debug;
 
 -- Config Variables - Later passed as Parameters
-local noColors    = false; -- Wether Colors in the Console output should be enabled
+local noColors = false; -- Wether Colors in the Console output should be enabled
 local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
 local ciMode = false; 	   -- Wether the Test error are ignored or not
 local iterationCount = 20; -- How often each test should be executed
@@ -91,7 +91,7 @@ local function validate(a, b)
 			outa = outa .. tostring(v);
 		end
 	end
-	
+
 	envb.print = function(...)
 		for i, v in ipairs({...}) do
 			outb = outb .. tostring(v);
@@ -138,7 +138,7 @@ for i, filename in ipairs(scandir(testdir)) do
 				fc = fc + 1;
 			else
 				local validated, outa, outb = validate(funca, funcb);
-		
+
 				if not validated then
 					print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name);
 					print("[OUTA]    ",    outa);

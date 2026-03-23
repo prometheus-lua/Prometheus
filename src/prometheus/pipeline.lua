@@ -5,8 +5,6 @@
 -- This Script Provides a Configurable Obfuscation Pipeline that can obfuscate code using different Modules
 -- These Modules can simply be added to the pipeline
 
-local config = require("config");
-local Ast    = require("prometheus.ast");
 local Enums  = require("prometheus.enums");
 local util = require("prometheus.util");
 local Parser = require("prometheus.parser");
@@ -16,10 +14,7 @@ local logger = require("logger");
 local NameGenerators = require("prometheus.namegenerators");
 
 local Steps = require("prometheus.steps");
-
-local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;
-local AstKind = Ast.AstKind;
 
 -- On Windows os.clock can be used. On other Systems os.time must be used for benchmarking
 local isWindows = package and package.config and type(package.config) == "string" and package.config:sub(1,1) == "\\";
@@ -47,14 +42,14 @@ function Pipeline:new(settings)
 	local luaVersion = settings.luaVersion or settings.LuaVersion or Pipeline.DefaultSettings.LuaVersion;
 	local conventions = Enums.Conventions[luaVersion];
 	if(not conventions) then
-		logger:error("The Lua Version \"" .. luaVersion 
+		logger:error("The Lua Version \"" .. luaVersion
 			.. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
 	end
-	
+
 	local prettyPrint = settings.PrettyPrint or Pipeline.DefaultSettings.PrettyPrint;
 	local prefix = settings.VarNamePrefix or Pipeline.DefaultSettings.VarNamePrefix;
 	local seed = settings.Seed or 0;
-	
+
 	local pipeline = {
 		LuaVersion = luaVersion;
 		PrettyPrint = prettyPrint;
@@ -72,10 +67,10 @@ function Pipeline:new(settings)
 		conventions = conventions;
 		steps = {};
 	}
-	
+
 	setmetatable(pipeline, self);
 	self.__index = self;
-	
+
 	return pipeline;
 end
 
@@ -121,7 +116,7 @@ end
 function Pipeline:setOption(name, value)
 	assert(false, "TODO");
 	if(Pipeline.DefaultSettings[name] ~= nil) then
-		
+
 	else
 		logger:error(string.format("\"%s\" is not a valid setting"));
 	end
@@ -130,10 +125,10 @@ end
 function Pipeline:setLuaVersion(luaVersion)
 	local conventions = Enums.Conventions[luaVersion];
 	if(not conventions) then
-		logger:error("The Lua Version \"" .. luaVersion 
+		logger:error("The Lua Version \"" .. luaVersion
 			.. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
 	end
-	
+
 	self.parser = Parser:new({
 		luaVersion = luaVersion;
 	});
@@ -151,7 +146,7 @@ function Pipeline:setNameGenerator(nameGenerator)
 	if(type(nameGenerator) == "string") then
 		nameGenerator = Pipeline.NameGenerators[nameGenerator];
 	end
-	
+
 	if(type(nameGenerator) == "function" or type(nameGenerator) == "table") then
 		self.namegenerator = nameGenerator;
 		return;
@@ -170,7 +165,7 @@ function Pipeline:apply(code, filename)
 	else
 		math.randomseed(os.time())
 	end
-	
+
 	logger:info("Parsing ...");
 	local parserStartTime = gettime();
 
@@ -179,7 +174,7 @@ function Pipeline:apply(code, filename)
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
-	
+
 	-- User Defined Steps
 	for i, step in ipairs(self.steps) do
 		local stepStartTime = gettime();
@@ -190,37 +185,37 @@ function Pipeline:apply(code, filename)
 		end
 		logger:info(string.format("Step \"%s\" Done in %.2f seconds", step.Name or "Unnamed", gettime() - stepStartTime));
 	end
-	
+
 	-- Rename Variables Step
 	self:renameVariables(ast);
-	
+
 	code = self:unparse(ast);
-	
+
 	local timeDiff = gettime() - startTime;
 	logger:info(string.format("Obfuscation Done in %.2f seconds", timeDiff));
-	
+
 	logger:info(string.format("Generated Code size is %.2f%% of the Source Code size", (string.len(code) / sourceLen)*100))
-	
+
 	return code;
 end
 
 function Pipeline:unparse(ast)
 	local startTime = gettime();
 	logger:info("Generating Code ...");
-	
+
 	local unparsed = self.unparser:unparse(ast);
-	
+
 	local timeDiff = gettime() - startTime;
 	logger:info(string.format("Code Generation Done in %.2f seconds", timeDiff));
-	
+
 	return unparsed;
 end
 
 function Pipeline:renameVariables(ast)
 	local startTime = gettime();
 	logger:info("Renaming Variables ...");
-	
-	
+
+
 	local generatorFunction = self.namegenerator or Pipeline.NameGenerators.mangled;
 	if(type(generatorFunction) == "table") then
 		if (type(generatorFunction.prepare) == "function") then
@@ -228,7 +223,7 @@ function Pipeline:renameVariables(ast)
 		end
 		generatorFunction = generatorFunction.generateName;
 	end
-	
+
 	if not self.unparser:isValidIdentifier(self.VarNamePrefix) and #self.VarNamePrefix ~= 0 then
 		logger:error(string.format("The Prefix \"%s\" is not a valid Identifier in %s", self.VarNamePrefix, self.LuaVersion));
 	end
@@ -239,12 +234,9 @@ function Pipeline:renameVariables(ast)
 		generateName = generatorFunction;
 		prefix = self.VarNamePrefix;
 	});
-	
+
 	local timeDiff = gettime() - startTime;
 	logger:info(string.format("Renaming Done in %.2f seconds", timeDiff));
 end
-
-
-
 
 return Pipeline;

@@ -15,12 +15,12 @@ Enums.LuaVersion = {
 Enums.Conventions = {
 	[Enums.LuaVersion.Lua51] = {
 		Keywords = {
-			"and",    "break",  "do",    "else",     "elseif", 
-			"end",    "false",  "for",   "function", "if",   
+			"and",    "break",  "do",    "else",     "elseif",
+			"end",    "false",  "for",   "function", "if",
 			"in",     "local",  "nil",   "not",      "or",
 			"repeat", "return", "then",  "true",     "until",    "while"
 		},
-		
+
 		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,."),
 		MaxSymbolLength = 3,
 		Symbols = {
@@ -38,7 +38,7 @@ Enums.Conventions = {
 		HexadecimalNums     = {"x", "X"},
 		BinaryNums          = {"b", "B"},
 		DecimalSeperators   = false,
-		
+
 		EscapeSequences     = {
 			["a"] = "\a";
 			["b"] = "\b";
@@ -59,11 +59,11 @@ Enums.Conventions = {
 	[Enums.LuaVersion.LuaU] = {
 		Keywords = {
 			"and",    "break",  "do",    "else",     "elseif", "continue",
-			"end",    "false",  "for",   "function", "if",   
+			"end",    "false",  "for",   "function", "if",
 			"in",     "local",  "nil",   "not",      "or",
 			"repeat", "return", "then",  "true",     "until",    "while"
 		},
-		
+
 		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,."),
 		MaxSymbolLength = 3,
 		Symbols = {
@@ -72,7 +72,7 @@ Enums.Conventions = {
 			"+=", "-=", "/=", "%=", "^=", "..=", "*=",
 			"(",  ")",  "{",  "}",  "[",  "]",
 			";",  ":",  ",",  ".",  "..", "...",
-			"::", "->", "?",  "|",  "&", 
+			"::", "->", "?",  "|",  "&",
 		},
 
 		IdentChars          = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"),
@@ -83,7 +83,7 @@ Enums.Conventions = {
 		HexadecimalNums     = {"x", "X"},
 		BinaryNums          = {"b", "B"},
 		DecimalSeperators   = {"_"},
-		
+
 		EscapeSequences     = {
 			["a"] = "\a";
 			["b"] = "\b";

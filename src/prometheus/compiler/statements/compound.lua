@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- compound.lua
+--
 -- This Script contains the statement handler for the Compound statements (compound add, sub, mul, etc.)
 
 local Ast = require("prometheus.ast");

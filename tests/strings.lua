@@ -1,4 +1,9 @@
--- Deterministic text statistics for repeated words
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- strings.lua
+--
+-- This Test demonstrates a deterministic text statistics for repeated words and prints the results.
+
 local passage = "lorem ipsum dolor sit amet ipsum lorem"
 local counts = {}
 

@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- and.lua
--- This Script contains the expression handler for the AndExpression
+--
+-- This Script contains the expression handler for the AndExpression.
 
 local Ast = require("prometheus.ast");
 

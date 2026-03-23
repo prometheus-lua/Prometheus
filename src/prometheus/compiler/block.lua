@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- block.lua
+--
 -- Block management for the compiler
 
 local Scope = require("prometheus.scope");

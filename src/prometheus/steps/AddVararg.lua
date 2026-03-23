@@ -13,12 +13,9 @@ local AddVararg = Step:extend();
 AddVararg.Description = "This Step Adds Vararg to all Functions";
 AddVararg.Name = "Add Vararg";
 
-AddVararg.SettingsDescriptor = {
-}
+AddVararg.SettingsDescriptor = {}
 
-function AddVararg:init(settings)
-	
-end
+function AddVararg:init(_) end
 
 function AddVararg:apply(ast)
 	visitast(ast, nil, function(node)

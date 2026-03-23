@@ -1,4 +1,9 @@
--- Deterministic coroutine driven sequence generator
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- coroutines.lua
+--
+-- This Test demonstrates a deterministic coroutine driven sequence generator.
+
 local function squares(limit)
     return coroutine.create(function()
         for i = 1, limit do

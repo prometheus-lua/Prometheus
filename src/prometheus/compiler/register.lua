@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- register.lua
--- Register management for the compiler
+--
+-- This Script contains the register management for the compiler.
 
 local Ast = require("prometheus.ast");
 local constants = require("prometheus.compiler.constants");
@@ -167,7 +168,7 @@ return function(Compiler)
 
     function Compiler:copyRegisters(scope, to, from)
         local idStats = {};
-        local vals    = {};
+        local vals = {};
         for i, id in ipairs(to) do
             local fromId = from[i];
             if(fromId ~= id) then

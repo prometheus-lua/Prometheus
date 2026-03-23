@@ -1,3 +1,9 @@
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- closures.lua
+--
+-- This Test demonstrates deterministic closure behavior.
+
 local arr = {}
 for i = 1, 100 do
 	local x;
@@ -7,6 +13,6 @@ for i = 1, 100 do
 	end
 end
 
-for i, func in ipairs(arr) do
+for _, func in ipairs(arr) do
 	print(func())
 end

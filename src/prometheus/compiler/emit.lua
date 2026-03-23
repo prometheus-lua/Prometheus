@@ -1,7 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- emit.lua
--- This Script contains the container function body emission for the compiler
+-- This Script contains the container function body emission for the compiler.
 
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");

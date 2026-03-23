@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- util.lua
--- This file Provides a Utility function for visiting each node of an ast
+-- visitast.lua
+--
+-- This Script provides a utility function for visiting each node of an AST.
 
 local Ast = require("prometheus.ast");
 local util = require("prometheus.util");
@@ -29,10 +30,10 @@ function visitAst(ast, previsit, postvisit, data)
 			return ast;
 		end
 	end
-	
+
 	-- Is Function Block because global scope is treated like a Function
 	visitBlock(ast.body, previsit, postvisit, data, true);
-	
+
 	if(type(postvisit) == "function") then
 		ast = postvisit(ast, data) or ast;
 	end
@@ -64,7 +65,7 @@ function visitBlock(block, previsit, postvisit, data, isFunctionBlock)
 			return block
 		end
 	end
-	
+
 	local i = 1;
 	while i <= #block.statements do
 		local statement = table.remove(block.statements, i);
@@ -94,7 +95,7 @@ function visitStatement(statement, previsit, postvisit, data)
 			return statement;
 		end
 	end
-	
+
 	-- Visit Child Nodes of Statement
 	if(statement.kind == AstKind.ReturnStatement) then
 		for i, expression in ipairs(statement.args) do
@@ -164,7 +165,7 @@ function visitStatement(statement, previsit, postvisit, data)
 			return unpack(statements);
 		end
 	end
-	
+
 	return statement;
 end
 
@@ -194,23 +195,23 @@ function visitExpression(expression, previsit, postvisit, data)
 			return expression;
 		end
 	end
-	
+
 	if(binaryExpressions[expression.kind]) then
 		expression.lhs = visitExpression(expression.lhs, previsit, postvisit, data);
 		expression.rhs = visitExpression(expression.rhs, previsit, postvisit, data);
 	end
-	
+
 	if(expression.kind == AstKind.NotExpression or expression.kind == AstKind.NegateExpression or expression.kind == AstKind.LenExpression) then
 		expression.rhs = visitExpression(expression.rhs, previsit, postvisit, data);
 	end
-	
+
 	if(expression.kind == AstKind.PassSelfFunctionCallExpression or expression.kind == AstKind.FunctionCallExpression) then
 		expression.base = visitExpression(expression.base, previsit, postvisit, data);
 		for i, arg in ipairs(expression.args) do
 			expression.args[i] = visitExpression(arg, previsit, postvisit, data);
 		end
 	end
-	
+
 	if(expression.kind == AstKind.FunctionLiteralExpression) then
 		local parentFunctionData = data.functionData;
 		data.functionData = {
@@ -221,7 +222,7 @@ function visitExpression(expression, previsit, postvisit, data)
 		expression.body = visitBlock(expression.body, previsit, postvisit, data, true);
 		data.functionData = parentFunctionData;
 	end
-	
+
 	if(expression.kind == AstKind.TableConstructorExpression) then
 		for i, entry in ipairs(expression.entries) do
 			if entry.kind == AstKind.KeyedTableEntry then
@@ -230,7 +231,7 @@ function visitExpression(expression, previsit, postvisit, data)
 			entry.value = visitExpression(entry.value, previsit, postvisit, data);
 		end
 	end
-	
+
 	if(expression.kind == AstKind.IndexExpression or expression.kind == AstKind.AssignmentIndexing) then
 		expression.base = visitExpression(expression.base, previsit, postvisit, data);
 		expression.index = visitExpression(expression.index, previsit, postvisit, data);

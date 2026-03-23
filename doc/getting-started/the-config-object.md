@@ -1,6 +1,6 @@
 # The Config Object
 
-Prometheus takes a configuration objetct. In this object there can be many properties applied.   \
+Prometheus takes a configuration object. In this object there can be many properties applied.   \
 The following table provides an overview:
 
 | Property      | type    | possible values                              | default           |
@@ -18,21 +18,19 @@ As an example, here is the code for the minify preset:
 
 ```lua
 {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- No obfuscation steps
-        Steps = {
-        
-        }
-    };
+    -- The default LuaVersion is Lua51
+    LuaVersion = "Lua51";
+    -- For minifying no VarNamePrefix is applied
+    VarNamePrefix = "";
+    -- Name Generator for Variables
+    NameGenerator = "MangledShuffled";
+    -- No pretty printing
+    PrettyPrint = false;
+    -- Seed is generated based on current time
+    Seed = 0;
+    -- No obfuscation steps
+    Steps = {}
+};
 ```
 
 ### Steps
@@ -49,7 +47,7 @@ Steps = {
             -- Apply to Strings only
             StringsOnly = true;
             -- Apply to all Constants, 0.5 would only affect 50% of strings
-            Treshold    = 1;
+            Threshold = 1;
         }
     },
 }

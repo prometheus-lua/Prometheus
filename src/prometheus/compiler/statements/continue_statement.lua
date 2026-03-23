@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- continue_statement.lua
--- This Script contains the statement handler for the ContinueStatement
+--
+-- This Script contains the statement handler for the ContinueStatement.
 
 local Ast = require("prometheus.ast");
 
@@ -11,7 +12,7 @@ return function(self, statement, funcDepth)
     local statScope;
     repeat
         statScope = statScope and statScope.parentScope or statement.scope;
-        for id, name in pairs(statScope.variables) do
+        for id, _ in pairs(statScope.variables) do
             table.insert(toFreeVars, {
                 scope = statScope,
                 id = id;
@@ -19,7 +20,7 @@ return function(self, statement, funcDepth)
         end
     until statScope == statement.loop.body.scope;
 
-    for i, var in ipairs(toFreeVars) do
+    for _, var in ipairs(toFreeVars) do
         local varScope, id = var.scope, var.id;
         local varReg = self:getVarRegister(varScope, id, nil, nil);
         if self:isUpvalue(varScope, id) then

@@ -12,17 +12,14 @@ local Vmify = Step:extend();
 Vmify.Description = "This Step will Compile your script into a fully-custom (not a half custom like other lua obfuscators) Bytecode Format and emit a vm for executing it.";
 Vmify.Name = "Vmify";
 
-Vmify.SettingsDescriptor = {
-}
+Vmify.SettingsDescriptor = {}
 
-function Vmify:init(settings)
-	
-end
+function Vmify:init(_) end
 
 function Vmify:apply(ast)
     -- Create Compiler
 	local compiler = Compiler:new();
-    
+
     -- Compile the Script into a bytecode vm
     return compiler:compile(ast);
 end

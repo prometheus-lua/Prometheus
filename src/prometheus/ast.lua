@@ -1,6 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- ast.lua
+--
+-- This Script provides the Abstract Syntax Tree (AST) for Prometheus.
 
 local Ast = {}
 

@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- return.lua
--- This Script contains the statement handler for the ReturnStatement
+--
+-- This Script contains the statement handler for the ReturnStatement.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

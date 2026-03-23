@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- pass_self_function_call.lua
--- This Script contains the statement handler for the PassSelfFunctionCallStatement
+--
+-- This Script contains the statement handler for the PassSelfFunctionCallStatement.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;
@@ -9,7 +10,7 @@ local AstKind = Ast.AstKind;
 return function(self, statement, funcDepth)
     local scope = self.activeBlock.scope;
     local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
-    local tmpReg  = self:allocRegister(false);
+    local tmpReg = self:allocRegister(false);
     local args = { self:register(scope, baseReg) };
     local regs = { baseReg };
 
@@ -32,7 +33,7 @@ return function(self, statement, funcDepth)
     self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {tmpReg}, {tmpReg, unpack(regs)}, true);
 
     self:freeRegister(tmpReg, false);
-    for i, reg in ipairs(regs) do
+    for _, reg in ipairs(regs) do
         self:freeRegister(reg, false);
     end
 end;

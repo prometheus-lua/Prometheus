@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- nil.lua
--- This Script contains the expression handler for the NilExpression
+--
+-- This Script contains the expression handler for the NilExpression.
 
 local Ast = require("prometheus.ast");
 

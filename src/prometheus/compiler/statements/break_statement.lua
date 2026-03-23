@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- break_statement.lua
--- This Script contains the statement handler for the BreakStatement
+--
+-- This Script contains the statement handler for the BreakStatement.
 
 local Ast = require("prometheus.ast");
 

@@ -12,11 +12,11 @@ local RandomLiterals = require("prometheus.randomLiterals")
 
 local AstKind = Ast.AstKind;
 
-local ProifyLocals = Step:extend();
-ProifyLocals.Description = "This Step wraps all locals into Proxy Objects";
-ProifyLocals.Name = "Proxify Locals";
+local ProxifyLocals = Step:extend();
+ProxifyLocals.Description = "This Step wraps all locals into Proxy Objects";
+ProxifyLocals.Name = "Proxify Locals";
 
-ProifyLocals.SettingsDescriptor = {
+ProxifyLocals.SettingsDescriptor = {
 	LiteralType = {
 		name = "LiteralType",
 		description = "The type of the randomly generated literals",
@@ -83,14 +83,12 @@ local MetatableExpressions = {
     }
 }
 
-function ProifyLocals:init(settings)
-	
-end
+function ProxifyLocals:init(_) end
 
 local function generateLocalMetatableInfo(pipeline)
     local usedOps = {};
     local info = {};
-    for i, v in ipairs({"setValue","getValue", "index"}) do
+    for i, v in ipairs({"setValue", "getValue", "index"}) do
         local rop;
         repeat
             rop = MetatableExpressions[math.random(#MetatableExpressions)];
@@ -104,7 +102,7 @@ local function generateLocalMetatableInfo(pipeline)
     return info;
 end
 
-function ProifyLocals:CreateAssignmentExpression(info, expr, parentScope)
+function ProxifyLocals:CreateAssignmentExpression(info, expr, parentScope)
     local metatableVals = {};
 
     -- Setvalue Entry
@@ -164,7 +162,7 @@ function ProifyLocals:CreateAssignmentExpression(info, expr, parentScope)
     );
 end
 
-function ProifyLocals:apply(ast, pipeline)
+function ProxifyLocals:apply(ast, pipeline)
     local localMetatableInfos = {};
     local function getLocalMetatableInfo(scope, id)
         -- Global Variables should not be transformed
@@ -193,12 +191,12 @@ function ProifyLocals:apply(ast, pipeline)
 
     -- Create Setmetatable Variable
     self.setMetatableVarScope = ast.body.scope;
-    self.setMetatableVarId    = ast.body.scope:addVariable();
+    self.setMetatableVarId = ast.body.scope:addVariable();
 
     -- Create Empty Function Variable
-    self.emptyFunctionScope   = ast.body.scope;
-    self.emptyFunctionId      = ast.body.scope:addVariable();
-    self.emptyFunctionUsed    = false;
+    self.emptyFunctionScope = ast.body.scope;
+    self.emptyFunctionId = ast.body.scope:addVariable();
+    self.emptyFunctionUsed = false;
 
     -- Add Empty Function Declaration
     table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(self.emptyFunctionScope, {self.emptyFunctionId}, {
@@ -248,7 +246,7 @@ function ProifyLocals:apply(ast, pipeline)
             for i, id in ipairs(node.ids) do
                 local expr = node.expressions[i] or Ast.NilExpression();
                 local localMetatableInfo = getLocalMetatableInfo(node.scope, id);
-                -- Apply Only to Some Variables if Treshold is non 1
+                -- Apply Only to Some Variables if Threshold is non 1
                 if localMetatableInfo then
                     local newExpr = self:CreateAssignmentExpression(localMetatableInfo, expr, node.scope);
                     node.expressions[i] = newExpr;
@@ -259,7 +257,7 @@ function ProifyLocals:apply(ast, pipeline)
         -- Variable Expression
         if(node.kind == AstKind.VariableExpression and not node.__ignoreProxifyLocals) then
             local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
-            -- Apply Only to Some Variables if Treshold is non 1
+            -- Apply Only to Some Variables if Threshold is non 1
             if localMetatableInfo then
                 local literal;
                 if self.LiteralType == "dictionary" then
@@ -278,7 +276,7 @@ function ProifyLocals:apply(ast, pipeline)
         -- Assignment Variable for Assignment Statement
         if(node.kind == AstKind.AssignmentVariable) then
             local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
-            -- Apply Only to Some Variables if Treshold is non 1
+            -- Apply Only to Some Variables if Threshold is non 1
             if localMetatableInfo then
                 return Ast.AssignmentIndexing(node, Ast.StringExpression(localMetatableInfo.valueName));
             end
@@ -287,7 +285,7 @@ function ProifyLocals:apply(ast, pipeline)
         -- Local Function Declaration
         if(node.kind == AstKind.LocalFunctionDeclaration) then
             local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
-            -- Apply Only to Some Variables if Treshold is non 1
+            -- Apply Only to Some Variables if Threshold is non 1
             if localMetatableInfo then
                 local funcLiteral = Ast.FunctionLiteralExpression(node.args, node.body);
                 local newExpr = self:CreateAssignmentExpression(localMetatableInfo, funcLiteral, node.scope);
@@ -310,4 +308,4 @@ function ProifyLocals:apply(ast, pipeline)
     }));
 end
 
-return ProifyLocals;
+return ProxifyLocals;

@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- table_constructor.lua
--- This Script contains the expression handler for the TableConstructorExpression
+--
+-- This Script contains the expression handler for the TableConstructorExpression.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

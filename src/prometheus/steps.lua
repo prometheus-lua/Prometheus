@@ -1,3 +1,9 @@
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- steps.lua
+--
+-- This Script provides a collection of obfuscation steps.
+
 return {
 	WrapInFunction = require("prometheus.steps.WrapInFunction"),
 	SplitStrings = require("prometheus.steps.SplitStrings"),

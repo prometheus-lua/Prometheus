@@ -1,4 +1,8 @@
--- Expression handler: OrExpression
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- or.lua
+--
+-- This Script contains the expression handler for the OrExpression.
 
 local Ast = require("prometheus.ast");
 

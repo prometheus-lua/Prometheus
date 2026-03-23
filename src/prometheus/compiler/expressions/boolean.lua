@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- boolean.lua
--- This Script contains the expression handler for the BooleanExpression
+--
+-- This Script contains the expression handler for the BooleanExpression.
 
 local Ast = require("prometheus.ast");
 

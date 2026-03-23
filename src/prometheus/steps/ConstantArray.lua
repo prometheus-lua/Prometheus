@@ -11,8 +11,8 @@ local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
 local visitast = require("prometheus.visitast");
-local util     = require("prometheus.util")
-local Parser   = require("prometheus.parser");
+local util = require("prometheus.util")
+local Parser = require("prometheus.parser");
 local enums = require("prometheus.enums")
 
 local LuaVersion = enums.LuaVersion;
@@ -23,8 +23,8 @@ ConstantArray.Description = "This Step will Extract all Constants and put them i
 ConstantArray.Name = "Constant Array";
 
 ConstantArray.SettingsDescriptor = {
-	Treshold = {
-		name = "Treshold",
+	Threshold = {
+		name = "Threshold",
 		description = "The relative amount of nodes that will be affected",
 		type = "number",
 		default = 1,
@@ -33,24 +33,24 @@ ConstantArray.SettingsDescriptor = {
 	},
 	StringsOnly = {
 		name = "StringsOnly",
-		description = "Wether to only Extract Strings",
+		description = "Whether to only Extract Strings",
 		type = "boolean",
 		default = false,
 	},
 	Shuffle = {
 		name = "Shuffle",
-		description = "Wether to shuffle the order of Elements in the Array",
+		description = "Whether to shuffle the order of Elements in the Array",
 		type = "boolean",
 		default = true,
 	},
 	Rotate = {
 		name = "Rotate",
-		description = "Wether to rotate the String Array by a specific (random) amount. This will be undone on runtime.",
+		description = "Whether to rotate the String Array by a specific (random) amount. This will be undone on runtime.",
 		type = "boolean",
 		default = true,
 	},
-	LocalWrapperTreshold = {
-		name = "LocalWrapperTreshold",
+	LocalWrapperThreshold = {
+		name = "LocalWrapperThreshold",
 		description = "The relative amount of nodes functions, that will get local wrappers",
 		type = "number",
 		default = 1,
@@ -59,7 +59,7 @@ ConstantArray.SettingsDescriptor = {
 	},
 	LocalWrapperCount = {
 		name = "LocalWrapperCount",
-		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperTreshold is greater than 0",
+		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperThreshold is greater than 0",
 		type = "number",
 		min = 0,
 		max = 512,
@@ -87,7 +87,7 @@ ConstantArray.SettingsDescriptor = {
 		default = "base64",
 		values = {
 			"none",
-			"base64",
+			"base64"
 		},
 	}
 }
@@ -100,7 +100,7 @@ local function callNameGenerator(generatorFunction, ...)
 end
 
 function ConstantArray:init(settings)
-	
+
 end
 
 function ConstantArray:createArray()
@@ -135,7 +135,7 @@ function ConstantArray:indexing(index, data)
 			Ast.StringExpression(wrapper.index)
 		), args);
 	else
-		data.scope:addReferenceToHigherScope(self.rootScope,  self.wrapperId);
+		data.scope:addReferenceToHigherScope(self.rootScope, self.wrapperId);
 		return Ast.FunctionCallExpression(Ast.VariableExpression(self.rootScope, self.wrapperId), {
 			Ast.NumberExpression(index - self.wrapperOffset);
 		});
@@ -167,7 +167,7 @@ local function reverse(t, i, j)
 	  i, j = i+1, j-1
 	end
 end
-  
+
 local function rotate(t, d, n)
 	n = n or #t
 	d = (d or 1) % n
@@ -198,7 +198,7 @@ function ConstantArray:addRotateCode(ast, shift)
 				data.scope:removeReferenceToHigherScope(node.scope, node.id);
 				data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
 				node.scope = self.rootScope;
-				node.id    = self.arrId;
+				node.id = self.arrId;
 			end
 		end
 	end)
@@ -271,7 +271,7 @@ function ConstantArray:addDecodeCode(ast)
 					data.scope:removeReferenceToHigherScope(node.scope, node.id);
 					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
 					node.scope = self.rootScope;
-					node.id    = self.arrId;
+					node.id = self.arrId;
 				end
 
 				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
@@ -280,7 +280,7 @@ function ConstantArray:addDecodeCode(ast)
 				end
 			end
 		end)
-	
+
 		table.insert(ast.body.statements, 1, forStat);
 	end
 end
@@ -298,7 +298,7 @@ end
 
 function ConstantArray:encode(str)
 	if self.Encoding == "base64" then
-		return ((str:gsub('.', function(x) 
+		return ((str:gsub('.', function(x)
 			local r,b='',x:byte()
 			for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
 			return r;
@@ -313,7 +313,7 @@ end
 
 function ConstantArray:apply(ast, pipeline)
 	self.rootScope = ast.body.scope;
-	self.arrId     = self.rootScope:addVariable();
+	self.arrId = self.rootScope:addVariable();
 
 	self.base64chars = table.concat(util.shuffle{
 		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -323,12 +323,12 @@ function ConstantArray:apply(ast, pipeline)
 	});
 
 	self.constants = {};
-	self.lookup    = {};
+	self.lookup = {};
 
 	-- Extract Constants
 	visitast(ast, nil, function(node, data)
 		-- Apply only to some nodes
-		if math.random() <= self.Treshold then
+		if math.random() <= self.Threshold then
 			node.__apply_constant_array = true;
 			if node.kind == AstKind.StringExpression then
 				self:addConstant(node.value);
@@ -336,7 +336,7 @@ function ConstantArray:apply(ast, pipeline)
 				if node.isConstant then
 					if node.value ~= nil then
 						self:addConstant(node.value);
-					end 
+					end
 				end
 			end
 		end
@@ -345,7 +345,7 @@ function ConstantArray:apply(ast, pipeline)
 	-- Shuffle Array
 	if self.Shuffle then
 		self.constants = util.shuffle(self.constants);
-		self.lookup    = {};
+		self.lookup = {};
 		for i, v in ipairs(self.constants) do
 			self.lookup[v] = i;
 		end
@@ -353,11 +353,11 @@ function ConstantArray:apply(ast, pipeline)
 
 	-- Set Wrapper Function Offset
 	self.wrapperOffset = math.random(-self.MaxWrapperOffset, self.MaxWrapperOffset);
-	self.wrapperId     = self.rootScope:addVariable();
+	self.wrapperId = self.rootScope:addVariable();
 
 	visitast(ast, function(node, data)
 		-- Add Local Wrapper Functions
-		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperTreshold then
+		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperThreshold then
 			local id = node.scope:addVariable()
 			data.functionData.local_wrappers = {
 				id = id;
@@ -375,9 +375,9 @@ function ConstantArray:apply(ast, pipeline)
 				local argPos = math.random(1, self.LocalWrapperArgCount);
 
 				data.functionData.local_wrappers[i] = {
-					arg   = argPos,
+					arg = argPos,
 					index = name,
-					offset =  offset,
+					offset = offset,
 				};
 				data.functionData.__used = false;
 			end
@@ -407,7 +407,7 @@ function ConstantArray:apply(ast, pipeline)
 				local wrapper = wrappers[i];
 				local argPos = wrapper.arg;
 				local offset = wrapper.offset;
-				local name   = wrapper.index;
+				local name = wrapper.index;
 
 				local funcScope = Scope:new(node.scope);
 
@@ -461,7 +461,7 @@ function ConstantArray:apply(ast, pipeline)
 
 	local steps = util.shuffle({
 		-- Add Wrapper Function Code
-		function() 
+		function()
 			local funcScope = Scope:new(self.rootScope);
 			-- Add Reference to Array
 			funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
@@ -512,10 +512,9 @@ function ConstantArray:apply(ast, pipeline)
 	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(self.rootScope, {self.arrId}, {self:createArray()}));
 
 	self.rootScope = nil;
-	self.arrId     = nil;
-
+	self.arrId = nil;
 	self.constants = nil;
-	self.lookup    = nil;
+	self.lookup = nil;
 end
 
 return ConstantArray;

@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- vararg.lua
+--
 -- This Script contains the expression handler for the VarargExpression
 
 local Ast = require("prometheus.ast");

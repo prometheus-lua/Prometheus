@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- expressions.lua
--- This Script contains the expression handlers: exports handler table keyed by AstKind
+--
+-- This Script contains the expression handlers: exports handler table keyed by AstKind.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

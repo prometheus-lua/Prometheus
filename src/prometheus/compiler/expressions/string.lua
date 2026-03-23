@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- string.lua
--- This Script contains the expression handler for the StringExpression
+--
+-- This Script contains the expression handler for the StringExpression.
 
 local Ast = require("prometheus.ast");
 

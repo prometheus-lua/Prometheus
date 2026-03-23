@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- util.lua
--- This file Provides some utility functions
+--
+-- This Script provides some utility functions for Prometheus.
 
 local function lookupify(tb)
 	local tb2 = {};

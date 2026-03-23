@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- function_declaration.lua
--- This Script contains the statement handler for the FunctionDeclaration
+--
+-- This Script contains the statement handler for the FunctionDeclaration.
 
 local Ast = require("prometheus.ast");
 

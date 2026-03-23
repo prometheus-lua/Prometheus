@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- not.lua
--- This Script contains the expression handler for the NotExpression
+--
+-- This Script contains the expression handler for the NotExpression.
 
 local Ast = require("prometheus.ast");
 

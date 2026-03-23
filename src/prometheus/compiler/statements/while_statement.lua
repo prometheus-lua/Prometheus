@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- while_statement.lua
+--
 -- This Script contains the statement handler for the WhileStatement
 
 local Ast = require("prometheus.ast");

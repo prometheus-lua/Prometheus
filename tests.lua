@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- test.lua
--- This file will Perform tests using all lua files within the tests directory
+-- tests.lua
+--
+-- This Script will Perform tests using all lua files within the tests directory
 
 -- Require Prometheus
 local Prometheus = require("src.prometheus")
@@ -10,9 +11,9 @@ local Prometheus = require("src.prometheus")
 -- logger.logLevel = logger.LogLevel.Debug;
 
 -- Config Variables - Later passed as Parameters
-local noColors = false; -- Wether Colors in the Console output should be enabled
-local isWindows = true;    -- Wether the Test are Performed on a Windows or Linux System
-local ciMode = false; 	   -- Wether the Test error are ignored or not
+local noColors = false; -- Whether Colors in the Console output should be enabled
+local isWindows = true; -- Whether the Test are Performed on a Windows or Linux System
+local ciMode = false; -- Whether the Test error are ignored or not
 local iterationCount = 20; -- How often each test should be executed
 
 for _, currArg in pairs(arg) do
@@ -38,9 +39,9 @@ local pipeline = Prometheus.Pipeline:new({
 });
 
 -- "Mangled" for names like this : a, b, c, d, ...
--- "MangledShuffled" is the same except the chars come in a different order - Recomended
--- "Il" for weird names like this : IlIIl1llI11l1  - Recomended to make less readable
--- "Number" for names like this : _1, _2, _3, ...  - Not recomended
+-- "MangledShuffled" is the same except the chars come in a different order - Recommended
+-- "Il" for weird names like this : IlIIl1llI11l1  - Recommended to make less readable
+-- "Number" for names like this : _1, _2, _3, ...  - Not recommended
 pipeline:setNameGenerator("MangledShuffled");
 
 local function describePlatform()
@@ -80,20 +81,20 @@ local function shallowcopy(orig)
 end
 
 local function validate(a, b)
-	local outa  = "";
-	local outb  = "";
+	local outa = "";
+	local outb = "";
 
 	local enva = shallowcopy(getfenv(a));
 	local envb = shallowcopy(getfenv(a));
 
 	enva.print = function(...)
-		for i, v in ipairs({...}) do
+		for _, v in ipairs({...}) do
 			outa = outa .. tostring(v);
 		end
 	end
 
 	envb.print = function(...)
-		for i, v in ipairs({...}) do
+		for _, v in ipairs({...}) do
 			outb = outb .. tostring(v);
 		end
 	end
@@ -110,10 +111,9 @@ end
 
 local presets = Prometheus.Presets;
 local testdir = "./tests/"
-local failed = {};
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error;
 local fc = 0;
-for i, filename in ipairs(scandir(testdir)) do
+for _, filename in ipairs(scandir(testdir)) do
 	local path = testdir .. filename;
 	local file = io.open(path,"r");
 
@@ -141,7 +141,7 @@ for i, filename in ipairs(scandir(testdir)) do
 
 				if not validated then
 					print(Prometheus.colors("[FAILED]  ", "red") .. "(" .. filename .. "): " .. name);
-					print("[OUTA]    ",    outa);
+					print("[OUTA]    ", outa);
 					print("[OUTB]    ", outb);
 					print("[SOURCE]", obfuscated);
 					fc = fc + 1;

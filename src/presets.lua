@@ -2,194 +2,114 @@
 --
 -- presets.lua
 --
--- This Script Provides some configuration presets
+-- This Script provides the predefined obfuscation presets for Prometheus
 
 return {
-    ["Minify"] = {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- No obfuscation steps
-        Steps = {
+	-- Minifies your code. Does not obfuscate it. No performance loss.
+	["Minify"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {},
+	},
 
-        }
-    };
-    ["Weak"] = {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables that look like this: IlI1lI1l
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- Obfuscation steps
-        Steps = {
-            {
-                Name = "Vmify";
-                Settings = {
+	-- Weak obfuscation. Very readable, low performance loss.
+	["Weak"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {
+			{ Name = "Vmify", Settings = {} },
+			{
+				Name = "ConstantArray",
+				Settings = {
+					Threshold = 1,
+					StringsOnly = true,
+				},
+			},
+			{ Name = "WrapInFunction", Settings = {} },
+		},
+	},
 
-                };
-            },
-            {
-                Name = "ConstantArray";
-                Settings = {
-                    Treshold    = 1;
-                    StringsOnly = true;
-                }
-            },
-            {
-                Name = "WrapInFunction";
-                Settings = {
+	-- This is here for the tests.lua file.
+	-- It helps isolate any problems with the Vmify step.
+	-- It is not recommended to use this preset for obfuscation.
+	-- Use the Weak, Medium, or Strong for obfuscation instead.
+	["Vmify"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {
+			{ Name = "Vmify", Settings = {} },
+		},
+	},
 
-                }
-            },
-        }
-    };
-    ["Vmify"] = {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables that look like this: IlI1lI1l
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- Obfuscation steps
-        Steps = {
-            {
-                Name = "Vmify";
-                Settings = {
+	-- Medium obfuscation. Moderate obfuscation, moderate performance loss.
+	["Medium"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {
+			{ Name = "EncryptStrings", Settings = {} },
+			{
+				Name = "AntiTamper",
+				Settings = {
+					UseDebug = false,
+				},
+			},
+			{ Name = "Vmify", Settings = {} },
+			{
+				Name = "ConstantArray",
+				Settings = {
+					Threshold = 1,
+					StringsOnly = true,
+					Shuffle = true,
+					Rotate = true,
+					LocalWrapperThreshold = 0,
+				},
+			},
+			{ Name = "NumbersToExpressions", Settings = {} },
+			{ Name = "WrapInFunction", Settings = {} },
+		},
+	},
 
-                };
-            },
-        }
-    };
-    ["Medium"] = {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- Obfuscation steps
-        Steps = {
-            {
-                Name = "EncryptStrings";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "AntiTamper";
-                Settings = {
-                    UseDebug = false;
-                };
-            },
-            {
-                Name = "Vmify";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "ConstantArray";
-                Settings = {
-                    Treshold    = 1;
-                    StringsOnly = true;
-                    Shuffle     = true;
-                    Rotate      = true;
-                    LocalWrapperTreshold = 0;
-                }
-            },
-            {
-                Name = "NumbersToExpressions";
-                Settings = {
-
-                }
-            },
-            {
-                Name = "WrapInFunction";
-                Settings = {
-
-                }
-            },
-        }
-    };
-    ["Strong"] = {
-        -- The default LuaVersion is Lua51
-        LuaVersion = "Lua51";
-        -- For minifying no VarNamePrefix is applied
-        VarNamePrefix = "";
-        -- Name Generator for Variables that look like this: IlI1lI1l
-        NameGenerator = "MangledShuffled";
-        -- No pretty printing
-        PrettyPrint = false;
-        -- Seed is generated based on current time
-        Seed = 0;
-        -- Obfuscation steps
-        Steps = {
-            {
-                Name = "Vmify";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "EncryptStrings";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "AntiTamper";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "Vmify";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "ConstantArray";
-                Settings = {
-                    Treshold    = 1;
-                    StringsOnly = true;
-                    Shuffle     = true;
-                    Rotate      = true;
-                    LocalWrapperTreshold = 0;
-                }
-            },
-            {
-                Name = "NumbersToExpressions";
-                Settings = {
-
-                }
-            },
-            {
-                Name = "WrapInFunction";
-                Settings = {
-
-                }
-            },
-        }
-    },
+	-- Strong obfuscation, high performance loss.
+	["Strong"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {
+			{ Name = "Vmify", Settings = {} },
+			{ Name = "EncryptStrings", Settings = {} },
+			{
+				Name = "AntiTamper",
+				Settings = {
+					UseDebug = false,
+				},
+			},
+			{ Name = "Vmify", Settings = {} },
+			{
+				Name = "ConstantArray",
+				Settings = {
+					Threshold = 1,
+					StringsOnly = true,
+					Shuffle = true,
+					Rotate = true,
+					LocalWrapperThreshold = 0,
+				},
+			},
+			{ Name = "NumbersToExpressions", Settings = {} },
+			{ Name = "WrapInFunction", Settings = {} },
+		},
+	},
 }

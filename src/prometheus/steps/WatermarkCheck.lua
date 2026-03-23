@@ -29,9 +29,7 @@ local function callNameGenerator(generatorFunction, ...)
 	return generatorFunction(...);
 end
 
-function WatermarkCheck:init(settings)
-
-end
+function WatermarkCheck:init(_) end
 
 function WatermarkCheck:apply(ast, pipeline)
   self.CustomVariable = "_" .. callNameGenerator(pipeline.namegenerator, math.random(10000000000, 100000000000));

@@ -1,6 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- scope.lua
+--
+-- This Script provides a class for the Scope of a Lua Script
 
 local logger = require("logger");
 local config = require("config");
@@ -251,7 +253,7 @@ function Scope:addReferenceToHigherScope(scope, id, n, b)
 	end
 	local scopeReferences = self.variablesFromHigherScopes[scope];
 	if scopeReferences[id] then
-		scopeReferences[id]  = scopeReferences[id] + n;
+		scopeReferences[id] = scopeReferences[id] + n;
 	else
 		scopeReferences[id] = n;
 	end
@@ -274,7 +276,7 @@ function Scope:removeReferenceToHigherScope(scope, id, n, b)
 	end
 	local scopeReferences = self.variablesFromHigherScopes[scope];
 	if scopeReferences[id] then
-		scopeReferences[id]  = scopeReferences[id] - n;
+		scopeReferences[id] = scopeReferences[id] - n;
 	else
 		scopeReferences[id] = 0;
 	end

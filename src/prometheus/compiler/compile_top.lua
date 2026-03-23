@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- compile_top.lua
--- This Script contains the compilation of the top node, function, and block
+--
+-- This Script contains the compilation of the top node, function, and block.
 
 local Ast = require("prometheus.ast");
 local util = require("prometheus.util");

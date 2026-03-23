@@ -1,4 +1,9 @@
--- Deterministic tests covering closure upvalues in nested functions and loops
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- upvalues.lua
+--
+-- This Test demonstrates a deterministic tests covering closure upvalues in nested functions and loops.
+
 local function emitList(label, list)
     print(label .. ":" .. table.concat(list, ","))
 end

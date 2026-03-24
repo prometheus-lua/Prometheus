@@ -28,7 +28,7 @@ return {
 				Name = "ConstantArray",
 				Settings = {
 					Threshold = 1,
-					StringsOnly = true,
+					StringsOnly = true
 				},
 			},
 			{ Name = "WrapInFunction", Settings = {} },
@@ -105,10 +105,15 @@ return {
 					StringsOnly = true,
 					Shuffle = true,
 					Rotate = true,
-					LocalWrapperThreshold = 0,
+					LocalWrapperThreshold = 0
 				},
 			},
-			{ Name = "NumbersToExpressions", Settings = {} },
+			{
+				Name = "NumbersToExpressions",
+				Settings = {
+					NumberRepresentationMutaton = true
+				},
+			},
 			{ Name = "WrapInFunction", Settings = {} },
 		},
 	},

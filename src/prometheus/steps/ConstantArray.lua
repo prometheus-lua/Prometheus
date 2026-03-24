@@ -23,8 +23,8 @@ ConstantArray.Description = "This Step will Extract all Constants and put them i
 ConstantArray.Name = "Constant Array";
 
 ConstantArray.SettingsDescriptor = {
-	Threshold = {
-		name = "Threshold",
+	Treshold = {
+		name = "Treshold",
 		description = "The relative amount of nodes that will be affected",
 		type = "number",
 		default = 1,
@@ -33,24 +33,24 @@ ConstantArray.SettingsDescriptor = {
 	},
 	StringsOnly = {
 		name = "StringsOnly",
-		description = "Whether to only Extract Strings",
+		description = "Wether to only Extract Strings",
 		type = "boolean",
 		default = false,
 	},
 	Shuffle = {
 		name = "Shuffle",
-		description = "Whether to shuffle the order of Elements in the Array",
+		description = "Wether to shuffle the order of Elements in the Array",
 		type = "boolean",
 		default = true,
 	},
 	Rotate = {
 		name = "Rotate",
-		description = "Whether to rotate the String Array by a specific (random) amount. This will be undone on runtime.",
+		description = "Wether to rotate the String Array by a specific (random) amount. This will be undone on runtime.",
 		type = "boolean",
 		default = true,
 	},
-	LocalWrapperThreshold = {
-		name = "LocalWrapperThreshold",
+	LocalWrapperTreshold = {
+		name = "LocalWrapperTreshold",
 		description = "The relative amount of nodes functions, that will get local wrappers",
 		type = "number",
 		default = 1,
@@ -59,7 +59,7 @@ ConstantArray.SettingsDescriptor = {
 	},
 	LocalWrapperCount = {
 		name = "LocalWrapperCount",
-		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperThreshold is greater than 0",
+		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperTreshold is greater than 0",
 		type = "number",
 		min = 0,
 		max = 512,
@@ -84,13 +84,29 @@ ConstantArray.SettingsDescriptor = {
 		name = "Encoding",
 		description = "The Encoding to use for the Strings",
 		type = "enum",
-		default = "base64",
+		default = "mixed",
 		values = {
 			"none",
-			"base64"
+			"base64",
+			"base85",
+			"mixed",
 		},
 	}
 }
+
+local prefix_0, prefix_1;
+local charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@£$%^&*()_+-=[]{}|\\:;\"'<>,./?";
+repeat
+	local a, b = math.random(1, #charset), math.random(1, #charset);
+	prefix_0 = charset:sub(a, a);
+	prefix_1 = charset:sub(b, b);
+until prefix_0 ~= prefix_1 and math.random() < 0.5;
+local charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@£$%^&*()_+-=[]{}|\\:;\"'<>,./?";
+repeat
+	local a, b = math.random(1, #charset), math.random(1, #charset);
+	prefix_0 = charset:sub(a, a);
+	prefix_1 = charset:sub(b, b);
+until prefix_0 ~= prefix_1 and math.random() < 0.5;
 
 local function callNameGenerator(generatorFunction, ...)
 	if(type(generatorFunction) == "table") then
@@ -280,6 +296,225 @@ function ConstantArray:addDecodeCode(ast)
 		end)
 
 		table.insert(ast.body.statements, 1, forStat);
+	elseif self.Encoding == "base85" then
+		local base85DecodeCode = [[
+	do ]] .. table.concat(util.shuffle{
+		"local lookup = LOOKUP_TABLE;",
+		"local len = string.len;",
+		"local sub = string.sub;",
+		"local floor = math.floor;",
+		"local strchar = string.char;",
+		"local insert = table.insert;",
+		"local concat = table.concat;",
+		"local type = type;",
+		"local arr = ARR;",
+	}) .. [[
+		for i = 1, #arr do
+			local data = arr[i];
+			if type(data) == "string" then
+				local length = len(data)
+				local parts = {}
+				local index = 1
+				while index <= length do
+					local remain = length - index + 1
+					local count = remain >= 5 and 5 or remain
+					local value = 0
+					local valid = count > 1
+
+					for j = 0, 4 do
+						local code
+						if j < count then
+							local ch = sub(data, index + j, index + j)
+							code = lookup[ch]
+							if not code then
+								valid = false
+								break
+							end
+						else
+							code = 84
+						end
+						value = value * 85 + code
+					end
+
+					if valid then
+						local b1 = floor(value / 16777216) % 256
+						local b2 = floor(value / 65536) % 256
+						local b3 = floor(value / 256) % 256
+						local b4 = value % 256
+						if count == 5 then
+							insert(parts, strchar(b1, b2, b3, b4))
+						elseif count == 4 then
+							insert(parts, strchar(b1, b2, b3))
+						elseif count == 3 then
+							insert(parts, strchar(b1, b2))
+						elseif count == 2 then
+							insert(parts, strchar(b1))
+						end
+					end
+
+					index = index + count
+				end
+				arr[i] = concat(parts)
+			end
+		end
+	end
+]];
+
+		local parser = Parser:new({
+			LuaVersion = LuaVersion.Lua51;
+		});
+
+		local newAst = parser:parse(base85DecodeCode);
+		local forStat = newAst.body.statements[1];
+		forStat.body.scope:setParent(ast.body.scope);
+
+		visitast(newAst, nil, function(node, data)
+			if(node.kind == AstKind.VariableExpression) then
+				if(node.scope:getVariableName(node.id) == "ARR") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
+					node.scope = self.rootScope;
+					node.id = self.arrId;
+				end
+
+				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					return self:createBase85Lookup();
+				end
+			end
+		end)
+
+		table.insert(ast.body.statements, 1, forStat);
+	elseif self.Encoding == "mixed" then
+		local mixedDecodeCode = [[
+	do ]] .. table.concat(util.shuffle{
+		"local lookup64 = LOOKUP_TABLE_64;",
+		"local lookup85 = LOOKUP_TABLE_85;",
+		"local len = string.len;",
+		"local sub = string.sub;",
+		"local floor = math.floor;",
+		"local strchar = string.char;",
+		"local insert = table.insert;",
+		"local concat = table.concat;",
+		"local type = type;",
+		"local arr = ARR;",
+	}) .. [[
+		for i = 1, #arr do
+			local data = arr[i];
+			if type(data) == "string" then
+				local first = sub(data, 1, 1)
+				if first == "]]..prefix_0..[[" then
+					data = sub(data, 2)
+					local length = len(data)
+					local parts = {}
+					local index = 1
+					local value = 0
+					local count = 0
+					while index <= length do
+						local char = sub(data, index, index)
+						local code = lookup64[char]
+						if code then
+							value = value + code * (64 ^ (3 - count))
+							count = count + 1
+							if count == 4 then
+								count = 0
+								local c1 = floor(value / 65536)
+								local c2 = floor(value % 65536 / 256)
+								local c3 = value % 256
+								insert(parts, strchar(c1, c2, c3))
+								value = 0
+							end
+						elseif char == "=" then
+							insert(parts, strchar(floor(value / 65536)));
+							if index >= length or sub(data, index + 1, index + 1) ~= "=" then
+								insert(parts, strchar(floor(value % 65536 / 256)));
+							end
+							break
+						end
+						index = index + 1
+					end
+					arr[i] = concat(parts)
+				elseif first == "]]..prefix_1..[[" then
+					data = sub(data, 2)
+					local length = len(data)
+					local parts = {}
+					local idx = 1
+					while idx <= length do
+						local remain = length - idx + 1
+						local count = remain >= 5 and 5 or remain
+						local value = 0
+						local valid = count > 1
+
+						for j = 0, 4 do
+							local code
+							if j < count then
+								local ch = sub(data, idx + j, idx + j)
+								code = lookup85[ch]
+								if not code then
+									valid = false
+									break
+								end
+							else
+								code = 84
+							end
+							value = value * 85 + code
+						end
+
+						if valid then
+							local b1 = floor(value / 16777216) % 256
+							local b2 = floor(value / 65536) % 256
+							local b3 = floor(value / 256) % 256
+							local b4 = value % 256
+							if count == 5 then
+								insert(parts, strchar(b1, b2, b3, b4))
+							elseif count == 4 then
+								insert(parts, strchar(b1, b2, b3))
+							elseif count == 3 then
+								insert(parts, strchar(b1, b2))
+							elseif count == 2 then
+								insert(parts, strchar(b1))
+							end
+						end
+
+						idx = idx + count
+					end
+					arr[i] = concat(parts)
+				end
+			end
+		end
+	end
+]];
+
+		local parser = Parser:new({
+			LuaVersion = LuaVersion.Lua51;
+		});
+
+		local newAst = parser:parse(mixedDecodeCode);
+		local forStat = newAst.body.statements[1];
+		forStat.body.scope:setParent(ast.body.scope);
+
+		visitast(newAst, nil, function(node, data)
+			if(node.kind == AstKind.VariableExpression) then
+				if(node.scope:getVariableName(node.id) == "ARR") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
+					node.scope = self.rootScope;
+					node.id = self.arrId;
+				end
+
+				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_64") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					return self:createBase64Lookup();
+				end
+
+				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_85") then
+					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+					return self:createBase85Lookup();
+				end
+			end
+		end)
+
+		table.insert(ast.body.statements, 1, forStat);
 	end
 end
 
@@ -287,6 +522,17 @@ function ConstantArray:createBase64Lookup()
 	local entries = {};
 	local i = 0;
 	for char in string.gmatch(self.base64chars, ".") do
+		table.insert(entries, Ast.KeyedTableEntry(Ast.StringExpression(char), Ast.NumberExpression(i)));
+		i = i + 1;
+	end
+	util.shuffle(entries);
+	return Ast.TableConstructorExpression(entries);
+end
+
+function ConstantArray:createBase85Lookup()
+	local entries = {};
+	local i = 0;
+	for char in string.gmatch(self.base85chars, ".") do
 		table.insert(entries, Ast.KeyedTableEntry(Ast.StringExpression(char), Ast.NumberExpression(i)));
 		i = i + 1;
 	end
@@ -306,6 +552,74 @@ function ConstantArray:encode(str)
 			for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
 			return self.base64chars:sub(c+1,c+1)
 		end)..({ '', '==', '=' })[#str%3+1]);
+	elseif self.Encoding == "base85" then
+		local result = {};
+		local len = #str;
+		local pos = 1;
+
+		while pos <= len do
+			local rem = len - pos + 1;
+			local count = rem >= 4 and 4 or rem;
+			local b1, b2, b3, b4 = string.byte(str, pos, pos + count - 1);
+			b1 = b1 or 0;
+			b2 = b2 or 0;
+			b3 = b3 or 0;
+			b4 = b4 or 0;
+
+			local value = ((b1 * 256 + b2) * 256 + b3) * 256 + b4;
+			local chars = {};
+			for i = 5, 1, -1 do
+				local code = (value % 85) + 1;
+				chars[i] = self.base85chars:sub(code, code);
+				value = math.floor(value / 85);
+			end
+
+			result[#result + 1] = table.concat(chars, "", 1, count + 1);
+			pos = pos + count;
+		end
+
+		return table.concat(result);
+	elseif self.Encoding == "mixed" then
+		if math.random() < 0.5 then
+			local encoded = ((str:gsub('.', function(x)
+				local r,b='',x:byte()
+				for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+				return r;
+			end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+				if (#x < 6) then return '' end
+				local c=0
+				for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+				return self.base64chars:sub(c+1,c+1)
+			end)..({ '', '==', '=' })[#str%3+1]);
+			return prefix_0 .. encoded;
+		else
+			local result = {};
+			local len = #str;
+			local pos = 1;
+
+			while pos <= len do
+				local rem = len - pos + 1;
+				local count = rem >= 4 and 4 or rem;
+				local b1, b2, b3, b4 = string.byte(str, pos, pos + count - 1);
+				b1 = b1 or 0;
+				b2 = b2 or 0;
+				b3 = b3 or 0;
+				b4 = b4 or 0;
+
+				local value = ((b1 * 256 + b2) * 256 + b3) * 256 + b4;
+				local chars = {};
+				for i = 5, 1, -1 do
+					local code = (value % 85) + 1;
+					chars[i] = self.base85chars:sub(code, code);
+					value = math.floor(value / 85);
+				end
+
+				result[#result + 1] = table.concat(chars, "", 1, count + 1);
+				pos = pos + count;
+			end
+
+			return prefix_1 .. table.concat(result);
+		end
 	end
 end
 
@@ -320,13 +634,24 @@ function ConstantArray:apply(ast, pipeline)
 		"+", "/",
 	});
 
+	self.base85chars = table.concat(util.shuffle{
+		"!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		":", ";", "<", "=", ">", "?", "@",
+		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+		"P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+		"[", "\\", "]", "^", "_", "`",
+		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
+		"p", "q", "r", "s", "t", "u",
+	});
+
 	self.constants = {};
 	self.lookup = {};
 
 	-- Extract Constants
 	visitast(ast, nil, function(node, data)
 		-- Apply only to some nodes
-		if math.random() <= self.Threshold then
+		if math.random() <= self.Treshold then
 			node.__apply_constant_array = true;
 			if node.kind == AstKind.StringExpression then
 				self:addConstant(node.value);
@@ -355,7 +680,7 @@ function ConstantArray:apply(ast, pipeline)
 
 	visitast(ast, function(node, data)
 		-- Add Local Wrapper Functions
-		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperThreshold then
+		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperTreshold then
 			local id = node.scope:addVariable()
 			data.functionData.local_wrappers = {
 				id = id;
@@ -375,7 +700,7 @@ function ConstantArray:apply(ast, pipeline)
 				data.functionData.local_wrappers[i] = {
 					arg = argPos,
 					index = name,
-					offset = offset,
+					offset =  offset,
 				};
 				data.functionData.__used = false;
 			end
@@ -511,6 +836,7 @@ function ConstantArray:apply(ast, pipeline)
 
 	self.rootScope = nil;
 	self.arrId = nil;
+
 	self.constants = nil;
 	self.lookup = nil;
 end

@@ -18,7 +18,7 @@ return function(self, statement, funcDepth)
     self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
 
     self:setActiveBlock(checkBlock);
-    local scope = self.activeBlock.scope;
+    scope = self.activeBlock.scope;
     local conditionReg = self:compileExpression(statement.condition, funcDepth, 1)[1];
     self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, conditionReg), Ast.NumberExpression(innerBlock.id)), Ast.NumberExpression(finalBlock.id))), {self.POS_REGISTER}, {conditionReg}, false);
     self:freeRegister(conditionReg, false);

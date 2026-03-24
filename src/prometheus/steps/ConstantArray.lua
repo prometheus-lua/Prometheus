@@ -100,13 +100,7 @@ repeat
 	local a, b = math.random(1, #charset), math.random(1, #charset);
 	prefix_0 = charset:sub(a, a);
 	prefix_1 = charset:sub(b, b);
-until prefix_0 ~= prefix_1 and math.random() < 0.5;
-local charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@£$%^&*()_+-=[]{}|\\:;\"'<>,./?";
-repeat
-	local a, b = math.random(1, #charset), math.random(1, #charset);
-	prefix_0 = charset:sub(a, a);
-	prefix_1 = charset:sub(b, b);
-until prefix_0 ~= prefix_1 and math.random() < 0.5;
+until prefix_0 ~= prefix_1 and math.random() > 0.5;
 
 local function callNameGenerator(generatorFunction, ...)
 	if(type(generatorFunction) == "table") then

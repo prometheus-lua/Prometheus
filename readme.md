@@ -34,7 +34,7 @@ return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM="
 To install Prometheus, simply clone the GitHub repository using:
 
 ```batch
-git clone https://github.com/levno-710/Prometheus.git
+git clone https://github.com/prometheus-lua/Prometheus.git
 ```
 
 Alternatively you can download the sources [here](https://github.com/prometheus-lua/Prometheus/archive/refs/heads/master.zip).

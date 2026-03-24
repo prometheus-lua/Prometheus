@@ -8,7 +8,7 @@
 local char = ("").char
 print(char == string.char and "yes" or "no")
 local pc, _ = pcall(function()
-    return (0)[char]
+    return (0).char
 end)
 
 -- Checks for unparser bug

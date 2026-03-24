@@ -3,21 +3,41 @@
 ## Description
 Prometheus is a Lua obfuscator written in pure Lua.
 
-This Project was inspired by the amazing [javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator).   
+This project was inspired by the amazing [javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator).  
 It can currently obfuscate Lua51 and Roblox's LuaU, however LuaU support is not finished yet.
 
 You can find the full Documentation including a getting started guide [here](https://levno-710.gitbook.io/prometheus/).
 
 Prometheus has an official [Discord server](https://discord.gg/U8h4d4Rf64).
 
+## Preview
+<p align="center">
+  <img src="assets/readme/obfuscation-preview.gif" alt="Prometheus obfuscation process preview" width="900" />
+</p>
+
+### Example output style
+```lua
+-- input.lua
+local secret = "Prometheus"
+local answer = 42
+print(secret .. " -> " .. answer)
+```
+
+```text
+-- generated with: lua ./cli.lua --preset Medium ./simple.lua
+-- excerpt from ./simple.obfuscated.lua
+return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM=";"WqermfWAWuuZpb3XX7M=","tqXGSJ3u","XQXpL9x21dxAWJa//p==","SrM=";"3q+5SJM=","/D==";"t7XUt0p=";"mIeOmIx9";"LdgrBfWdWuNABsb+KJxj","SJWJ4dahKsebW7t+KQv=","/cDu3AvP/D==";"Llv7uD==","tJWhFfTE";"TQ43ctIuy9HIop==","mEu93p==";"WJax1sXEXEaxWuxGt6==","t0gPSEp=",...
+... (remaining obfuscated output omitted)
+```
+
 ## Installation
-To install Prometheus, simply clone the Github Repository using:
+To install Prometheus, simply clone the GitHub repository using:
 
 ```batch
 git clone https://github.com/levno-710/Prometheus.git
 ```
 
-Alternatively you can download the Sources [here](https://github.com/prometheus-lua/Prometheus/archive/refs/heads/master.zip).
+Alternatively you can download the sources [here](https://github.com/prometheus-lua/Prometheus/archive/refs/heads/master.zip).
 
 Prometheus also Requires LuaJIT or Lua51 in order to work. The Lua51 binaries can be downloaded [here](https://sourceforge.net/projects/luabinaries/files/5.1.5/Tools%20Executables/).
 

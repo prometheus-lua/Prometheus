@@ -99,9 +99,7 @@ local function callNameGenerator(generatorFunction, ...)
 	return generatorFunction(...);
 end
 
-function ConstantArray:init(settings)
-
-end
+function ConstantArray:init(_) end
 
 function ConstantArray:createArray()
 	local entries = {};

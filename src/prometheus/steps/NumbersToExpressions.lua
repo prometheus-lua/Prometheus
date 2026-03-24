@@ -31,9 +31,9 @@ NumbersToExpressions.SettingsDescriptor = {
 	},
 }
 
---[[
-	This function removes trailing zeros from a floating point number
-]]
+
+-- This is for the modulo generator. When I remove it, the obfuscated code breaks.
+-- I have no idea why, the odd part is it doesn't even use floating point numbers!
 local function filterNumber(number)
 	local formatted = string.format("%.50f", number)
 	formatted = formatted:gsub("%.?0+$", "")
@@ -50,7 +50,7 @@ local function generateModuloExpression(n)
 	return lhs, rhs
 end
 
-function NumbersToExpressions:init(settings)
+function NumbersToExpressions:init(_)
 	self.ExpressionGenerators = {
 		function(val, depth) -- Addition
 			local val2 = math.random(-2 ^ 20, 2 ^ 20)
@@ -88,7 +88,10 @@ function NumbersToExpressions:init(settings)
 				false
 			)
 		end,
-		function(val, depth) -- Advanced Modulo
+
+		-- NOTE: Please don't enable depth with this generator.
+		-- It's extremely unstable & breaks the step. I don't know why.
+		function(val, _) -- Modulo
 			if val <= 0 then
 				return false
 			end
@@ -108,7 +111,7 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 	end
 
 	local generators = util.shuffle({ unpack(self.ExpressionGenerators) })
-	for i, generator in ipairs(generators) do
+	for _, generator in ipairs(generators) do
 		local node = generator(val, depth + 1)
 		if node then
 			return node
@@ -119,7 +122,7 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 end
 
 function NumbersToExpressions:apply(ast)
-	visitast(ast, nil, function(node, data)
+	visitast(ast, nil, function(node, _)
 		if node.kind == AstKind.NumberExpression then
 			if math.random() <= self.Threshold then
 				return self:CreateNumberExpression(node.value, 0)

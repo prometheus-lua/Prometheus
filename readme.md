@@ -24,12 +24,8 @@ print(secret .. " -> " .. answer)
 ```
 
 ```lua
--- (simplified) obfuscated output
-local lI1I, O0O = "\80\114\111...", 0x2A
-return (function(a, b)
-    local t = string.char
-    return print((a) .. " -> " .. b)
-end)(decode(lI1I), O0O)
+-- generated with: lua ./cli.lua --preset Medium ./simple.lua
+return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM=";"WqermfWAWuuZpb3XX7M=","tqXGSJ3u","XQXpL9x21dxAWJa//p==","SrM=";"3q+5SJM=","/D==";"t7XUt0p=";"mIeOmIx9";"LdgrBfWdWuNABsb+KJxj","SJWJ4dahKsebW7t+KQv=","/cDu3AvP/D==";"Llv7uD==","tJWhFfTE";"TQ43ctIuy9HIop==","mEu93p==";"WJax1sXEXEaxWuxGt6==","t0gPSEp=",...}
 ```
 
 ## Installation

@@ -11,6 +11,7 @@ local pc, _ = pcall(function()
     return (0)[char]
 end)
 
+-- Checks for unparser bug
 print(pc == false and "yes" or "no")
 local ok = pcall(function(...)
     print("hello " .. ...)

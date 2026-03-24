@@ -12,3 +12,7 @@ local pc, _ = pcall(function()
 end)
 
 print(pc == false and "yes" or "no")
+local ok = pcall(function(...)
+    print("hello " .. ...)
+end)
+print(ok and "no" or "yes")

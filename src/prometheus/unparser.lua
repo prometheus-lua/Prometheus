@@ -499,23 +499,23 @@ function Unparser:unparseExpression(expression, tabbing)
 		return lhs .. self:optionalWhitespace() .. op .. self:optionalWhitespace() .. rhs;
 	end
 
-	k = AstKind.StrCatExpression;
-	if(expression.kind == k) then
-		local lhs = self:unparseExpression(expression.lhs, tabbing);
-		if(Ast.astKindExpressionToNumber(expression.lhs.kind) >= Ast.astKindExpressionToNumber(k)) then
-			lhs = "(" .. lhs .. ")";
+	k = AstKind.StrCatExpression
+	if expression.kind == k then
+		local lhs = self:unparseExpression(expression.lhs, tabbing)
+		if Ast.astKindExpressionToNumber(expression.lhs.kind) >= Ast.astKindExpressionToNumber(k) then
+			lhs = "(" .. lhs .. ")"
 		end
 
-		local rhs = self:unparseExpression(expression.rhs, tabbing);
-		if(Ast.astKindExpressionToNumber(expression.rhs.kind) >= Ast.astKindExpressionToNumber(k)) then
-			rhs = "(" .. rhs .. ")";
+		local rhs = self:unparseExpression(expression.rhs, tabbing)
+		if Ast.astKindExpressionToNumber(expression.rhs.kind) >= Ast.astKindExpressionToNumber(k) then
+			rhs = "(" .. rhs .. ")"
 		end
 
-		if(self.numberCharsLookup[string.sub(lhs, #lhs, #lhs)]) then
-			lhs = lhs .. " ";
+		if self.numberCharsLookup[string.sub(lhs, #lhs, #lhs)] then
+			lhs = lhs .. " "
 		end
 
-		return lhs .. self:optionalWhitespace() .. ".." .. self:optionalWhitespace() .. rhs;
+		return lhs .. self:optionalWhitespace() .. (tostring(rhs):sub(1, 1) == "." and ".. " or "..") .. self:optionalWhitespace() .. rhs
 	end
 
 	local arithmeticOps = {

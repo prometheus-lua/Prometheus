@@ -105,7 +105,7 @@ function Pipeline:addStep(step)
 	table.insert(self.steps, step);
 end
 
-function Pipeline:resetSteps(step)
+function Pipeline:resetSteps(_)
 	self.steps = {};
 end
 
@@ -113,7 +113,7 @@ function Pipeline:getSteps()
 	return self.steps;
 end
 
-function Pipeline:setOption(name, value)
+function Pipeline:setOption(name, _)
 	assert(false, "TODO");
 	if(Pipeline.DefaultSettings[name] ~= nil) then
 
@@ -159,11 +159,21 @@ function Pipeline:apply(code, filename)
 	local startTime = gettime();
 	filename = filename or "Anonymous Script";
 	logger:info(string.format("Applying Obfuscation Pipeline to %s ...", filename));
+
 	-- Seed the Random Generator
 	if(self.Seed > 0) then
 		math.randomseed(self.Seed);
 	else
-		math.randomseed(os.time())
+		-- try to use secure random number generator
+		local success, seed = pcall(function()
+			return tonumber(io.popen("openssl rand -hex 8"):read("*a"):gsub("\n", ""), 16)
+		end)
+		if success then
+			math.randomseed(seed)
+		else
+			logger:warn("OpenSSL is unavailable. Falling back to unix time.");
+			math.randomseed(os.time())
+		end
 	end
 
 	logger:info("Parsing ...");

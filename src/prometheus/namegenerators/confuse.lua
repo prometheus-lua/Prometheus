@@ -5,7 +5,6 @@
 -- This Script provides a function for generation of confusing variable names
 
 local util = require("prometheus.util");
-local chararray = util.chararray;
 
 local varNames = {
     "index",
@@ -146,24 +145,24 @@ local varNames = {
     "a", "b", "c", "i", "j", "m",
 }
 
-local function generateName(id, scope)
+local function generateName(id, _)
     local name = {};
     local d = id % #varNames
 	id = (id - d) / #varNames
 	table.insert(name, varNames[d + 1]);
 	while id > 0 do
-		local d = id % #varNames
-		id = (id - d) / #varNames
-		table.insert(name, varNames[d + 1]);
+		local e = id % #varNames
+		id = (id - e) / #varNames
+		table.insert(name, varNames[e + 1]);
 	end
 	return table.concat(name, "_");
 end
 
-local function prepare(ast)
+local function prepare(_)
     util.shuffle(varNames);
 end
 
 return {
-	generateName = generateName, 
+	generateName = generateName,
 	prepare = prepare
 };

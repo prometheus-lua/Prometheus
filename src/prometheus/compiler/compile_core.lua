@@ -9,7 +9,6 @@ local statementHandlers = require("prometheus.compiler.statements");
 local expressionHandlers = require("prometheus.compiler.expressions");
 local Ast = require("prometheus.ast");
 local logger = require("logger");
-local AstKind = Ast.AstKind;
 
 return function(Compiler)
     compileTop(Compiler);

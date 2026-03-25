@@ -28,7 +28,7 @@ local function createRandomASTCFlowExpression(resultBool)
         leftInt = Ast.NumberExpression(math.random(1, 2^24))
         rightInt = Ast.NumberExpression(math.random(1, 2^24))
         r3 = "return " .. leftInt.value .. expLookup[randomExp] .. rightInt.value
-        boolResult = (loadstring or load)(r3)()
+        boolResult = loadstring(r3)()
     until boolResult == resultBool
 
     return randomExp(leftInt, rightInt, false)

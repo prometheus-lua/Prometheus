@@ -95,12 +95,14 @@ ConstantArray.SettingsDescriptor = {
 }
 
 local prefix_0, prefix_1;
-local charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@£$%^&*()_+-=[]{}|\\:;\"'<>,./?";
-repeat
-	local a, b = math.random(1, #charset), math.random(1, #charset);
-	prefix_0 = charset:sub(a, a);
-	prefix_1 = charset:sub(b, b);
-until prefix_0 ~= prefix_1 and math.random() > 0.5;
+local function initPrefixes()
+	local charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@£$%^&*()_+-=[]{}|:;<>,./?";
+	repeat
+		local a, b = math.random(1, #charset), math.random(1, #charset);
+		prefix_0 = charset:sub(a, a);
+		prefix_1 = charset:sub(b, b);
+	until prefix_0 ~= prefix_1
+end
 
 local function callNameGenerator(generatorFunction, ...)
 	if(type(generatorFunction) == "table") then
@@ -555,10 +557,7 @@ function ConstantArray:encode(str)
 			local rem = len - pos + 1;
 			local count = rem >= 4 and 4 or rem;
 			local b1, b2, b3, b4 = string.byte(str, pos, pos + count - 1);
-			b1 = b1 or 0;
-			b2 = b2 or 0;
-			b3 = b3 or 0;
-			b4 = b4 or 0;
+			b1, b2, b3, b4 = b1 or 0, b2 or 0, b3 or 0, b4 or 0;
 
 			local value = ((b1 * 256 + b2) * 256 + b3) * 256 + b4;
 			local chars = {};
@@ -618,6 +617,7 @@ function ConstantArray:encode(str)
 end
 
 function ConstantArray:apply(ast, pipeline)
+	initPrefixes();
 	self.rootScope = ast.body.scope;
 	self.arrId = self.rootScope:addVariable();
 

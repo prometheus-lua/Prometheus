@@ -125,7 +125,8 @@ for _, filename in ipairs(scandir(testdir)) do
 				table.remove(preset.Steps, i);
 			end
 		end
-		for iteration = 1, iterationCount do
+
+		for _ = 1, iterationCount do
 			pipeline = Prometheus.Pipeline:fromConfig(preset);
 			local obfuscated = pipeline:apply(code);
 

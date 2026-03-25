@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- binary.lua
--- This Script contains the expression handler for the Binary operations (Add, Sub, Mul, Div, etc.)
+--
+-- This Script contains the expression handler for the Binary operations (Add, Sub, Mul, Div, etc.).
 
 local Ast = require("prometheus.ast");
 

@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- compiler.lua
--- This Script contains the new Compiler
+--
+-- This Script is the main compiler module.
 
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
@@ -100,7 +101,7 @@ function Compiler:compile(ast)
     local psc = Scope:new(newGlobalScope, nil);
 
     local _, getfenvVar = newGlobalScope:resolve("getfenv");
-    local _, tableVar  = newGlobalScope:resolve("table");
+    local _, tableVar = newGlobalScope:resolve("table");
     local _, unpackVar = newGlobalScope:resolve("unpack");
     local _, envVar = newGlobalScope:resolve("_ENV");
     local _, newproxyVar = newGlobalScope:resolve("newproxy");
@@ -134,7 +135,7 @@ function Compiler:compile(ast)
     self.argsVar = self.containerFuncScope:addVariable();
     self.currentUpvaluesVar = self.containerFuncScope:addVariable();
     self.detectGcCollectVar = self.containerFuncScope:addVariable();
-    self.returnVar  = self.containerFuncScope:addVariable();
+    self.returnVar = self.containerFuncScope:addVariable();
 
     self.upvaluesTable = self.scope:addVariable();
     self.upvaluesReferenceCountsTable = self.scope:addVariable();
@@ -271,7 +272,11 @@ function Compiler:compile(ast)
         assignmentStatRhs[i] = v.val;
     end
 
-    local functionNode = Ast.FunctionLiteralExpression({
+
+    -- NEW: Position Shuffler
+    local ids = util.shuffle({1, 2, 3, 4, 5, 6, 7});
+
+    local items = {
         Ast.VariableExpression(self.scope, self.envVar),
         Ast.VariableExpression(self.scope, self.unpackVar),
         Ast.VariableExpression(self.scope, self.newproxyVar),
@@ -279,7 +284,24 @@ function Compiler:compile(ast)
         Ast.VariableExpression(self.scope, self.getmetatableVar),
         Ast.VariableExpression(self.scope, self.selectVar),
         Ast.VariableExpression(self.scope, argVar),
-        unpack(util.shuffle(tbl))
+    }
+
+    local astItems = {
+        Ast.OrExpression(Ast.AndExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), Ast.FunctionCallExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), {})), Ast.VariableExpression(newGlobalScope, envVar));
+        Ast.OrExpression(Ast.VariableExpression(newGlobalScope, unpackVar), Ast.IndexExpression(Ast.VariableExpression(newGlobalScope, tableVar), Ast.StringExpression("unpack")));
+        Ast.VariableExpression(newGlobalScope, newproxyVar);
+        Ast.VariableExpression(newGlobalScope, setmetatableVar);
+        Ast.VariableExpression(newGlobalScope, getmetatableVar);
+        Ast.VariableExpression(newGlobalScope, selectVar);
+        Ast.TableConstructorExpression({
+            Ast.TableEntry(Ast.VarargExpression());
+        })
+    }
+
+    local functionNode = Ast.FunctionLiteralExpression({
+      items[ids[1]], items[ids[2]], items[ids[3]], items[ids[4]],
+      items[ids[5]], items[ids[6]], items[ids[7]],
+      unpack(util.shuffle(tbl))
     }, Ast.Block({
         Ast.AssignmentStatement(assignmentStatLhs, assignmentStatRhs);
         Ast.ReturnStatement{
@@ -292,15 +314,8 @@ function Compiler:compile(ast)
 
     return Ast.TopNode(Ast.Block({
         Ast.ReturnStatement{Ast.FunctionCallExpression(functionNode, {
-            Ast.OrExpression(Ast.AndExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), Ast.FunctionCallExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), {})), Ast.VariableExpression(newGlobalScope, envVar));
-            Ast.OrExpression(Ast.VariableExpression(newGlobalScope, unpackVar), Ast.IndexExpression(Ast.VariableExpression(newGlobalScope, tableVar), Ast.StringExpression("unpack")));
-            Ast.VariableExpression(newGlobalScope, newproxyVar);
-            Ast.VariableExpression(newGlobalScope, setmetatableVar);
-            Ast.VariableExpression(newGlobalScope, getmetatableVar);
-            Ast.VariableExpression(newGlobalScope, selectVar);
-            Ast.TableConstructorExpression({
-                Ast.TableEntry(Ast.VarargExpression());
-            })
+            astItems[ids[1]], astItems[ids[2]], astItems[ids[3]], astItems[ids[4]],
+            astItems[ids[5]], astItems[ids[6]], astItems[ids[7]],
         })};
     }, psc), newGlobalScope);
 end

@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- assignment.lua
--- This Script contains the statement handler for the AssignmentStatement
+--
+-- This Script contains the statement handler for the AssignmentStatement.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

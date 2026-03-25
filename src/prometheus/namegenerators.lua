@@ -1,3 +1,9 @@
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- namegenerators.lua
+--
+-- This Script provides a collection of name generators for Prometheus.
+
 return {
 	Mangled = require("prometheus.namegenerators.mangled");
 	MangledShuffled = require("prometheus.namegenerators.mangled_shuffled");

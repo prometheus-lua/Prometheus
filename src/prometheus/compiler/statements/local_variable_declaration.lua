@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- local_variable_declaration.lua
+--
 -- This Script contains the statement handler for the LocalVariableDeclaration
 
 local Ast = require("prometheus.ast");
@@ -24,7 +25,7 @@ return function(self, statement, funcDepth)
     end
 
     if #exprregs == 0 then
-        for i=1, #statement.ids do
+        for _=1, #statement.ids do
             table.insert(exprregs, self:compileExpression(Ast.NilExpression(), funcDepth, 1)[1]);
         end
     end

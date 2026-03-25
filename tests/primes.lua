@@ -1,4 +1,9 @@
--- print first n primes
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- primes.lua
+--
+-- This Test demonstrates a deterministic prime number generator.
+
 local function primes(n)
     local function isPrime(n)
         for i = 2, math.sqrt(n) do

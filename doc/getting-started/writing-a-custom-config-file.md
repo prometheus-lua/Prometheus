@@ -13,7 +13,7 @@ return {
         NameGenerator = "MangledShuffled";
         -- No pretty printing
         PrettyPrint = false;
-        -- Seed is generated based on current time 
+        -- Seed is generated based on current time
         -- When specifying a seed that is not 0, you will get the same output every time
         Seed = 0;
         -- Obfuscation steps
@@ -25,7 +25,7 @@ return {
                     -- Apply to Strings only
                     StringsOnly = true;
                     -- Apply to all Constants, 0.5 would only affect 50% of strings
-                    Treshold    = 1;
+                    Threshold = 1;
                 }
             },
         }

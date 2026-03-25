@@ -1,4 +1,9 @@
--- Demonstrate deterministic table merging and traversal
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- table-merge.lua
+--
+-- This Test demonstrates a deterministic table merging and traversal.
+
 local breakfast = { eggs = 4, bacon = 3 }
 local lunch = { bacon = 1, toast = 5 }
 

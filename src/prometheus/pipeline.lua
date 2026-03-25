@@ -2,10 +2,10 @@
 --
 -- pipeline.lua
 --
--- This Script Provides a Configurable Obfuscation Pipeline that can obfuscate code using different Modules
--- These Modules can simply be added to the pipeline
+-- This Script provides a configurable obfuscation pipeline that can obfuscate code using different modules
+-- These modules can simply be added to the pipeline.
 
-local Enums  = require("prometheus.enums");
+local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local Parser = require("prometheus.parser");
 local Unparser = require("prometheus.unparser");
@@ -16,7 +16,7 @@ local NameGenerators = require("prometheus.namegenerators");
 local Steps = require("prometheus.steps");
 local LuaVersion = Enums.LuaVersion;
 
--- On Windows os.clock can be used. On other Systems os.time must be used for benchmarking
+-- On Windows, os.clock can be used. On other systems, os.time must be used for benchmarking.
 local isWindows = package and package.config and type(package.config) == "string" and package.config:sub(1,1) == "\\";
 local function gettime()
 	if isWindows then
@@ -43,7 +43,7 @@ function Pipeline:new(settings)
 	local conventions = Enums.Conventions[luaVersion];
 	if(not conventions) then
 		logger:error("The Lua Version \"" .. luaVersion
-			.. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
+			.. "\" is not recognized by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
 	end
 
 	local prettyPrint = settings.PrettyPrint or Pipeline.DefaultSettings.PrettyPrint;
@@ -77,10 +77,10 @@ end
 function Pipeline:fromConfig(config)
 	config = config or {};
 	local pipeline = Pipeline:new({
-		LuaVersion    = config.LuaVersion or LuaVersion.Lua51;
-		PrettyPrint   = config.PrettyPrint or false;
+		LuaVersion = config.LuaVersion or LuaVersion.Lua51;
+		PrettyPrint = config.PrettyPrint or false;
 		VarNamePrefix = config.VarNamePrefix or "";
-		Seed          = config.Seed or 0;
+		Seed = config.Seed or 0;
 	});
 
 	pipeline:setNameGenerator(config.NameGenerator or "MangledShuffled")
@@ -105,7 +105,7 @@ function Pipeline:addStep(step)
 	table.insert(self.steps, step);
 end
 
-function Pipeline:resetSteps(step)
+function Pipeline:resetSteps(_)
 	self.steps = {};
 end
 
@@ -113,7 +113,7 @@ function Pipeline:getSteps()
 	return self.steps;
 end
 
-function Pipeline:setOption(name, value)
+function Pipeline:setOption(name, _)
 	assert(false, "TODO");
 	if(Pipeline.DefaultSettings[name] ~= nil) then
 
@@ -126,7 +126,7 @@ function Pipeline:setLuaVersion(luaVersion)
 	local conventions = Enums.Conventions[luaVersion];
 	if(not conventions) then
 		logger:error("The Lua Version \"" .. luaVersion
-			.. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
+			.. "\" is not recognized by the Tokenizer! Please use one of the following: \"" .. table.concat(util.keys(Enums.Conventions), "\",\"") .. "\"");
 	end
 
 	self.parser = Parser:new({
@@ -157,13 +157,39 @@ end
 
 function Pipeline:apply(code, filename)
 	local startTime = gettime();
-	filename = filename or "Anonymus Script";
+	filename = filename or "Anonymous Script";
 	logger:info(string.format("Applying Obfuscation Pipeline to %s ...", filename));
+
 	-- Seed the Random Generator
 	if(self.Seed > 0) then
 		math.randomseed(self.Seed);
 	else
-		math.randomseed(os.time())
+		--> use secure random number generator
+		local success, seed = pcall(function()
+			local seedStr =  io.popen("openssl rand -hex 12"):read("*a"):gsub("\n", "")..""
+			local seedNum = 0;
+
+			--> NOTE: tonumber caps at 1.844674407371e+19. So we use this instead.
+			for i = 1, #seedStr do
+				local char = seedStr:sub(i, i):lower()
+				local digit = char:match("%d") and (char:byte() - 48) or (char:byte() - 87)
+				seedNum = seedNum * 16 + digit
+			end
+
+			--> Random Number Generator in Lua 5.1 is limited to 9.007199254741e+15.
+			if _VERSION == "Lua 5.1" and not jit then
+				seedNum = seedNum % 9.007199254741e+15
+			end
+
+			return seedNum
+		end)
+
+		if success then
+			math.randomseed(seed)
+		else
+			logger:warn("OpenSSL is unavailable. Falling back to unix time.");
+			math.randomseed(os.time())
+		end
 	end
 
 	logger:info("Parsing ...");

@@ -1,4 +1,9 @@
--- Deterministic 2x2 matrix multiplication example
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- matrix.lua
+--
+-- This Test demonstrates a deterministic 2x2 matrix multiplication example.
+
 local function multiply(a, b)
     local result = {
         { a[1][1] * b[1][1] + a[1][2] * b[2][1], a[1][1] * b[1][2] + a[1][2] * b[2][2] },

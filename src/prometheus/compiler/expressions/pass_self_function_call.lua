@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- pass_self_function_call.lua
--- This Script contains the expression handler for the PassSelfFunctionCallExpression
+--
+-- This Script contains the expression handler for the PassSelfFunctionCallExpression.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

@@ -6,6 +6,6 @@
 
 local PREFIX = "_";
 
-return function(id, scope)
+return function(id, _)
 	return PREFIX .. tostring(id);
 end

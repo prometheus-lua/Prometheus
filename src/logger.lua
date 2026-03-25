@@ -1,6 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- logger.lua
+--
+-- This Script provides a Logger for Prometheus.
 
 local logger = {}
 local config = require("config");

@@ -1,4 +1,9 @@
--- Custom iterator that creates a predictable countdown
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- iterator.lua
+--
+-- This Test demonstrates a custom iterator that creates a predictable countdown.
+
 local function countdown(startValue, step)
     local value = startValue + step
     return function()

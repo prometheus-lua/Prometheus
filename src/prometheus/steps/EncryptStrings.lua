@@ -6,13 +6,10 @@
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
-local Scope = require("prometheus.scope")
-local RandomStrings = require("prometheus.randomStrings")
 local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
-local logger = require("logger")
 local visitast = require("prometheus.visitast");
-local util     = require("prometheus.util")
+local util = require("prometheus.util")
 local AstKind = Ast.AstKind;
 
 local EncryptStrings = Step:extend()
@@ -21,10 +18,10 @@ EncryptStrings.Name = "Encrypt Strings"
 
 EncryptStrings.SettingsDescriptor = {}
 
-function EncryptStrings:init(settings) end
+function EncryptStrings:init(_) end
 
 
-function EncryptStrings:CreateEncrypionService()
+function EncryptStrings:CreateEncryptionService()
 	local usedSeeds = {};
 
 	local secret_key_6 = math.random(0, 63) -- 6-bit  arbitrary integer (0..63)
@@ -107,17 +104,16 @@ function EncryptStrings:CreateEncrypionService()
     local function genCode()
         local code = [[
 do
-	local floor = math.floor
-	local random = math.random;
-	local remove = table.remove;
-	local char = string.char;
-	local state_45 = 0
-	local state_8 = 2
-	local digits = {}
-	local charmap = {};
-	local i = 0;
-
-	local nums = {};
+	]] .. table.concat(util.shuffle{
+		"local floor = math.floor",
+		"local random = math.random",
+		"local remove = table.remove",
+		"local char = string.char",
+		"local state_45 = 0",
+		"local state_8 = 2",
+		"local charmap = {}",
+		"local nums = {}"
+	}, "\n") .. [[
 	for i = 1, 256 do
 		nums[i] = i;
 	end
@@ -136,17 +132,19 @@ do
 				state_8 = state_8 * ]] .. tostring(param_mul_8) .. [[ % 257
 			until state_8 ~= 1
 			local r = state_8 % 32
-			local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
-			local rnd = floor(n % 1 * 2 ^ 32) + floor(n)
+			local shift = 13 - (state_8 - r) / 32
+			local n = floor(state_45 / 2 ^ shift) % 4294967296 / 2 ^ r
+			local rnd = floor(n % 1 * 4294967296) + floor(n)
 			local low_16 = rnd % 65536
 			local high_16 = (rnd - low_16) / 65536
-			local b1 = low_16 % 256
-			local b2 = (low_16 - b1) / 256
-			local b3 = high_16 % 256
-			local b4 = (high_16 - b3) / 256
-			prev_values = { b1, b2, b3, b4 }
+			prev_values = { low_16 % 256, (low_16 - low_16 % 256) / 256, high_16 % 256, (high_16 - high_16 % 256) / 256 }
 		end
-		return table.remove(prev_values)
+
+
+		local prevValuesLen = #prev_values;
+		local removed = prev_values[prevValuesLen];
+		prev_values[prevValuesLen] = nil;
+		return removed;
 	end
 
 	local realStrings = {};
@@ -156,18 +154,20 @@ do
 	});
   	function DECRYPT(str, seed)
 		local realStringsLocal = realStrings;
-		if(realStringsLocal[seed]) then else
+		if(realStringsLocal[seed]) then return seed; else
 			prev_values = {};
 			local chars = charmap;
 			state_45 = seed % 35184372088832
 			state_8 = seed % 255 + 2
-			local len = string.len(str);
+			local len = #str;
 			realStringsLocal[seed] = "";
 			local prevVal = ]] .. tostring(secret_key_8) .. [[;
-			for i=1, len do
+			local s = "";
+			for i=1, len, 1 do
 				prevVal = (string.byte(str, i) + get_next_pseudo_random_byte() + prevVal) % 256
-				realStringsLocal[seed] = realStringsLocal[seed] .. chars[prevVal + 1];
+				s = s .. chars[prevVal + 1];
 			end
+			realStringsLocal[seed] = s;
 		end
 		return seed;
 	end
@@ -186,8 +186,8 @@ end]]
     }
 end
 
-function EncryptStrings:apply(ast, pipeline)
-    local Encryptor = self:CreateEncrypionService();
+function EncryptStrings:apply(ast, _)
+    local Encryptor = self:CreateEncryptionService();
 
 	local code = Encryptor.genCode();
 	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
@@ -196,7 +196,7 @@ function EncryptStrings:apply(ast, pipeline)
 	local scope = ast.body.scope;
 	local decryptVar = scope:addVariable();
 	local stringsVar = scope:addVariable();
-	
+
 	doStat.body.scope:setParent(ast.body.scope);
 
 	visitast(newAst, nil, function(node, data)
@@ -205,7 +205,7 @@ function EncryptStrings:apply(ast, pipeline)
 				data.scope:removeReferenceToHigherScope(node.scope, node.id);
 				data.scope:addReferenceToHigherScope(scope, decryptVar);
 				node.scope = scope;
-				node.id    = decryptVar;
+				node.id = decryptVar;
 			end
 		end
 		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression) then
@@ -213,7 +213,7 @@ function EncryptStrings:apply(ast, pipeline)
 				data.scope:removeReferenceToHigherScope(node.scope, node.id);
 				data.scope:addReferenceToHigherScope(scope, stringsVar);
 				node.scope = scope;
-				node.id    = stringsVar;
+				node.id = stringsVar;
 			end
 		end
 	end)

@@ -10,12 +10,12 @@ description: >-
 
 | Name                 | type    | description                                                                                                  |
 | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| Treshold             | number  | The relative amount of nodes that will be affected"                                                          |
-| StringsOnly          | boolean | Wether to only Extract Strings                                                                               |
-| Shuffle              | boolean | Wether to shuffle the order of Elements in the Array                                                         |
-| Rotate               | boolean | Wether to rotate the String Array by a specific (random) amount. This will be undone on runtime.             |
-| LocalWrapperTreshold | number  | The relative amount of nodes functions, that will get local wrappers                                         |
-| LocalWrapperCount    | number  | The number of Local wrapper Functions per scope. This only applies if LocalWrapperTreshold is greater than 0 |
+| Threshold             | number  | The relative amount of nodes that will be affected"                                                          |
+| StringsOnly          | boolean | Whether to only Extract Strings                                                                               |
+| Shuffle              | boolean | Whether to shuffle the order of Elements in the Array                                                         |
+| Rotate               | boolean | Whether to rotate the String Array by a specific (random) amount. This will be undone on runtime.             |
+| LocalWrapperThreshold | number  | The relative amount of nodes functions, that will get local wrappers                                         |
+| LocalWrapperCount    | number  | The number of Local wrapper Functions per scope. This only applies if LocalWrapperThreshold is greater than 0 |
 | LocalWrapperArgCount | number  | The number of Arguments to the Local wrapper Functions                                                       |
 | MaxWrapperOffset     | number  | The Max Offset for the Wrapper Functions                                                                     |
 
@@ -32,7 +32,7 @@ print("4")
 
 {% code title="out.lua" %}
 ```lua
--- LocalWrapperCount    = 3
+-- LocalWrapperCount = 3
 -- LocalWrapperArgCount = 5
 local F = {"4", "3", "2", "1"}
 do

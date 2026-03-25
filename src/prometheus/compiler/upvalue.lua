@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- upvalue.lua
--- Upvalue and GC management for the compiler
+--
+-- This Script contains the upvalue and GC management for the compiler.
 
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");

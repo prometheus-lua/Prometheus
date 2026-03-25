@@ -2,7 +2,7 @@
 --
 -- step.lua
 --
--- This file Provides the base class for Obfuscation Steps
+-- This Script provides the base class for Obfuscation Steps
 
 local logger = require("logger");
 local util = require("prometheus.util");

@@ -28,12 +28,12 @@ Tokenizer.ANNOTATION_START_CHARS = lookupify(chararray("!@"))
 Tokenizer.Conventions = Enums.Conventions;
 
 Tokenizer.TokenKind = {
-	Eof     = "Eof",
+	Eof = "Eof",
 	Keyword = "Keyword",
-	Symbol  = "Symbol",
-	Ident   = "Identifier",
-	Number  = "Number",
-	String  = "String",
+	Symbol = "Symbol",
+	Ident = "Identifier",
+	Number = "Number",
+	String = "String",
 }
 
 Tokenizer.EOF_TOKEN = {
@@ -49,13 +49,13 @@ local function token(self, startPos, kind, value)
 	local annotations = self.annotations
 	self.annotations = {};
 	return {
-		kind     = kind,
-		value    = value,
+		kind = kind,
+		value = value,
 		startPos = startPos,
-		endPos   = self.index,
-		source   = self.source:sub(startPos + 1, self.index),
-		line     = line,
-		linePos  = linePos,
+		endPos = self.index,
+		source = self.source:sub(startPos + 1, self.index),
+		line = line,
+		linePos = linePos,
 		annotations = annotations,
 	}
 end
@@ -72,7 +72,7 @@ end
 function Tokenizer:getPosition(i)
 	local column = self.columnMap[i]
 
-	if not column then --// `i` is bigger than self.length, this shouldnt happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
+	if not column then --// `i` is bigger than self.length, this shouldn't happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
 		column = self.columnMap[#self.columnMap]
 	end
 
@@ -106,42 +106,42 @@ function Tokenizer:new(settings)
 	local conventions = Tokenizer.Conventions[luaVersion];
 
 	if(conventions == nil) then
-		logger:error("The Lua Version \"" .. luaVersion .. "\" is not recognised by the Tokenizer! Please use one of the following: \"" .. table.concat(keys(Tokenizer.Conventions), "\",\"") .. "\"");
+		logger:error("The Lua Version \"" .. luaVersion .. "\" is not recognized by the Tokenizer! Please use one of the following: \"" .. table.concat(keys(Tokenizer.Conventions), "\",\"") .. "\"");
 	end
 
 	local tokenizer = {
-		index  = 0,           -- Index where the current char is read
+		index = 0, -- Index where the current char is read
 		length = 0,
 		source = "", -- Source to Tokenize
 		luaVersion = luaVersion, -- LuaVersion to be used while Tokenizing
 		conventions = conventions;
 
-		NumberChars       = conventions.NumberChars,
+		NumberChars = conventions.NumberChars,
 		NumberCharsLookup = lookupify(conventions.NumberChars),
-		Keywords          = conventions.Keywords,
-		KeywordsLookup    = lookupify(conventions.Keywords),
+		Keywords = conventions.Keywords,
+		KeywordsLookup = lookupify(conventions.Keywords),
 		BinaryNumberChars = conventions.BinaryNumberChars,
 		BinaryNumberCharsLookup = lookupify(conventions.BinaryNumberChars);
-		BinaryNums        = conventions.BinaryNums,
-		HexadecimalNums   = conventions.HexadecimalNums,
-		HexNumberChars    = conventions.HexNumberChars,
+		BinaryNums = conventions.BinaryNums,
+		HexadecimalNums = conventions.HexadecimalNums,
+		HexNumberChars = conventions.HexNumberChars,
 		HexNumberCharsLookup = lookupify(conventions.HexNumberChars),
-		DecimalExponent   = conventions.DecimalExponent,
+		DecimalExponent = conventions.DecimalExponent,
 		DecimalSeperators = conventions.DecimalSeperators,
-		IdentChars        = conventions.IdentChars,
-		IdentCharsLookup  = lookupify(conventions.IdentChars),
+		IdentChars = conventions.IdentChars,
+		IdentCharsLookup = lookupify(conventions.IdentChars),
 
-		EscapeSequences   = conventions.EscapeSequences,
-		NumericalEscapes  = conventions.NumericalEscapes,
+		EscapeSequences = conventions.EscapeSequences,
+		NumericalEscapes = conventions.NumericalEscapes,
 		EscapeZIgnoreNextWhitespace = conventions.EscapeZIgnoreNextWhitespace,
-		HexEscapes        = conventions.HexEscapes,
-		UnicodeEscapes    = conventions.UnicodeEscapes,
+		HexEscapes = conventions.HexEscapes,
+		UnicodeEscapes = conventions.UnicodeEscapes,
 
-		SymbolChars       = conventions.SymbolChars,
+		SymbolChars = conventions.SymbolChars,
 		SymbolCharsLookup = lookupify(conventions.SymbolChars),
-		MaxSymbolLength   = conventions.MaxSymbolLength,
-		Symbols           = conventions.Symbols,
-		SymbolsLookup     = lookupify(conventions.Symbols),
+		MaxSymbolLength = conventions.MaxSymbolLength,
+		Symbols = conventions.Symbols,
+		SymbolsLookup = lookupify(conventions.Symbols),
 
 		StringStartLookup = lookupify({"\"", "\'"}),
 		annotations = {},
@@ -299,7 +299,7 @@ end
 -- Lex the next token as a Number
 function Tokenizer:number()
 	local startPos = self.index;
-	local source   = expect(self, setmetatable({["."] = true}, {__index = self.NumberCharsLookup}));
+	local source = expect(self, setmetatable({["."] = true}, {__index = self.NumberCharsLookup}));
 
 	if source == "0" then
 		if self.BinaryNums and is(self, lookupify(self.BinaryNums)) then

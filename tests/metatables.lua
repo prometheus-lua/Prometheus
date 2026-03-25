@@ -1,4 +1,9 @@
--- Example showcasing metamethod driven vector arithmetic
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- metatables.lua
+--
+-- This Test demonstrates a metamethod driven vector arithmetic.
+
 local Vector = {}
 Vector.__index = Vector
 

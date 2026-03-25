@@ -1,4 +1,8 @@
--- Expression handler: NegateExpression
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- negate.lua
+--
+-- This Script contains the expression handler for the NegateExpression.
 
 local Ast = require("prometheus.ast");
 

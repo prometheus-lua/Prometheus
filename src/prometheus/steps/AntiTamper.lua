@@ -11,8 +11,7 @@ local Enums = require("prometheus.enums")
 local logger = require("logger")
 
 local AntiTamper = Step:extend()
-AntiTamper.Description =
-	"This Step Breaks your Script when it is modified. This is only effective when using the new VM."
+AntiTamper.Description = "This Step Breaks your Script when it is modified. This is only effective when using the new VM."
 AntiTamper.Name = "Anti Tamper"
 
 AntiTamper.SettingsDescriptor = {

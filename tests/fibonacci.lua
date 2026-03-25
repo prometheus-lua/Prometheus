@@ -1,4 +1,9 @@
--- Print the fibonacci sequence
+-- This Test is Part of the Prometheus Obfuscator by Levno_710
+--
+-- fibonacci.lua
+--
+-- This Test demonstrates a simple fibonacci sequence.
+
 local function fibonacci(max)
     local a, b = 0, 1
     while a < max do

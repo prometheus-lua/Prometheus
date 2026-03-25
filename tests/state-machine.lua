@@ -1,4 +1,9 @@
--- Simple deterministic finite-state machine demonstration
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
+-- state-machine.lua
+--
+-- This Test demonstrates a simple deterministic finite-state machine.
+
 local transitions = {
     idle = { start = "running" },
     running = { pause = "paused", stop = "stopped" },

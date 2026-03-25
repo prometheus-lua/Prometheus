@@ -1,6 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- for_in_statement.lua
+--
 -- This Script contains the statement handler for the ForInStatement
 
 local Ast = require("prometheus.ast");
@@ -95,7 +96,7 @@ return function(self, statement, funcDepth)
     self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
     self:setActiveBlock(finalBlock);
 
-    for i, reg in ipairs(exprregs) do
+    for i, _ in ipairs(exprregs) do
         self:freeRegister(exprregs[i], true)
     end
 end;

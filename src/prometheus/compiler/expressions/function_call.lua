@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- function_call.lua
--- This Script contains the expression handler for the FunctionCallExpression
+--
+-- This Script contains the expression handler for the FunctionCallExpression.
 
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;

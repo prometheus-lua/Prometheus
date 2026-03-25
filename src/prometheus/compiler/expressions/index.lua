@@ -1,7 +1,8 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- index.lua
--- This Script contains the expression handler for the IndexExpression
+--
+-- This Script contains the expression handler for the IndexExpression.
 
 local Ast = require("prometheus.ast");
 

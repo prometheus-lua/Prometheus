@@ -6,7 +6,7 @@ print("Iterations: " .. tostring(Iterations))
 print("CLOSURE testing.")
 local Start = os.clock()
 local TStart = Start
-for Idx = 1, Iterations do
+for _ = 1, Iterations do
 	(function()
 		if not true then
 			print("Hey gamer.")

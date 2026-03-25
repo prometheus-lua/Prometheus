@@ -23,9 +23,7 @@ WrapInFunction.SettingsDescriptor = {
 	}
 }
 
-function WrapInFunction:init(settings)
-	
-end
+function WrapInFunction:init(_) end
 
 function WrapInFunction:apply(ast)
 	for i = 1, self.Iterations, 1 do

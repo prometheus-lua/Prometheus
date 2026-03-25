@@ -1,6 +1,6 @@
 # :fire: Prometheus
 [![Test](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml/badge.svg)](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml)
-## Description
+
 Prometheus is a Lua obfuscator written in pure Lua.
 
 This project was inspired by the amazing [javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator).  
@@ -10,24 +10,20 @@ You can find the full Documentation including a getting started guide [here](htt
 
 Prometheus has an official [Discord server](https://discord.gg/U8h4d4Rf64).
 
-## Preview
 <p align="center">
   <img src="assets/readme/obfuscation-preview.gif" alt="Prometheus obfuscation process preview" width="900" />
 </p>
 
-### Example output style
+### Example output
 ```lua
 -- input.lua
-local secret = "Prometheus"
-local answer = 42
-print(secret .. " -> " .. answer)
+print("Hello, World!");
 ```
 
-```text
--- generated with: lua ./cli.lua --preset Medium ./simple.lua
--- excerpt from ./simple.obfuscated.lua
+```lua
+-- input.obfuscated.lua
 return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM=";"WqermfWAWuuZpb3XX7M=","tqXGSJ3u","XQXpL9x21dxAWJa//p==","SrM=";"3q+5SJM=","/D==";"t7XUt0p=";"mIeOmIx9";"LdgrBfWdWuNABsb+KJxj","SJWJ4dahKsebW7t+KQv=","/cDu3AvP/D==";"Llv7uD==","tJWhFfTE";"TQ43ctIuy9HIop==","mEu93p==";"WJax1sXEXEaxWuxGt6==","t0gPSEp=",...
-... (remaining obfuscated output omitted)
+-- remaining obfuscated output omitted
 ```
 
 ## Installation

@@ -14,18 +14,6 @@ Prometheus has an official [Discord server](https://discord.gg/U8h4d4Rf64).
   <img src="assets/readme/obfuscation-preview.gif" alt="Prometheus obfuscation process preview" width="900" />
 </p>
 
-### Example output
-```lua
--- input.lua
-print("Hello, World!");
-```
-
-```lua
--- input.obfuscated.lua
-return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM=";"WqermfWAWuuZpb3XX7M=","tqXGSJ3u","XQXpL9x21dxAWJa//p==","SrM=";"3q+5SJM=","/D==";"t7XUt0p=";"mIeOmIx9";"LdgrBfWdWuNABsb+KJxj","SJWJ4dahKsebW7t+KQv=","/cDu3AvP/D==";"Llv7uD==","tJWhFfTE";"TQ43ctIuy9HIop==","mEu93p==";"WJax1sXEXEaxWuxGt6==","t0gPSEp=",...
--- remaining obfuscated output omitted
-```
-
 ## Installation
 To install Prometheus, simply clone the GitHub repository using:
 
@@ -42,11 +30,24 @@ To quickly obfuscate a script:
 ```batch
 lua ./cli.lua --preset Medium ./your_file.lua
 ```
+
+### Example output
+```lua
+-- input.lua
+print("Hello, World!");
+```
+
+```lua
+-- input.obfuscated.lua
+return(function(...)local L={"afT6mf1V","/7mJXsuvmE1c/fT3";"tn1ZSn6=","37ghSJM=";"WqermfWAWuuZpb3XX7M=","tqXGSJ3u","XQXpL9x21dxAWJa//p==","SrM=";"3q+5SJM=","/D==";"t7XUt0p=";"mIeOmIx9";"LdgrBfWdWuNABsb+KJxj","SJWJ4dahKsebW7t+KQv=","/cDu3AvP/D==";"Llv7uD==","tJWhFfTE";"TQ43ctIuy9HIop==","mEu93p==";"WJax1sXEXEaxWuxGt6==","t0gPSEp=",...
+-- remaining obfuscated output omitted
+```
+
 For more advanced use cases see the [Documentation](https://levno-710.gitbook.io/prometheus/).
 ## Tests
 To perform the Prometheus Tests, just run
 ```batch
-lua ./tests.lua
+lua ./tests.lua [--Linux]
 ```
 
 ## License and Commercial Use

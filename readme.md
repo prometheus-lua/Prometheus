@@ -1,7 +1,8 @@
-# :fire: Prometheus
+# :fire: Prometheus Lua Obfuscator
 [![Test](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml/badge.svg)](https://github.com/prometheus-lua/Prometheus/actions/workflows/Test.yml)
 
 Prometheus is a Lua obfuscator written in pure Lua.
+It uses several AST-based transformations including Control-Flow Flattening, Constant Encryption and more.
 
 This project was inspired by the amazing [javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator).  
 It can currently obfuscate Lua51 and Roblox's LuaU, however LuaU support is not finished yet.

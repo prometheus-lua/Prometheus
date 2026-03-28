@@ -214,7 +214,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			push(",", self:optionalWhitespace(), exprcode);
 		end
 		local bodyCode = self:unparseBlock(statement.body, tabbing);
-		push(self:whitespaceIfNeeded2(joinParts(parts)), "do", self:whitespaceIfNeeded(bodyCode, self:newline(true)),
+		push(self:whitespaceIfNeeded2(#parts > 0 and parts[#parts] or ""), "do", self:whitespaceIfNeeded(bodyCode, self:newline(true)),
 			bodyCode, self:newline(false),
 			self:whitespaceIfNeeded2(bodyCode, self:tabs(tabbing, true)), "end");
 
@@ -228,14 +228,16 @@ function Unparser:unparseStatement(statement, tabbing)
 		for i, eif in ipairs(statement.elseifs) do
 			exprcode = self:unparseExpression(eif.condition, tabbing);
 			bodyCode = self:unparseBlock(eif.body, tabbing);
-			push(self:newline(false), self:whitespaceIfNeeded2(joinParts(parts), self:tabs(tabbing, true)),
+			local lastPart = #parts > 0 and parts[#parts] or "";
+			push(self:newline(false), self:whitespaceIfNeeded2(lastPart, self:tabs(tabbing, true)),
 				"elseif", self:whitespaceIfNeeded(exprcode), exprcode, self:whitespaceIfNeeded2(exprcode),
 				"then", self:whitespaceIfNeeded(bodyCode, self:newline(true)), bodyCode);
 		end
 
 		if(statement.elsebody) then
 			bodyCode = self:unparseBlock(statement.elsebody, tabbing);
-			push(self:newline(false), self:whitespaceIfNeeded2(joinParts(parts), self:tabs(tabbing, true)),
+			local lastPart = #parts > 0 and parts[#parts] or "";
+			push(self:newline(false), self:whitespaceIfNeeded2(lastPart, self:tabs(tabbing, true)),
 				"else", self:whitespaceIfNeeded(bodyCode, self:newline(true)), bodyCode);
 		end
 

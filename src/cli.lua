@@ -46,15 +46,21 @@ local function lines_from(file)
 end
 
 local function load_chunk(content, chunkName, environment)
-	if _VERSION == "Lua 5.1" then
+	if type(loadstring) == "function" then
 		local func, err = loadstring(content, chunkName)
 		if not func then
 			return nil, err
 		end
-		if environment then
+		if environment and type(setfenv) == "function" then
 			setfenv(func, environment)
+		elseif environment and type(load) == "function" then
+			return load(content, chunkName, "t", environment)
 		end
 		return func
+	end
+
+	if type(load) ~= "function" then
+		return nil, "No load function available"
 	end
 
 	return load(content, chunkName, "t", environment)

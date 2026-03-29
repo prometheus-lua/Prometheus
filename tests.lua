@@ -12,13 +12,16 @@ local Prometheus = require("src.prometheus")
 
 -- Config Variables - Later passed as Parameters
 local noColors = false; -- Whether Colors in the Console output should be enabled
-local isWindows = true; -- Whether the Test are Performed on a Windows or Linux System
+local isWindows = package.config:sub(1, 1) == "\\"; -- Whether the Test are Performed on a Windows or Linux System
 local ciMode = false; -- Whether the Test error are ignored or not
 local iterationCount = 20; -- How often each test should be executed
 
 for _, currArg in pairs(arg) do
 	if currArg == "--Linux" then
 		isWindows = false
+	end
+	if currArg == "--Windows" then
+		isWindows = true
 	end
 	if currArg == "--CI" then
 		ciMode = true
@@ -56,6 +59,9 @@ print(string.format(
 local function scandir(directory)
     local i, t, popen = 0, {}, io.popen
     local pfile = popen(isWindows and 'dir "'..directory..'" /b' or 'ls -a "'..directory..'"')
+    if not pfile then
+    	error("Failed to list files in test directory: " .. tostring(directory))
+    end
     for filename in pfile:lines() do
 		if string.sub(filename, -4) == ".lua" then
 			i = i + 1

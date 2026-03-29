@@ -45,6 +45,27 @@ local function lines_from(file)
 	return lines
 end
 
+local function load_chunk(content, chunkName, environment)
+	if type(loadstring) == "function" then
+		local func, err = loadstring(content, chunkName)
+		if not func then
+			return nil, err
+		end
+		if environment and type(setfenv) == "function" then
+			setfenv(func, environment)
+		elseif environment and type(load) == "function" then
+			return load(content, chunkName, "t", environment)
+		end
+		return func
+	end
+
+	if type(load) ~= "function" then
+		return nil, "No load function available"
+	end
+
+	return load(content, chunkName, "t", environment)
+end
+
 -- CLI
 local config, sourceFile, outFile, luaVersion, prettyPrint
 
@@ -76,9 +97,10 @@ while i <= #arg do
 
 			local content = table.concat(lines_from(filename), "\n")
 			-- Load Config from File
-			local func = loadstring(content)
-			-- Sandboxing
-			setfenv(func, {})
+			local func, err = load_chunk(content, "@" .. filename, {})
+			if not func then
+				Prometheus.Logger:error(string.format('Failed to parse config file "%s": %s', filename, tostring(err)))
+			end
 			config = func()
 		elseif curr == "--out" or curr == "--o" then
 			i = i + 1

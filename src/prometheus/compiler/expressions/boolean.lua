@@ -5,6 +5,25 @@
 -- This Script contains the expression handler for the BooleanExpression.
 
 local Ast = require("prometheus.ast");
+
+local expressionEvaluators = {
+    [Ast.GreaterThanExpression] = function(left, right)
+        return left > right
+    end,
+    [Ast.LessThanExpression] = function(left, right)
+        return left < right
+    end,
+    [Ast.GreaterThanOrEqualsExpression] = function(left, right)
+        return left >= right
+    end,
+    [Ast.LessThanOrEqualsExpression] = function(left, right)
+        return left <= right
+    end,
+    [Ast.NotEqualsExpression] = function(left, right)
+        return left ~= right
+    end,
+}
+
 local function createRandomASTCFlowExpression(resultBool)
     local expTB = {
         Ast.GreaterThanExpression,
@@ -14,21 +33,12 @@ local function createRandomASTCFlowExpression(resultBool)
         Ast.NotEqualsExpression
     }
 
-    local expLookup = {
-        [Ast.GreaterThanExpression] = ">";
-        [Ast.LessThanExpression] = "<";
-        [Ast.GreaterThanOrEqualsExpression] = ">=";
-        [Ast.LessThanOrEqualsExpression] = "<=";
-        [Ast.NotEqualsExpression] = "~=";
-    }
-
-    local leftInt, rightInt, boolResult, r3, randomExp
+    local leftInt, rightInt, boolResult, randomExp
     repeat
         randomExp = expTB[math.random(1, #expTB)]
         leftInt = Ast.NumberExpression(math.random(1, 2^24))
         rightInt = Ast.NumberExpression(math.random(1, 2^24))
-        r3 = "return " .. leftInt.value .. expLookup[randomExp] .. rightInt.value
-        boolResult = loadstring(r3)()
+        boolResult = expressionEvaluators[randomExp](leftInt.value, rightInt.value)
     until boolResult == resultBool
 
     return randomExp(leftInt, rightInt, false)
@@ -47,4 +57,3 @@ return function(self, expression, _, numReturns)
     end
     return regs;
 end;
-

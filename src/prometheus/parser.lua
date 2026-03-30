@@ -716,7 +716,8 @@ function Parser:expressionPow(scope)
 	local lhs = self:tableOrFunctionLiteral(scope);
 
 	if(consume(self, TokenKind.Symbol, "^")) then
-		local rhs = self:expressionPow(scope);
+		-- Allow unary operators on the rhs (e.g. 2 ^ #x, 2 ^ -x) while preserving right-associativity. ~ SpinnySpiwal
+		local rhs = self:expressionUnary(scope);
 		return Ast.PowExpression(lhs, rhs, true);
 	end
 

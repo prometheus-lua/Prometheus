@@ -25,18 +25,52 @@ WrapInFunction.SettingsDescriptor = {
 
 function WrapInFunction:init(_) end
 
+local function createWrapper(scope, body, mode)
+	if mode == 1 then
+		return Ast.Block({
+			Ast.ReturnStatement({
+				Ast.FunctionCallExpression(
+					Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body),
+					{Ast.VarargExpression()}
+				)
+			})
+		}, scope)
+
+	elseif mode == 2 then
+		local f = scope:addVariable()
+		return Ast.Block({
+			Ast.LocalVariableDeclaration(scope, {f}, {
+				Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body)
+			}),
+			Ast.ReturnStatement({
+				Ast.FunctionCallExpression(
+					Ast.VariableExpression(scope, f),
+					{Ast.VarargExpression()}
+				)
+			})
+		}, scope)
+
+	else
+		return Ast.Block({
+			Ast.ReturnStatement({
+				Ast.FunctionCallExpression(
+					Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body),
+					{Ast.VarargExpression()}
+				)
+			})
+		}, scope)
+	end
+end
+
 function WrapInFunction:apply(ast)
 	for i = 1, self.Iterations, 1 do
-		local body = ast.body;
+		local body = ast.body
+		local scope = Scope:new(ast.globalScope)
+		body.scope:setParent(scope)
 
-		local scope = Scope:new(ast.globalScope);
-		body.scope:setParent(scope);
+		local mode = math.random(1, 3)
 
-		ast.body = Ast.Block({
-			Ast.ReturnStatement({
-				Ast.FunctionCallExpression(Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body), {Ast.VarargExpression()})
-			});
-		}, scope);
+		ast.body = createWrapper(scope, body, mode)
 	end
 end
 

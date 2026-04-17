@@ -89,8 +89,11 @@ function AntiTamper:apply(ast, pipeline)
 	local code = generateSanityCheck()
 	if self.UseDebug then
 		local string = RandomStrings.randomString()
+		local timeCheckThreshold = math.random(50, 200) / 1000
 		code = code
 			.. [[
+            local startTime = os.clock and os.clock() or os.time();
+            
             -- Anti Beautify
 			local sethook = debug and debug.sethook or function() end;
 			local allowedLine = nil;
@@ -151,6 +154,11 @@ function AntiTamper:apply(ast, pipeline)
                 c = c + 1;
             end
             valid = valid and c >= 2;
+
+            local elapsedTime = (os.clock and os.clock() or os.time()) - startTime;
+            if elapsedTime > ]] .. tostring(timeCheckThreshold) .. [[ then
+                valid = false;
+            end
         ]]
     end
     code = code .. [[
@@ -201,6 +209,16 @@ function AntiTamper:apply(ast, pipeline)
         end
     end
     valid = valid and acc1 == acc2;
+
+    local containerFuncCheck = pcall(function()
+        local testFunc = function() end;
+        if debug and debug.getinfo then
+            local info = debug.getinfo(testFunc);
+            if info.what ~= "Lua" then
+                valid = false;
+            end
+        end
+    end);
 
     if valid then else
         repeat

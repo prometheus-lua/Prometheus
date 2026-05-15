@@ -1,4 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
+-- This Script is Part of the Prometheus Obfuscator by levno-710
 --
 -- Watermark.lua
 --
@@ -17,7 +17,7 @@ Watermark.SettingsDescriptor = {
     name = "Content",
     description = "The Content of the Watermark",
     type = "string",
-    default = "This Script is Part of the Prometheus Obfuscator by Levno_710",
+    default = "This Script is Part of the Prometheus Obfuscator by levno-710",
   },
   CustomVariable = {
     name = "Custom Variable",

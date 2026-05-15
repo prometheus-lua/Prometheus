@@ -1,4 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
+-- This Script is Part of the Prometheus Obfuscator by levno-710
 --
 -- NumbersToExpressions.lua
 --
@@ -34,9 +34,10 @@ NumbersToExpressions.SettingsDescriptor = {
 		max = 0.8,
 	},
 
-	NumberRepresentationMutaton = {
+	NumberRepresentationMutation = {
 		type = "boolean",
 		default = false,
+		aliases = { "NumberRepresentationMutaton" },
 	},
 
 	AllowedNumberRepresentations = {
@@ -107,7 +108,7 @@ end
 function NumbersToExpressions:CreateNumberExpression(val, depth)
 	if depth > 0 and math.random() >= self.InternalThreshold or depth > 15 then
 		local format = self.AllowedNumberRepresentations[math.random(1, #self.AllowedNumberRepresentations)]
-		if not self.NumberRepresentationMutaton then
+		if not self.NumberRepresentationMutation then
 			return Ast.NumberExpression(val)
 		end
 

@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.985 0.004 95);
+  --foreground: oklch(0.18 0.018 250);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.47 0.17 151);
+  --primary-foreground: oklch(0.99 0.01 150);
+  --secondary: oklch(0.94 0.015 230);
+  --secondary-foreground: oklch(0.24 0.03 245);
+  --muted: oklch(0.94 0.012 230);
+  --muted-foreground: oklch(0.48 0.025 245);
+  --accent: oklch(0.91 0.05 180);
+  --accent-foreground: oklch(0.2 0.035 230);
+  --destructive: oklch(0.58 0.22 28);
+  --border: oklch(0.87 0.016 235);
+  --input: oklch(0.89 0.014 235);
+  --ring: oklch(0.55 0.13 158);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.cm-editor {
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+.cm-scroller {
+  font-family:
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}

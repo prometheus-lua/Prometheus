@@ -1,27 +1,36 @@
 # Table of contents
 
-* [Prometheus](README.md)
+* [Prometheus Documentation](README.md)
 
 ## Getting Started
 
 * [Installation](getting-started/installation.md)
-* [Obfuscating your first script](getting-started/obfuscating-your-first-script.md)
-* [Command Line Options](getting-started/command-line-options.md)
-* [Presets](getting-started/presets.md)
-* [Writing a custom Config File](getting-started/writing-a-custom-config-file.md)
-* [The Config Object](getting-started/the-config-object.md)
+* [Quickstart: First Obfuscation](getting-started/quickstart-first-obfuscation.md)
+* [Troubleshooting](getting-started/troubleshooting.md)
 
-## Steps
+## Guides
 
-* [WrapInFunction](steps/wrapinfunction.md)
-* [Vmify](steps/vmify.md)
-* [SplitStrings](steps/splitstrings.md)
-* [ProxifyLocals](steps/proxifylocals.md)
-* [EncryptStrings](steps/encryptstrings.md)
-* [ConstantArray](steps/constantarray.md)
-* [AntiTamper](steps/anti-tamper.md)
+* [CLI Usage](guides/cli-usage.md)
+* [Presets](guides/presets.md)
+* [Writing a Custom Config](guides/writing-a-custom-config.md)
+* [Using Prometheus as a Library](guides/using-as-a-library.md)
 
+## Reference
 
-## advanced
+* [CLI Options Reference](reference/cli-options.md)
+* [Config Object Reference](reference/config-object.md)
+* [Step Pipeline Overview](reference/steps/overview.md)
+* [Step: WrapInFunction](reference/steps/wrapinfunction.md)
+* [Step: Vmify](reference/steps/vmify.md)
+* [Step: SplitStrings](reference/steps/splitstrings.md)
+* [Step: ProxifyLocals](reference/steps/proxifylocals.md)
+* [Step: EncryptStrings](reference/steps/encryptstrings.md)
+* [Step: ConstantArray](reference/steps/constantarray.md)
+* [Step: AntiTamper](reference/steps/anti-tamper.md)
+* [Step: NumbersToExpressions](reference/steps/numberstoexpressions.md)
+* [Step: AddVararg](reference/steps/addvararg.md)
+* [Step: WatermarkCheck](reference/steps/watermarkcheck.md)
 
-* [Using Prometheus in your Lua Application](advanced/using-prometheus-in-your-lua-application.md)
+## Advanced
+
+* [How the Pipeline Works](advanced/how-the-pipeline-works.md)

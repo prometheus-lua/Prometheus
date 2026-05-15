@@ -16,7 +16,12 @@ A clear and concise description of what you expected to happen.
 **To Reproduce**
 Steps to reproduce the behavior:
 
-If your problem is a non-working obfuscated file, please also include a minimal source code example, your config file as well as the output file that you got.
+Please include:
+- A **minimal reproducible example** shared via the Prometheus Playground: https://prometheus-lua.github.io/Prometheus/
+- Your config (preset/custom config)
+- The produced output (or relevant excerpt/error)
+
+If your problem is a non-working obfuscated file, the minimal source code example is required.
 
 **Screenshots**
 If applicable, add screenshots to help explain your problem.

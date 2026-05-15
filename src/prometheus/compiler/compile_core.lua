@@ -1,4 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
+-- This Script is Part of the Prometheus Obfuscator by levno-710
 --
 -- compile_core.lua
 -- This Script contains the core compilation functions: compileTopNode, compileFunction, compileBlock,

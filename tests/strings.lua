@@ -1,4 +1,4 @@
--- This Test is Part of the Prometheus Obfuscator by Levno_710
+-- This Test is Part of the Prometheus Obfuscator by levno-710
 --
 -- strings.lua
 --

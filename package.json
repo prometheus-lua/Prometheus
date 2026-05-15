@@ -1,0 +1,16 @@
+{
+  "name": "prometheus-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "docs:build": "node ./scripts/build-docs.mjs",
+    "web:dev": "pnpm run docs:build && pnpm --filter web dev",
+    "web:build": "pnpm run docs:build && pnpm --filter web build",
+    "web:preview": "pnpm run web:build && pnpm --filter web preview",
+    "web:test": "pnpm --filter web test"
+  },
+  "dependencies": {
+    "honkit": "^6.1.7",
+    "pnpm": "^11.0.8"
+  }
+}

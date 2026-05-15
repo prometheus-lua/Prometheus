@@ -1,4 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
+-- This Script is Part of the Prometheus Obfuscator by levno-710
 --
 -- ConstantArray.lua
 --
@@ -23,13 +23,14 @@ ConstantArray.Description = "This Step will Extract all Constants and put them i
 ConstantArray.Name = "Constant Array";
 
 ConstantArray.SettingsDescriptor = {
-	Treshold = {
-		name = "Treshold",
+	Threshold = {
+		name = "Threshold",
 		description = "The relative amount of nodes that will be affected",
 		type = "number",
 		default = 1,
 		min = 0,
 		max = 1,
+		aliases = { "Treshold" },
 	},
 	StringsOnly = {
 		name = "StringsOnly",
@@ -49,17 +50,18 @@ ConstantArray.SettingsDescriptor = {
 		type = "boolean",
 		default = true,
 	},
-	LocalWrapperTreshold = {
-		name = "LocalWrapperTreshold",
+	LocalWrapperThreshold = {
+		name = "LocalWrapperThreshold",
 		description = "The relative amount of nodes functions, that will get local wrappers",
 		type = "number",
 		default = 1,
 		min = 0,
 		max = 1,
+		aliases = { "LocalWrapperTreshold" },
 	},
 	LocalWrapperCount = {
 		name = "LocalWrapperCount",
-		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperTreshold is greater than 0",
+		description = "The number of Local wrapper Functions per scope. This only applies if LocalWrapperThreshold is greater than 0",
 		type = "number",
 		min = 0,
 		max = 512,
@@ -645,7 +647,7 @@ function ConstantArray:apply(ast, pipeline)
 	-- Extract Constants
 	visitast(ast, nil, function(node, data)
 		-- Apply only to some nodes
-		if math.random() <= self.Treshold then
+		if math.random() <= self.Threshold then
 			node.__apply_constant_array = true;
 			if node.kind == AstKind.StringExpression then
 				self:addConstant(node.value);
@@ -674,7 +676,7 @@ function ConstantArray:apply(ast, pipeline)
 
 	visitast(ast, function(node, data)
 		-- Add Local Wrapper Functions
-		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperTreshold then
+		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperThreshold then
 			local id = node.scope:addVariable()
 			data.functionData.local_wrappers = {
 				id = id;

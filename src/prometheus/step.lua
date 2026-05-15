@@ -1,4 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
+-- This Script is Part of the Prometheus Obfuscator by levno-710
 --
 -- step.lua
 --
@@ -23,33 +23,43 @@ function Step:new(settings)
 	end
 
 	for key, data in pairs(self.SettingsDescriptor) do
-		if settings[key] == nil then
+		local settingValue = settings[key];
+		if settingValue == nil and type(data.aliases) == "table" then
+			for _, alias in ipairs(data.aliases) do
+				if settings[alias] ~= nil then
+					settingValue = settings[alias];
+					break;
+				end
+			end
+		end
+
+		if settingValue == nil then
 			if data.default == nil then
 				logger:error(string.format("The Setting \"%s\" was not provided for the Step \"%s\"", key, self.Name));
 			end
 			instance[key] = data.default;
 		elseif(data.type == "enum") then
 			local lookup = lookupify(data.values);
-			if not lookup[settings[key]] then
+			if not lookup[settingValue] then
 				logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". It must be one of the following: %s", key, self.Name, table.concat(data, ", ")));
 			end
-			instance[key] = settings[key];
-		elseif(type(settings[key]) ~= data.type) then
+			instance[key] = settingValue;
+		elseif(type(settingValue) ~= data.type) then
 			logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". It must be a %s", key, self.Name, data.type));
 		else
 			if data.min then
-				if  settings[key] < data.min then
+				if  settingValue < data.min then
 					logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". It must be at least %d", key, self.Name, data.min));
 				end
 			end
 
 			if data.max then
-				if  settings[key] > data.max then
+				if  settingValue > data.max then
 					logger:error(string.format("Invalid value for the Setting \"%s\" of the Step \"%s\". The biggest allowed value is %d", key, self.Name, data.min));
 				end
 			end
 
-			instance[key] = settings[key];
+			instance[key] = settingValue;
 		end
 	end
 

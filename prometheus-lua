@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_PATH="$0"
+while [ -L "$SCRIPT_PATH" ]; do
+  LINK_TARGET="$(readlink "$SCRIPT_PATH")"
+  case "$LINK_TARGET" in
+    /*) SCRIPT_PATH="$LINK_TARGET" ;;
+    *) SCRIPT_PATH="$(dirname "$SCRIPT_PATH")/$LINK_TARGET" ;;
+  esac
+done
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)
+BUNDLED_LUA="$SCRIPT_DIR/runtime/lua"
+
+: "${PROMETHEUS_LUA_VERSION:=dev}"
+export PROMETHEUS_LUA_VERSION
+
+if [ -x "$BUNDLED_LUA" ]; then
+  exec "$BUNDLED_LUA" "$SCRIPT_DIR/cli.lua" "$@"
+fi
+
+if command -v luajit >/dev/null 2>&1; then
+  exec luajit "$SCRIPT_DIR/cli.lua" "$@"
+fi
+
+if command -v lua5.1 >/dev/null 2>&1; then
+  exec lua5.1 "$SCRIPT_DIR/cli.lua" "$@"
+fi
+
+if command -v lua >/dev/null 2>&1; then
+  exec lua "$SCRIPT_DIR/cli.lua" "$@"
+fi
+
+echo "No Lua runtime found. Reinstall with official installer or install Lua5.1/LuaJIT." >&2
+exit 1

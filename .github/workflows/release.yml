@@ -1,0 +1,71 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Lua tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1
+      - name: Run tests
+        run: lua5.1 ./tests.lua --Linux
+
+  package:
+    name: Package (${{ matrix.os_name }})
+    runs-on: ${{ matrix.runner }}
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os_name: linux
+          - runner: macos-latest
+            os_name: macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT (Linux)
+        if: matrix.os_name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luajit
+      - name: Install LuaJIT (macOS)
+        if: matrix.os_name == 'macos'
+        run: brew install luajit
+      - name: Build package
+        run: PROMETHEUS_BUNDLED_LUA="$(command -v luajit)" ./scripts/release/package.sh "${{ matrix.os_name }}" "${GITHUB_REF_NAME}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometheus-lua-${{ matrix.os_name }}
+          path: dist/prometheus-lua-${{ github.ref_name }}-${{ matrix.os_name }}.tar.gz
+
+  publish:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Move release assets
+        run: |
+          mkdir -p dist/out
+          mv dist/prometheus-lua-linux/*.tar.gz dist/out/
+          mv dist/prometheus-lua-macos/*.tar.gz dist/out/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/out/*.tar.gz
+          generate_release_notes: true

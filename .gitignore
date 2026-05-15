@@ -10,6 +10,17 @@ buildnotes.txt
 srlua.exe
 glue.exe
 build
+dist
+
+# Web tooling
+node_modules
+web/node_modules
+web/dist
+web/dist-ssr
+web/public/docs
+web/test-results
+web/playwright-report
+.vite
 
 # Ignore Local Test Files
 test.lua

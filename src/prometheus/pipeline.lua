@@ -167,9 +167,6 @@ function Pipeline:apply(code, filename)
 		--> use secure random number generator
 		local success, seed = pcall(function()
 			local seedStr =  io.popen("openssl rand -hex 12"):read("*a"):gsub("\n", "")..""
-			if seedStr == "" then
-				error()
-			end
 			local seedNum = 0;
 
 			--> NOTE: tonumber caps at 1.844674407371e+19. So we use this instead.

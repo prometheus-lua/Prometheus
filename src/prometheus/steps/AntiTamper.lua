@@ -15,29 +15,14 @@ AntiTamper.Description = "This Step Breaks your Script when it is modified. This
 AntiTamper.Name = "Anti Tamper"
 
 AntiTamper.SettingsDescriptor = {
-    UseDebug = {
-        type = "boolean",
-        default = true,
-        description = "Use debug library. (Recommended, however scripts will not work without debug library.)"
-    },
-    DetectedFunc = {
-        type = "string",
-        default = "error('u gay')",
-        description = "Sets the function which is ran when the tampering is detected"
-    },
-    SpecificLine = {
-        type = "boolean",
-        default = false,
-        description = "Makes it so the script can only run if it's on a specific line number."
-    },
-    LineNumber = {
-        type = "number",
-        default = 1,
-        description = "The line number it can only be on."
-    }
+	UseDebug = {
+		type = "boolean",
+		default = true,
+		description = "Use debug library. (Recommended, however scripts will not work without debug library.)",
+	},
 }
 
-local function generateSanityCheck(detectedFunc)
+local function generateSanityCheck()
 	local sanityCheckAnswers = {}
 	local sanityPasses = math.random(1, 10)
 	for i = 1, sanityPasses do
@@ -57,7 +42,7 @@ local function generateSanityCheck(detectedFunc)
 		local index = math.min(idx - 1, sanityPasses)
 		addCode("            if valid == %s then\n", tostring(sanityCheckAnswers[index]))
 		addCode("            else\n")
-		addCode("                " .. detectedFunc .. "\n")
+		addCode("                while true do end\n")
 		addCode("            end\n")
 	end
 
@@ -67,7 +52,7 @@ local function generateSanityCheck(detectedFunc)
 		if i == 0 then
 			addCode("        if i == 0 then\n")
 			addCode("            if valid ~= '%s' then\n", primaryCheck)
-			addCode("                " .. detectedFunc .. "\n")
+			addCode("                while true do end\n")
 			addCode("            end\n")
 			addCode("            valid = %s;\n", tostring(sanityCheckAnswers[1]))
 		elseif i == 1 then
@@ -101,70 +86,50 @@ function AntiTamper:apply(ast, pipeline)
 		logger:warn(string.format('"%s" cannot be used with PrettyPrint, ignoring "%s"', self.Name, self.Name))
 		return ast
 	end
-	local code = generateSanityCheck(self.DetectedFunc)
+	local code = generateSanityCheck()
 	if self.UseDebug then
 		local string = RandomStrings.randomString()
 		code = code
 			.. [[
             -- Anti Beautify
-
-			-- This Anti-Beautify check isn't needed. I already do it multiple time in here.
-            -- Plus, it doesn't work since it uses 'debug.sethook', which isn't in LuaU.
-            -- Kept here for reference if I find another way to do this.
-
-			-- local sethook = (debug and debug.sethook) or function() end;
-			-- local allowedLine = nil;
-			-- local called = 0;
-			-- sethook(function(s, line)
-			-- 	if not line then
-			-- 		return
-			-- 	end
-			-- 	called = called + 1;
-			-- 	if allowedLine then
-			-- 		if allowedLine ~= line then
-			-- 			sethook(error, "l", 5);
-			-- 		end
-			-- 	else
-			-- 		allowedLine = line;
-			-- 	end
-			-- end, "l", 5);
-			-- (function() end)();
-			-- (function() end)();
-			-- sethook();
-			-- if called < 2 then
-			-- 	valid = false;
-			-- end
-            -- if called < 2 then
-            --     valid = false;
-            -- end
+			local sethook = debug and debug.sethook or function() end;
+			local allowedLine = nil;
+			local called = 0;
+			sethook(function(s, line)
+				if not line then
+					return
+				end
+				called = called + 1;
+				if allowedLine then
+					if allowedLine ~= line then
+						sethook(error, "l", 5);
+					end
+				else
+					allowedLine = line;
+				end
+			end, "l", 5);
+			(function() end)();
+			(function() end)();
+			sethook();
+			if called < 2 then
+				valid = false;
+			end
+            if called < 2 then
+                valid = false;
+            end
 
             -- Anti Function Hook
-
-            -- These are all C functions.
-            local funcs = {pcall, string.char, debug.getinfo, debug.info, getrenv}
+            local funcs = {pcall, string.char, debug.getinfo, string.dump}
             for i = 1, #funcs do
-                -- Extra check to see if it's really a C functions, and if debug.getinfo isn't hooked already.
                 if debug.getinfo(funcs[i]).what ~= "C" then
                     valid = false;
                 end
 
-                -- These are C functions, so there should be no Upvalues
-                if #debug.getupvalues(funcs[i]) > 0 then
+                if debug.getupvalue(funcs[i], 1) then
                     valid = false;
                 end
 
-                -- Can't get constants from C functions.
-                if #debug.getconstants(funcs[i]) > 0 then
-                    valid = false
-                end
-
-                -- This is basically how it should work, until I figure out how to get it consistant.
-                -- if dumpstring(funcs[i]) then
-                --     valid = false
-                -- end
-
-                -- Checks if it's actually a C function, and not an L function.
-                if islclosure(funcs[i]) and not iscclosure(funcs[i]) then
+                if pcall(string.dump, funcs[i]) then
                     valid = false;
                 end
             end
@@ -190,16 +155,12 @@ function AntiTamper:apply(ast, pipeline)
     end
     code = code .. [[
     local gmatch = string.gmatch;
-    local err = function() ]] .. self.DetectedFunc .. [[ end;
+    local err = function() error("Tamper Detected!") end;
 
     local pcallIntact2 = false;
     local pcallIntact = pcall(function()
         pcallIntact2 = true;
     end) and pcallIntact2;
-
-	if not pcallIntact then
-		err()
-	end
 
     local random = math.random;
     local tblconcat = table.concat;
@@ -207,11 +168,9 @@ function AntiTamper:apply(ast, pipeline)
     local n = random(3, 65);
     local acc1 = 0;
     local acc2 = 0;
-	local func1 = function(...) return end
     local pcallRet = {pcall(function() local a = ]] .. tostring(math.random(1, 2^24)) .. [[ - "]] .. RandomStrings.randomString() .. [[" ^ ]] .. tostring(math.random(1, 2^24)) .. [[ return "]] .. RandomStrings.randomString() .. [[" / a; end)};
     local origMsg = pcallRet[2];
-    local linepcall = tonumber(gmatch(tostring(origMsg), ':(%d*):')());
-    local linedebug = debug.info(func1, "l")
+    local line = tonumber(gmatch(tostring(origMsg), ':(%d*):')());
     for i = 1, n do
         local len = math.random(1, 100);
         local n2 = random(0, 255);
@@ -220,13 +179,8 @@ function AntiTamper:apply(ast, pipeline)
         local msg = origMsg:gsub(':(%d*):', ':' .. tostring(random(0, 10000)) .. ':');
         local arr = {pcall(function()
             if random(1, 2) == 1 or i == n then
-				local func2 = function(...) return end
-                local line2pcall = tonumber(gmatch(tostring(({pcall(function() local a = ]] .. tostring(math.random(1, 2^24)) .. [[ - "]] .. RandomStrings.randomString() .. [[" ^ ]] .. tostring(math.random(1, 2^24)) .. [[ return "]] .. RandomStrings.randomString() .. [[" / a; end)})[2]), ':(%d*):')());
-                local line2debug = debug.info(func2, "l")
-                valid = valid and (linepcall == line2pcall and linedebug == line2debug]] if self.SpecificLine then
-                    code = code .. [[) and (linepcall == ]] .. self.LineNumber .. [[ and line2pcall == ]] .. self.LineNumber .. [[) and (linedebug == ]] .. self.LineNumber .. [[ and line2debug == ]] .. self.LineNumber
-                end
-            code = code .. [[);
+                local line2 = tonumber(gmatch(tostring(({pcall(function() local a = ]] .. tostring(math.random(1, 2^24)) .. [[ - "]] .. RandomStrings.randomString() .. [[" ^ ]] .. tostring(math.random(1, 2^24)) .. [[ return "]] .. RandomStrings.randomString() .. [[" / a; end)})[2]), ':(%d*):')());
+                valid = valid and line == line2;
             end
             if shouldErr then
                 error(msg, 0);
@@ -267,8 +221,9 @@ function AntiTamper:apply(ast, pipeline)
         end
         return;
     end
+end
 
-	-- Anti Function Arg Hook
+    -- Anti Function Arg Hook
     local obj = setmetatable({}, {
         __tostring = err,
     });
@@ -276,14 +231,11 @@ function AntiTamper:apply(ast, pipeline)
     (function() end)(obj);
 
     repeat until valid;
+    ]]
 
-end]]
-
-    local parsed = Parser:new({LuaVersion = pipeline.LuaVersion}):parse(code);
-
+    local parsed = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(code);
     local doStat = parsed.body.statements[1];
     doStat.body.scope:setParent(ast.body.scope);
-
     table.insert(ast.body.statements, 1, doStat);
 
     return ast;

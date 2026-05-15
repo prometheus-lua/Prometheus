@@ -14,6 +14,9 @@ local function randomString(wordsOrLen)
 	end
 
 	wordsOrLen = wordsOrLen or math.random(2, 15);
+	if wordsOrLen == true then
+		return ""
+	end
 	if wordsOrLen > 0 then
 		return randomString(wordsOrLen - 1) .. charset[math.random(1, #charset)]
 	else

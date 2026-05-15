@@ -117,6 +117,30 @@ local function is(self, kind, sourceOrN, n)
 
 	return false;
 end
+-- Advance the token by one without doing anything
+local function advance(self)
+	self.index = self.index + 1
+end
+
+local function isTypeToken(self)
+	local token = peek(self)
+	if token.kind == TokenKind.Ident then return true end
+	if token.kind == TokenKind.String then return true end
+	if token.kind == TokenKind.Symbol and (
+		token.source == "|" or token.source == "&" or
+		token.value == "?" or token.value == "..." or
+		token.value == "->" or token.value == "(" or
+		token.value == ")"
+	) then
+		return true
+	end
+	if token.kind == TokenKind.Keyword and (
+        token.value == "nil"   or
+        token.value == "true"  or
+        token.value == "false"
+    ) then return true end
+	return false
+end
 
 local function consume(self, kind, source)
 	if(is(self, kind, source)) then
@@ -289,6 +313,25 @@ function Parser:statement(scope, currentLoop)
 		local args = self:functionArgList(funcScope);
 		expect(self, TokenKind.Symbol, ")");
 
+		if(consume(self, TokenKind.Symbol, ":")) then
+			if(consume(self, TokenKind.Symbol, "{")) then
+				local depth = 1
+				while depth > 0 do
+					if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+					elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+					else
+						advance(self)
+					end
+				end
+			elseif isTypeToken(self) then
+				repeat
+					advance(self)
+				until not isTypeToken(self)
+			else
+				advance(self)
+			end
+		end
+
 		if(obj.passSelf) then
 			local id = funcScope:addVariable("self", obj.token);
 			table.insert(args, 1, Ast.VariableExpression(funcScope, id));
@@ -314,6 +357,26 @@ function Parser:statement(scope, currentLoop)
 			local args = self:functionArgList(funcScope);
 			expect(self, TokenKind.Symbol, ")");
 
+			if(consume(self, TokenKind.Symbol, ":")) then
+				print(isTypeToken(self))
+				if(consume(self, TokenKind.Symbol, "{")) then
+					local depth = 1
+					while depth > 0 do
+						if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+						elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+						else
+							advance(self)
+						end
+					end
+				elseif isTypeToken(self) then
+					repeat
+						advance(self)
+					until not isTypeToken(self)
+				else
+					advance(self)
+				end
+			end
+
 			local body = self:block(nil, false, funcScope);
 			expect(self, TokenKind.Keyword, "end");
 
@@ -322,6 +385,26 @@ function Parser:statement(scope, currentLoop)
 
 		-- Local Variable Declaration
 		local ids = self:nameList(scope);
+
+		if(consume(self, TokenKind.Symbol, ":")) then
+			if(consume(self, TokenKind.Symbol, "{")) then
+				local depth = 1
+				while depth > 0 do
+					if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+					elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+					else
+						advance(self)
+					end
+				end
+			elseif isTypeToken(self) then
+				repeat
+					advance(self)
+				until not isTypeToken(self)
+			else
+				advance(self)
+			end
+		end
+
 		local expressions = {};
 		if(consume(self, TokenKind.Symbol, "=")) then
 			expressions = self:exprList(scope);
@@ -481,6 +564,30 @@ function Parser:statement(scope, currentLoop)
 
 		if self.disableLog then error() end;
 		logger:error(generateError(self, "expressions are not valid statements!"));
+	end
+
+		-- Type Statement
+	if(consume(self, TokenKind.Keyword, "type")) then
+		expect(self, TokenKind.Ident)
+		expect(self, TokenKind.Symbol, "=")
+		if(consume(self, TokenKind.Symbol, "{")) then
+			local depth = 1
+			while depth > 0 do
+				if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+				elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+				else
+					advance(self)
+				end
+			end
+		elseif isTypeToken(self) then
+			repeat
+				advance(self)
+			until not isTypeToken(self)
+		else
+			advance(self)
+		end
+
+		return Ast.NopStatement()
 	end
 
 	return nil;
@@ -747,6 +854,25 @@ function Parser:expressionFunctionLiteral(parentScope)
 	local args = self:functionArgList(scope);
 	expect(self, TokenKind.Symbol, ")");
 
+	if(consume(self, TokenKind.Symbol, ":")) then
+		if(consume(self, TokenKind.Symbol, "{")) then
+			local depth = 1
+			while depth > 0 do
+				if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+				elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+				else
+					advance(self)
+				end
+			end
+		elseif isTypeToken(self) then
+			repeat
+				advance(self)
+			until not isTypeToken(self)
+		else
+			advance(self)
+		end
+	end
+
 	local body = self:block(nil, false, scope);
 	expect(self, TokenKind.Keyword, "end");
 
@@ -767,6 +893,25 @@ function Parser:functionArgList(scope)
 		local id = scope:addVariable(name, ident);
 		table.insert(args, Ast.VariableExpression(scope, id));
 
+		if(consume(self, TokenKind.Symbol, ":")) then
+			if(consume(self, TokenKind.Symbol, "{")) then
+				local depth = 1
+				while depth > 0 do
+					if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+					elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+					else
+						advance(self)
+					end
+				end
+			elseif isTypeToken(self) then
+				repeat
+					advance(self)
+				until not isTypeToken(self) or is(self, TokenKind.Symbol, ")") or is(self, TokenKind.Symbol, ",")
+			else
+				advance(self)
+			end
+		end
+
 		while(consume(self, TokenKind.Symbol, ",")) do
 			if(consume(self, TokenKind.Symbol, "...")) then
 				table.insert(args, Ast.VarargExpression());
@@ -778,6 +923,25 @@ function Parser:functionArgList(scope)
 
 			id = scope:addVariable(name, ident);
 			table.insert(args, Ast.VariableExpression(scope, id));
+
+			if(consume(self, TokenKind.Symbol, ":")) then
+				if(consume(self, TokenKind.Symbol, "{")) then
+					local depth = 1
+					while depth > 0 do
+						if(consume(self, TokenKind.Symbol, "{")) then depth = depth + 1
+						elseif(consume(self, TokenKind.Symbol, "}")) then depth = depth - 1
+						else
+							advance(self)
+						end
+					end
+				elseif isTypeToken(self) then
+					repeat
+						advance(self)
+					until not isTypeToken(self) or is(self, TokenKind.Symbol, ")") or is(self, TokenKind.Symbol, ",")
+				else
+					advance(self)
+				end
+			end
 		end
 	end
 
@@ -946,10 +1110,23 @@ function Parser:expressionLiteral(scope)
 			local condition = self:expression(scope);
 			expect(self, TokenKind.Keyword, "then");
 			local true_value = self:expression(scope);
+
+			local elseifs = {}
+			while(consume(self, TokenKind.Keyword, "elseif")) do
+				local elseif_condition = self:expression(scope)
+				expect(self, TokenKind.Keyword, "then")
+				local elseif_value = self:expression(scope)
+
+				table.insert(elseifs, {
+					condition = elseif_condition,
+					value = elseif_value
+				})
+			end
+
 			expect(self, TokenKind.Keyword, "else");
 			local false_value = self:expression(scope);
 
-			return Ast.IfElseExpression(condition, true_value, false_value);
+			return Ast.IfElseExpression(condition, true_value, elseifs, false_value);
 		end
 	end
 

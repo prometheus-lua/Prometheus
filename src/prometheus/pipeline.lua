@@ -1,9 +1,63 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
---
--- pipeline.lua
---
--- This Script provides a configurable obfuscation pipeline that can obfuscate code using different modules
--- These modules can simply be added to the pipeline.
+local function toJson(val, visited, depth)
+    visited = visited or {}
+    depth = depth or 0
+
+    if depth > 100 then
+        return '"[max depth exceeded]"'
+    end
+
+    local t = type(val)
+    if t == "nil" then
+        return "null"
+    elseif t == "boolean" or t == "number" then
+        return tostring(val)
+    elseif t == "string" then
+        val = val:gsub('\\', '\\\\')
+        val = val:gsub('"',  '\\"')
+        val = val:gsub('\n', '\\n')
+        val = val:gsub('\r', '\\r')
+        val = val:gsub('\t', '\\t')
+        return '"' .. val .. '"'
+    elseif t == "table" then
+        -- Return the table address string on circular reference
+        if visited[val] then
+            return '"' .. tostring(val) .. '"'
+        end
+        visited[val] = true
+
+        local isArray = true
+        local maxIndex = 0
+        for k, _ in pairs(val) do
+            if type(k) ~= "number" or k ~= math.floor(k) or k < 1 then
+                isArray = false
+                break
+            end
+            maxIndex = math.max(maxIndex, k)
+        end
+
+        local result
+        if isArray and maxIndex == #val then
+            local items = {}
+            for i = 1, #val do
+                items[i] = toJson(val[i], visited, depth + 1)
+            end
+            result = "[" .. table.concat(items, ",") .. "]"
+        else
+            local items = {}
+            for k, v in pairs(val) do
+                if type(k) == "string" then
+                    table.insert(items, '"' .. k .. '":' .. toJson(v, visited, depth + 1))
+                end
+            end
+            result = "{" .. table.concat(items, ",") .. "}"
+        end
+
+        visited[val] = nil
+        return result
+    else
+        return '"[unsupported: ' .. t .. ']"'
+    end
+end
 
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
@@ -167,6 +221,9 @@ function Pipeline:apply(code, filename)
 		--> use secure random number generator
 		local success, seed = pcall(function()
 			local seedStr =  io.popen("openssl rand -hex 12"):read("*a"):gsub("\n", "")..""
+			if seedStr == "" then
+				error()
+			end
 			local seedNum = 0;
 
 			--> NOTE: tonumber caps at 1.844674407371e+19. So we use this instead.

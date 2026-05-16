@@ -6,9 +6,6 @@
 
 local Ast = require("prometheus.ast");
 
--- expression is the exact ast table that was created
--- I think scope is just the table that shows how deep a block is into a function or smth.
-
 return function(self, expression, funcDepth, numReturns)
 	local scope = self.activeBlock.scope;
 	local posState = self.registers[self.POS_REGISTER];

@@ -14,7 +14,6 @@ return function(Compiler)
     compileTop(Compiler);
 
     function Compiler:compileStatement(statement, funcDepth)
-		if statement.kind == Ast.AstKind.NopStatement then return end;
         local handler = statementHandlers[statement.kind];
         if handler then
             handler(self, statement, funcDepth);
@@ -24,7 +23,6 @@ return function(Compiler)
     end
 
     function Compiler:compileExpression(expression, funcDepth, numReturns)
-		if expression.kind == Ast.AstKind.NopStatement then return end;
         local handler = expressionHandlers[expression.kind];
         if handler then
             return handler(self, expression, funcDepth, numReturns);

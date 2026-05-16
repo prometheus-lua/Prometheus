@@ -196,9 +196,9 @@ local rotateCode = [=[
 	end
 ]=];
 
-function ConstantArray:addRotateCode(ast, shift, pipeline)
+function ConstantArray:addRotateCode(ast, shift)
 	local parser = Parser:new({
-		LuaVersion = pipeline.LuaVersion;
+		LuaVersion = LuaVersion.Lua51;
 	});
 
 	local newAst = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants)));
@@ -218,7 +218,7 @@ function ConstantArray:addRotateCode(ast, shift, pipeline)
 	table.insert(ast.body.statements, 1, forStat);
 end
 
-function ConstantArray:addDecodeCode(ast, pipeline)
+function ConstantArray:addDecodeCode(ast)
 	if self.Encoding == "base64" then
 		local base64DecodeCode = [[
 	do ]] .. table.concat(util.shuffle{
@@ -270,7 +270,7 @@ function ConstantArray:addDecodeCode(ast, pipeline)
 ]];
 
 		local parser = Parser:new({
-			LuaVersion = pipeline.LuaVersion;
+			LuaVersion = LuaVersion.Lua51;
 		});
 
 		local newAst = parser:parse(base64DecodeCode);
@@ -359,7 +359,7 @@ function ConstantArray:addDecodeCode(ast, pipeline)
 ]];
 
 		local parser = Parser:new({
-			LuaVersion = pipeline.LuaVersion;
+			LuaVersion = LuaVersion.Lua51;
 		});
 
 		local newAst = parser:parse(base85DecodeCode);
@@ -484,7 +484,7 @@ function ConstantArray:addDecodeCode(ast, pipeline)
 ]];
 
 		local parser = Parser:new({
-			LuaVersion = pipeline.LuaVersion;
+			LuaVersion = LuaVersion.Lua51;
 		});
 
 		local newAst = parser:parse(mixedDecodeCode);
@@ -776,7 +776,7 @@ function ConstantArray:apply(ast, pipeline)
 		end
 	end);
 
-	self:addDecodeCode(ast, pipeline);
+	self:addDecodeCode(ast);
 
 	local steps = util.shuffle({
 		-- Add Wrapper Function Code
@@ -818,7 +818,7 @@ function ConstantArray:apply(ast, pipeline)
 				local shift = math.random(1, #self.constants - 1);
 
 				rotate(self.constants, -shift);
-				self:addRotateCode(ast, shift, pipeline);
+				self:addRotateCode(ast, shift);
 			end
 		end,
 	});

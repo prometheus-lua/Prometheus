@@ -322,7 +322,6 @@ function Parser:statement(scope, currentLoop)
 
 		-- Local Variable Declaration
 		local ids = self:nameList(scope);
-
 		local expressions = {};
 		if(consume(self, TokenKind.Symbol, "=")) then
 			expressions = self:exprList(scope);
@@ -547,6 +546,11 @@ function Parser:funcName(scope)
 	local passSelf = false;
 	while(consume(self, TokenKind.Symbol, ".")) do
 		table.insert(indices, expect(self, TokenKind.Ident).value);
+	end
+
+	if(consume(self, TokenKind.Symbol, ":")) then
+		table.insert(indices, expect(self, TokenKind.Ident).value);
+		passSelf = true;
 	end
 
 	return {

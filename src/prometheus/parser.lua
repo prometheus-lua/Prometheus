@@ -949,14 +949,14 @@ function Parser:expressionLiteral(scope)
 
 			local elseifs = {}
 			while(consume(self, TokenKind.Keyword, "elseif")) do
-				local elseif_condition = self:expression(scope)
-				expect(self, TokenKind.Keyword, "then")
-				local elseif_value = self:expression(scope)
+				local elseif_condition = self:expression(scope);
+				expect(self, TokenKind.Keyword, "then");
+				local elseif_value = self:expression(scope);
 
 				table.insert(elseifs, {
 					condition = elseif_condition,
 					value = elseif_value
-				})
+				});
 			end
 
 			expect(self, TokenKind.Keyword, "else");

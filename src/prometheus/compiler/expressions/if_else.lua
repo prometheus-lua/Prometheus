@@ -56,14 +56,14 @@ return function(self, expression, funcDepth, numReturns)
 		self:setActiveBlock(elifBlock);
 		elifScope = elifBlock.scope;
 		local valueReg = self:compileExpression(elif.value, funcDepth, 1)[1];
-		self:addStatement(self:copyRegisters(elifScope, {resReg}, {valueReg}), {resReg}, {valueReg}, false)
+		self:addStatement(self:copyRegisters(elifScope, {resReg}, {valueReg}), {resReg}, {valueReg}, false);
 		self:addStatement(self:setRegister(elifScope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 	end
 
 	self:setActiveBlock(nextBlock);
-	scope = self.activeBlock.scope
+	scope = self.activeBlock.scope;
 	local falseReg = self:compileExpression(expression.false_value, funcDepth, 1)[1];
-	self:addStatement(self:copyRegisters(scope, {resReg}, {falseReg}), {resReg}, {falseReg}, false)
+	self:addStatement(self:copyRegisters(scope, {resReg}, {falseReg}), {resReg}, {falseReg}, false);
 	self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 
 	self.registers[self.POS_REGISTER] = posState;

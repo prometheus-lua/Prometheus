@@ -684,15 +684,15 @@ function Unparser:unparseExpression(expression, tabbing)
 	if (self.luaVersion == LuaVersion.LuaU) then
 		k = AstKind.IfElseExpression
 		if(expression.kind == k) then
-			push(" if ")
+			push(" if ");
 			push(self:unparseExpression(expression.condition));
-			push(" then ")
-			push(self:unparseExpression(expression.true_value))
+			push(" then ");
+			push(self:unparseExpression(expression.true_value));
 			for _, elseifexp in pairs(expression.elseifs) do
-				push(" elseif ")
-				push(self:unparseExpression(elseifexp.condition))
-				push(" then ")
-				push(self:unparseExpression(elseifexp.value))
+				push(" elseif ");
+				push(self:unparseExpression(elseifexp.condition));
+				push(" then ");
+				push(self:unparseExpression(elseifexp.value));
 			end
 			push(" else ");
 			push(self:unparseExpression(expression.false_value));

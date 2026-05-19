@@ -28,6 +28,7 @@ handlers[AstKind.AndExpression] = requireExpression("and");
 handlers[AstKind.TableConstructorExpression] = requireExpression("table_constructor");
 handlers[AstKind.FunctionLiteralExpression] = requireExpression("function_literal");
 handlers[AstKind.VarargExpression] = requireExpression("vararg");
+handlers[AstKind.IfElseExpression] = requireExpression("if_else");
 
 -- Binary ops share one handler
 local binaryHandler = requireExpression("binary");

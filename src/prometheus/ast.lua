@@ -148,11 +148,12 @@ function Ast.NopStatement()
 	}
 end
 
-function Ast.IfElseExpression(condition, true_value, false_value)
+function Ast.IfElseExpression(condition, true_value, elseifs, false_value)
 	return {
 		kind = AstKind.IfElseExpression,
 		condition = condition,
 		true_value = true_value,
+		elseifs = elseifs,
 		false_value = false_value
 	}
 end

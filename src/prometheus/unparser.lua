@@ -688,6 +688,12 @@ function Unparser:unparseExpression(expression, tabbing)
 			push(self:unparseExpression(expression.condition));
 			push(" then ");
 			push(self:unparseExpression(expression.true_value));
+			for _, elseifexp in pairs(expression.elseifs) do
+				push(" elseif ");
+				push(self:unparseExpression(elseifexp.condition));
+				push(" then ");
+				push(self:unparseExpression(elseifexp.value));
+			end
 			push(" else ");
 			push(self:unparseExpression(expression.false_value));
 			return joinParts(parts);

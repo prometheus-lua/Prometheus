@@ -946,10 +946,23 @@ function Parser:expressionLiteral(scope)
 			local condition = self:expression(scope);
 			expect(self, TokenKind.Keyword, "then");
 			local true_value = self:expression(scope);
+
+			local elseifs = {}
+			while(consume(self, TokenKind.Keyword, "elseif")) do
+				local elseif_condition = self:expression(scope);
+				expect(self, TokenKind.Keyword, "then");
+				local elseif_value = self:expression(scope);
+
+				table.insert(elseifs, {
+					condition = elseif_condition,
+					value = elseif_value
+				});
+			end
+
 			expect(self, TokenKind.Keyword, "else");
 			local false_value = self:expression(scope);
 
-			return Ast.IfElseExpression(condition, true_value, false_value);
+			return Ast.IfElseExpression(condition, true_value, elseifs, false_value);
 		end
 	end
 

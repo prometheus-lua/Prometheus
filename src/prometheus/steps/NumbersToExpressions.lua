@@ -14,6 +14,8 @@ local visitast = require("prometheus.visitast")
 local util = require("prometheus.util")
 local logger = require("logger")
 local AstKind = Ast.AstKind
+local SAFE_INT_LIMIT = jit and math.huge or 2^53
+local MAX_VAL = jit and math.huge or 2^54
 
 local NumbersToExpressions = Step:extend()
 NumbersToExpressions.Description = "This Step Converts number Literals to Expressions"
@@ -37,6 +39,9 @@ NumbersToExpressions.SettingsDescriptor = {
 	NumberRepresentationMutation = {
 		type = "boolean",
 		default = false,
+
+		-- NOTE: This alias is a legacy misspelling preservation.
+		-- Please don't remove it.
 		aliases = { "NumberRepresentationMutaton" },
 	},
 
@@ -92,7 +97,9 @@ function NumbersToExpressions:init(_)
 		end,
 
 		function(val, depth) -- Modulo
+			if val > MAX_VAL then return false end
 			local lhs, rhs = generateModuloExpression(val)
+			if lhs > SAFE_INT_LIMIT or rhs > SAFE_INT_LIMIT then return false end
 			if tonumber(tostring(lhs)) % tonumber(tostring(rhs)) ~= val then
 				return false
 			end
@@ -153,7 +160,30 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 
 			local exp = math.floor(math.log10(math.abs(val)))
 			local mantissa = val / (10 ^ exp)
-			return Ast.NumberExpression(string.format("%.15ge%d", mantissa, exp))
+
+			-- LuaJIT has full double precision support. Meaning we don't need aggressive safety harnesses for LuaJIT.
+			if jit then
+				return Ast.NumberExpression(string.format("%.15ge%d", mantissa, exp))
+			end
+
+			local formatStr = string.format("%ge%+d", mantissa, exp)
+			local concatStr = mantissa .. "e" .. (exp >= 0 and "+" or "") .. exp
+
+			local formatVal = loadstring("return " .. formatStr)
+			local concatVal = loadstring("return " .. concatStr)
+
+			local formatResult = formatVal and formatVal()
+			local concatResult = concatVal and concatVal()
+
+			local formatErr = formatResult and math.abs(formatResult - val) or math.huge
+			local concatErr = concatResult and math.abs(concatResult - val) or math.huge
+
+			if formatErr > 0 and concatErr > 0 then
+				return Ast.NumberExpression(val)
+			end
+
+			local useFormat = formatErr <= concatErr
+			return Ast.NumberExpression(useFormat and formatStr or concatStr)
 		end
 
 		if format == "normal" then

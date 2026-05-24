@@ -39,6 +39,17 @@ end) then
     end
 end
 
+if not math.log10 then
+    local ln10 = math.log(10);
+    math.log10 = function(x)
+        return math.log(x) / ln10;
+    end
+end
+
+if not loadstring then
+    loadstring = load
+end
+
 -- newproxy polyfill
 _G.newproxy = _G.newproxy or function(arg)
     if arg then

@@ -46,6 +46,7 @@ local function print_help()
 	print("  --out, --o <file>      Set output path")
 	print("  --Lua51                Force Lua 5.1 target")
 	print("  --LuaU                 Force LuaU target")
+	print("  --RobloxLuaU           Force Roblox LuaU target")
 	print("  --pretty               Pretty print output")
 	print("  --nocolors             Disable colored logs")
 	print("  --saveerrors           Persist parser errors to file")
@@ -197,6 +198,8 @@ local function run_cli()
 				luaVersion = "Lua51"
 			elseif curr == "--LuaU" then
 				luaVersion = "LuaU"
+			elseif curr == "--RobloxLuaU" then
+				luaVersion = "RobloxLuaU"
 			elseif curr == "--pretty" then
 				prettyPrint = true
 			elseif curr == "--saveerrors" then

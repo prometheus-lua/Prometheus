@@ -133,7 +133,7 @@ function Pipeline:setLuaVersion(luaVersion)
 		luaVersion = luaVersion;
 	});
 	self.unparser = Unparser:new({
-		luaVersion = luaVersion;
+		LuaVersion = luaVersion;
 	});
 	self.conventions = conventions;
 end

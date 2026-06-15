@@ -139,7 +139,7 @@ function visitStatement(statement, previsit, postvisit, data)
 		for i, expression in ipairs(statement.expressions) do
 			statement.expressions[i] = visitExpression(expression, previsit, postvisit, data);
 		end
-		visitBlock(statement.body, previsit, postvisit, data, false);
+		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);
 	elseif(statement.kind == AstKind.IfStatement) then
 		statement.condition = visitExpression(statement.condition, previsit, postvisit, data);
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);

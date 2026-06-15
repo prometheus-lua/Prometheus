@@ -138,10 +138,14 @@ For more advanced use cases, configuration, and presets, see the [documentation]
 
 ## Tests
 
-To run the Prometheus test suite:
+The test suite runs inside Docker with lua5.1 and Luau:
 
 ```bash
-lua ./tests.lua [--Linux]
+./scripts/run-tests.sh           # Run all tests (default: 10 iterations)
+./scripts/run-tests.sh -b        # Build image and run tests
+./scripts/run-tests.sh -n 5      # Run with 5 iterations
+./scripts/run-tests.sh -c config.lua  # Use a custom config
+./scripts/run-tests.sh -v        # Verbose output
 ```
 
 ---

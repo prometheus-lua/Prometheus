@@ -14,12 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Lua 5.1
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.1
-      - name: Run tests
-        run: lua5.1 ./tests.lua --Linux
+      - name: Build and run tests
+        run: bash scripts/run-tests.sh -b -n 10 --ci
 
   package:
     name: Package (${{ matrix.os_name }})

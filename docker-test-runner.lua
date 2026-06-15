@@ -30,10 +30,6 @@ local RUNTIMES = {
         cmd = "lua5.1",
     },
     {
-        name = "luajit",
-        cmd = "luajit",
-    },
-    {
         name = "luau",
         cmd = "luau",
     },

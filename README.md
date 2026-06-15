@@ -138,7 +138,7 @@ For more advanced use cases, configuration, and presets, see the [documentation]
 
 ## Tests
 
-The test suite runs inside Docker with lua5.1, upstream LuaJIT (built from source), and Luau:
+The test suite runs inside Docker with lua5.1 and Luau:
 
 ```bash
 ./scripts/run-tests.sh           # Run all tests (default: 10 iterations)

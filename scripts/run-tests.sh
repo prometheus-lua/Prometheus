@@ -14,7 +14,7 @@ usage() {
     cat <<EOF
 Usage: $0 [OPTIONS]
 
-Run Prometheus tests inside a Docker container with lua5.1, upstream luajit, and luau.
+Run Prometheus tests inside a Docker container with lua5.1 and luau.
 
 Options:
   -n N          Number of iterations per test/preset (default: 10)
@@ -27,7 +27,7 @@ Options:
   -h, --help    Show this help
 
 Runtimes available in the container:
-  lua5.1, luajit (upstream, built from source), luau (built from source)
+  lua5.1, luau (built from source)
 
 EOF
     exit 0

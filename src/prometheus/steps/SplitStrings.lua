@@ -167,7 +167,7 @@ end
 
 local function generateCustomFunctionLiteral(parentScope, variant)
 	local parser = Parser:new({
-		LuaVersion = LuaVersion.Lua52;
+		LuaVersion = LuaVersion.Lua51;
 	});
 
 	-- Custom Function Type 1
@@ -190,7 +190,7 @@ end
 
 local function generateGlobalCustomFunctionDeclaration(ast, data)
 	local parser = Parser:new({
-		LuaVersion = LuaVersion.Lua52;
+		LuaVersion = LuaVersion.Lua51;
 	});
 
 	-- Custom Function Type 1

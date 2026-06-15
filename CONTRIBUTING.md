@@ -10,6 +10,29 @@ Thanks for contributing to Prometheus.
 - Add or update tests when changing behavior.
 - Document user-visible changes clearly.
 
+## Running Tests
+
+Tests run inside a Docker container with lua5.1, upstream LuaJIT (built from source), and Luau:
+
+```bash
+./scripts/run-tests.sh           # Run all tests (default: 10 iterations)
+./scripts/run-tests.sh -b        # Build image (needed first time or after Dockerfile changes)
+./scripts/run-tests.sh -n 5      # Run with 5 iterations
+./scripts/run-tests.sh -c config.lua  # Use a custom config
+./scripts/run-tests.sh -v        # Verbose output
+```
+
+### Test File Metadata
+
+Test files can include metadata comments at the top of the file:
+
+| Annotation | Effect |
+|-----------|--------|
+| `-- @skip` | Skip this test entirely |
+| `-- @luau-only` | Only run with Luau |
+| `-- @runtime lua51 luajit` | Only run with specified runtimes |
+| `-- @skip-preset Weak` | Skip a specific preset for this test |
+
 ## Reporting Bugs
 
 When opening a bug report, include:

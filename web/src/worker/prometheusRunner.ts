@@ -16,6 +16,14 @@ type LuaFactoryConstructor = new (
 
 let luaFactoryCtorPromise: Promise<LuaFactoryConstructor> | null = null
 
+function resolveWasmUri(wasmUrl: string): string {
+  if (typeof process !== "undefined" && process.versions?.node && wasmUrl.startsWith("/@fs/")) {
+    return wasmUrl.slice("/@fs".length)
+  }
+
+  return wasmUrl
+}
+
 async function getLuaFactoryConstructor(): Promise<LuaFactoryConstructor> {
   if (luaFactoryCtorPromise) {
     return luaFactoryCtorPromise
@@ -174,7 +182,7 @@ export async function runPrometheus(options: PrometheusOptions): Promise<Prometh
     // Force a local Vite-managed Wasm URL so dev/preview behave the same and
     // we don't depend on wasmoon's default CDN URL resolution in workers.
     const LuaFactory = await getLuaFactoryConstructor()
-    lua = await new LuaFactory(glueWasmUrl).createEngine({ openStandardLibs: true })
+    lua = await new LuaFactory(resolveWasmUri(glueWasmUrl)).createEngine({ openStandardLibs: true })
 
     const result = (await lua.doString(buildRunLua(options))) as {
       ok?: unknown
@@ -210,7 +218,7 @@ export async function runLuaScript(
 
   try {
     const LuaFactory = await getLuaFactoryConstructor()
-    lua = await new LuaFactory(glueWasmUrl).createEngine({ openStandardLibs: true })
+    lua = await new LuaFactory(resolveWasmUri(glueWasmUrl)).createEngine({ openStandardLibs: true })
     if (onLog) {
       const luaGlobal = lua.global as unknown as {
         set?: (name: string, value: (...args: unknown[]) => void) => void

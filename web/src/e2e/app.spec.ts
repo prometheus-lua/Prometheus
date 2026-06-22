@@ -34,6 +34,22 @@ test("runs input script and shows logs", async ({ page }) => {
   await expect(page.getByText("Run works")).toBeVisible()
 })
 
+test("shows a strictness warning for the Strong preset", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "Prometheus Playground" })).toBeVisible()
+
+  const warning = page.getByText("Strong is very strict and only supports Lua 5.1. It will fail in environments such as the web playground runtime (Lua 5.4).")
+  await expect(warning).toBeHidden()
+
+  await page.getByRole("combobox").first().click()
+  await page.getByRole("option", { name: "Strong" }).click()
+  await expect(warning).toBeVisible()
+
+  await page.getByRole("combobox").first().click()
+  await page.getByRole("option", { name: "Medium" }).click()
+  await expect(warning).toBeHidden()
+})
+
 test("share link roundtrip keeps the same obfuscated output", async ({ browser, page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await page.goto("/")

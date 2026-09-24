@@ -296,6 +296,44 @@ local function int(self, chars, seperators)
 	return table.concat(buffer);
 end
 
+local binToHex = {
+	["0000"] = "0", ["0001"] = "1", ["0010"] = "2", ["0011"] = "3",
+	["0100"] = "4", ["0101"] = "5", ["0110"] = "6", ["0111"] = "7",
+	["1000"] = "8", ["1001"] = "9", ["1010"] = "a", ["1011"] = "b",
+	["1100"] = "c", ["1101"] = "d", ["1110"] = "e", ["1111"] = "f",
+}
+
+local function parseHex(str)
+	if #str == 0 then return nil end
+	
+	-- Let Lua's native C string-to-number parser perform exact IEEE-754 round-to-nearest-even
+	return tonumber("0x" .. str)
+end
+
+local function parseBinary(str)
+	if #str == 0 then return nil end
+	if str:find("[^01]") then return nil end
+
+	-- For <= 53 bits, direct integer accumulation into double is exact
+	if #str <= 53 then
+		local num = 0
+		for i = 1, #str do
+			num = num * 2 + (string.byte(str, i) - 48)
+		end
+		return num
+	end
+
+	-- For > 53 bits, convert 4-bit nibbles to hex to preserve exact IEEE-754 rounding via tonumber
+	local pad = (4 - (#str % 4)) % 4
+	local padded = string.rep("0", pad) .. str
+	local hexBuf = {}
+	for i = 1, #padded, 4 do
+		local nibble = padded:sub(i, i + 3)
+		hexBuf[#hexBuf + 1] = binToHex[nibble]
+	end
+	return tonumber("0x" .. table.concat(hexBuf))
+end
+
 -- Lex the next token as a Number
 function Tokenizer:number()
 	local startPos = self.index;
@@ -305,14 +343,20 @@ function Tokenizer:number()
 		if self.BinaryNums and is(self, lookupify(self.BinaryNums)) then
 			self.index = self.index + 1;
 			source = int(self, self.BinaryNumberCharsLookup, lookupify(self.DecimalSeperators or {}));
-			local value = tonumber(source, 2);
+			local value = parseBinary(source);
+			if not value then
+				logger:error(generateError(self, "malformed binary number"));
+			end
 			return token(self, startPos, Tokenizer.TokenKind.Number, value);
 		end
 
 		if self.HexadecimalNums and is(self, lookupify(self.HexadecimalNums)) then
 			self.index = self.index + 1;
 			source = int(self, self.HexNumberCharsLookup, lookupify(self.DecimalSeperators or {}));
-			local value = tonumber(source, 16);
+			local value = parseHex(source);
+			if not value then
+				logger:error(generateError(self, "malformed hexadecimal number"));
+			end
 			return token(self, startPos, Tokenizer.TokenKind.Number, value);
 		end
 	end

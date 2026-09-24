@@ -47,10 +47,54 @@ NumbersToExpressions.SettingsDescriptor = {
 	},
 }
 
+local MAX_SAFE_INT = 9007199254740991 -- 2^53 - 1
+
+local function isSafeInteger(n)
+	return type(n) == "number"
+		and n == math.floor(n)
+		and n >= -MAX_SAFE_INT
+		and n <= MAX_SAFE_INT
+end
+
 local function generateModuloExpression(n)
-	local rhs = n + math.random(1, 2^24)
-	local multiplier = math.random(1, 2^8)
-	local lhs = n + (multiplier * rhs)
+	if not isSafeInteger(n) then
+		return nil
+	end
+
+	local offset = math.random(1, 2 ^ 24)
+	local rhs
+
+	if n >= 0 then
+		rhs = n + offset
+	else
+		rhs = n - offset
+	end
+
+	if rhs == 0 or not isSafeInteger(rhs) then
+		return nil
+	end
+
+	local maxMultiplier = math.floor(
+		(MAX_SAFE_INT - math.abs(n)) / math.abs(rhs)
+	)
+
+	maxMultiplier = math.min(maxMultiplier, 2 ^ 8)
+
+	if maxMultiplier < 1 then
+		return nil
+	end
+
+	local multiplier = math.random(1, maxMultiplier)
+	local lhs = n + multiplier * rhs
+
+	if not isSafeInteger(lhs) then
+		return nil
+	end
+
+	if lhs % rhs ~= n then
+		return nil
+	end
+
 	return lhs, rhs
 end
 
@@ -68,7 +112,7 @@ function NumbersToExpressions:init(_)
 		function(val, depth) -- Addition
 			local val2 = math.random(-2 ^ 20, 2 ^ 20)
 			local diff = val - val2
-			if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
+			if diff + val2 ~= val then
 				return false
 			end
 			return Ast.AddExpression(
@@ -81,7 +125,7 @@ function NumbersToExpressions:init(_)
 		function(val, depth) -- Subtraction
 			local val2 = math.random(-2 ^ 20, 2 ^ 20)
 			local diff = val + val2
-			if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
+			if diff - val2 ~= val then
 				return false
 			end
 			return Ast.SubExpression(
@@ -93,9 +137,11 @@ function NumbersToExpressions:init(_)
 
 		function(val, depth) -- Modulo
 			local lhs, rhs = generateModuloExpression(val)
-			if tonumber(tostring(lhs)) % tonumber(tostring(rhs)) ~= val then
+
+			if not lhs then
 				return false
 			end
+
 			return Ast.ModExpression(
 				self:CreateNumberExpression(lhs, depth),
 				self:CreateNumberExpression(rhs, depth),
@@ -106,54 +152,62 @@ function NumbersToExpressions:init(_)
 end
 
 function NumbersToExpressions:CreateNumberExpression(val, depth)
-	if depth > 0 and math.random() >= self.InternalThreshold or depth > 15 then
-		local format = self.AllowedNumberRepresentations[math.random(1, #self.AllowedNumberRepresentations)]
-		if not self.NumberRepresentationMutation then
+	if (depth > 0 and math.random() >= self.InternalThreshold) or depth > 15 then
+		if not self.NumberRepresentationMutation or type(val) ~= "number" then
 			return Ast.NumberExpression(val)
 		end
 
+		local format = self.AllowedNumberRepresentations[math.random(1, #self.AllowedNumberRepresentations)]
+
 		if format == "hex" then
-			if val ~= math.floor(val) or val < 0 then
-				return Ast.NumberExpression(val)
-			end
-			local hexStr = string.format("0x%X", val)
-			local result = ""
-			for i = 1, #hexStr do
-				local c = hexStr:sub(i, i)
-				if math.random() > 0.5 then
-					result = result .. c:upper()
-				else
-					result = result .. c:lower()
+			-- Lua 5.1 %X only supports positive 32-bit unsigned integers up to 0xFFFFFFFF
+			if val == math.floor(val) and val >= 0 and val <= 0xFFFFFFFF then
+				local hexStr = string.format("0x%X", val)
+				if tonumber(hexStr) == val then
+					local result = ""
+					for i = 1, #hexStr do
+						local c = hexStr:sub(i, i)
+						if math.random() > 0.5 then
+							result = result .. c:upper()
+						else
+							result = result .. c:lower()
+						end
+					end
+					return Ast.NumberExpression(val, result)
 				end
 			end
-			return Ast.NumberExpression(result)
+			return Ast.NumberExpression(val)
 		end
 
 		if format == "binary" then
-			if val ~= math.floor(val) or val < 0 then
-				return Ast.NumberExpression(val)
-			end
-			local binary = ""
-			local n = val
-			if n == 0 then
-				binary = "0"
-			else
-				while n > 0 do
-					binary = (n % 2) .. binary
-					n = math.floor(n / 2)
+			if val == math.floor(val) and val >= 0 then
+				local binary = ""
+				local n = val
+				if n == 0 then
+					binary = "0"
+				else
+					while n > 0 do
+						binary = (n % 2) .. binary
+						n = math.floor(n / 2)
+					end
 				end
+				local binStr = "0b" .. binary
+				return Ast.NumberExpression(val, binStr)
 			end
-			return Ast.NumberExpression("0b" .. binary)
+			return Ast.NumberExpression(val)
 		end
 
 		if format == "scientific" then
-			if val == 0 then
-				return Ast.NumberExpression(val)
+			if val ~= 0 then
+				local exp = math.floor(math.log10(math.abs(val)))
+				local mantissa = val / (10 ^ exp)
+				local sciStr = string.format("%.15ge%d", mantissa, exp)
+				-- Ensure parsing it back produces the exact same numeric value!
+				if tonumber(sciStr) == val then
+					return Ast.NumberExpression(val, sciStr)
+				end
 			end
-
-			local exp = math.floor(math.log10(math.abs(val)))
-			local mantissa = val / (10 ^ exp)
-			return Ast.NumberExpression(string.format("%.15ge%d", mantissa, exp))
+			return Ast.NumberExpression(val)
 		end
 
 		if format == "normal" then

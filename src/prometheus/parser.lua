@@ -908,7 +908,8 @@ function Parser:expressionLiteral(scope)
 
 	-- Number Literal
 	if(is(self, TokenKind.Number)) then
-		return Ast.NumberExpression(get(self).value);
+		local tk = get(self);
+		return Ast.NumberExpression(tk.value, tk.source);
 	end
 
 	-- True Literal

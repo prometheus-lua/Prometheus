@@ -53,15 +53,21 @@ return function(self, statement, funcDepth)
 
 
 
-    self:addStatement(Ast.AssignmentStatement({
-        self:registerAssignment(scope, exprregs[3]),
-        varRegs[2] and self:registerAssignment(scope, varRegs[2]),
-    }, {
+    -- Keep the control result separate from the visible first loop variable.
+    -- Native multiple assignment preserves nils and pads missing results.
+    local resultRegs = {exprregs[3]};
+    local resultTargets = {self:registerAssignment(scope, exprregs[3])};
+    for i = 2, #varRegs do
+        resultRegs[i] = varRegs[i];
+        resultTargets[i] = self:registerAssignment(scope, varRegs[i]);
+    end
+
+    self:addStatement(Ast.AssignmentStatement(resultTargets, {
         Ast.FunctionCallExpression(self:register(scope, exprregs[1]), {
             self:register(scope, exprregs[2]),
             self:register(scope, exprregs[3]),
         })
-    }), {exprregs[3], varRegs[2]}, {exprregs[1], exprregs[2], exprregs[3]}, true);
+    }), resultRegs, {exprregs[1], exprregs[2], exprregs[3]}, true);
 
 
 
@@ -75,10 +81,6 @@ return function(self, statement, funcDepth)
     local scope = self.activeBlock.scope;
 
     self:addStatement(self:copyRegisters(scope, {varRegs[1]}, {exprregs[3]}), {varRegs[1]}, {exprregs[3]}, false);
-
-    for i=3, #varRegs do
-        self:addStatement(self:setRegister(scope, varRegs[i], Ast.NilExpression()), {varRegs[i]}, {}, false);
-    end
 
     for i, id in ipairs(statement.ids) do
         if(self:isUpvalue(statement.scope, id)) then

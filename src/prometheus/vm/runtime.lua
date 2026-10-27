@@ -35,28 +35,46 @@ local function loop(P, U, Env, R, V)
 end
 
 local function start(P, U, Env, ...)
-    local R, incoming = {}, pack(...)
+    local R
     local params = P.params
-    for i = 1, #params do
-        local param = params[i]
-        local value = incoming[i]
-        if param[2] then
-            R[param[1]] = { value }
-        else
-            R[param[1]] = value
+    local V
+    if not P.vararg and #params <= 3 then
+        R = {}
+        local argc = nativeSelect("#", ...)
+        for i = 1, #params do
+            local param = params[i]
+            local value
+            if i <= argc then value = nativeSelect(i, ...) end
+            if param[2] then
+                R[param[1]] = { value }
+            else
+                R[param[1]] = value
+            end
         end
+    else
+        local incoming = pack(...)
+        R = {}
+        for i = 1, #params do
+            local param = params[i]
+            local value = incoming[i]
+            if param[2] then
+                R[param[1]] = { value }
+            else
+                R[param[1]] = value
+            end
+        end
+        V = { n = 0 }
+        if P.vararg then
+            local first = #params + 1
+            if incoming.n > #params then
+                V.n = incoming.n - #params
+            end
+            for i = 1, V.n do
+                V[i] = incoming[first + i - 1]
+            end
+        end
+        incoming = nil
     end
-    local V = { n = 0 }
-    if P.vararg then
-        local first = #params + 1
-        if incoming.n > #params then
-            V.n = incoming.n - #params
-        end
-        for i = 1, V.n do
-            V[i] = incoming[first + i - 1]
-        end
-    end
-    incoming = nil
     return loop(P, U, Env, R, V)
 end
 

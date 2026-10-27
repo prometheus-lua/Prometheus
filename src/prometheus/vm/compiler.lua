@@ -1,6 +1,7 @@
 -- Lower scoped AST nodes into function prototypes containing semantic instructions.
 local analyze = require('prometheus.vm.analysis')
 local opcodes = require('prometheus.vm.opcodes')
+local optimize = require('prometheus.vm.optimize')
 local Compiler = {}
 Compiler.__index = Compiler
 
@@ -141,9 +142,7 @@ end
 
 function Compiler:finish(node)
     self:block(node.body)
-    local empty = self:alloc()
-    self:emit('ARGS', empty, {}, 0)
-    self:emit('RETURN', empty)
+    self:emit('RETURN0')
     return self.proto
 end
 
@@ -159,7 +158,7 @@ end
 
 function Compiler:compile(ast)
     local compiler = Compiler:new(analyze(ast), ast)
-    return compiler:finish(ast)
+    return optimize(compiler:finish(ast))
 end
 
 require('prometheus.vm.expressions')(Compiler)

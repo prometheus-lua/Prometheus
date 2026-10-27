@@ -7,6 +7,9 @@ local names = {
     'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'POW', 'CONCAT',
     'LT', 'LE', 'GT', 'GE', 'EQ', 'NE', 'NOT', 'NEG', 'LEN',
     'FORPREP', 'FORCHECK',
+    'CLEARS', 'CALL0', 'CALL1', 'CALL2', 'CALL3',
+    'TAILCALL0', 'TAILCALL1', 'TAILCALL2', 'TAILCALL3',
+    'RETURN0', 'RETURN1', 'RETURN2', 'RETURN3',
 }
 local opcodes = {}
 for id, name in ipairs(names) do opcodes[name] = id end

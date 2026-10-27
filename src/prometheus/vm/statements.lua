@@ -110,10 +110,7 @@ return function(Compiler)
 	end
 
 	local function compileNumericFor(self, node)
-		local values = emitList(self, {node.initialValue, node.finalValue, node.incrementBy}, 3)
-		local control = {self:alloc(), self:alloc(), self:alloc()}
-		for i = 1, 3 do self:emit("MOVE", control[i], values[i]) end
-		release(self, values)
+		local control = emitList(self, {node.initialValue, node.finalValue, node.incrementBy}, 3)
 		self:emit("FORPREP", control[1], control[2], control[3])
 		local record = loopRecord(self, node)
 		local check = self:position()
@@ -141,13 +138,12 @@ return function(Compiler)
 		local iterator, state, control = values[1], values[2], values[3]
 		local record = loopRecord(self, node)
 		local check = self:position()
-		local args, results = self:alloc(), self:alloc()
-		self:emit("ARGS", args, {state, control}, 0)
-		self:emit("CALL", results, iterator, args, -1)
+		local results = self:alloc()
+		self:emit("CALL2", results, iterator, {state, control}, -1)
 		local first = self:alloc()
 		self:emit("TAKE", first, results, 1)
 		local nilreg, ended = self:alloc(), self:alloc()
-		local iterationTemps = {args, results, first, nilreg, ended}
+		local iterationTemps = {results, first, nilreg, ended}
 		self:emit("NIL", nilreg)
 		self:emit("EQ", ended, first, nilreg)
 		local exit = self:emit("JTRUE", ended, 0)
@@ -188,7 +184,8 @@ return function(Compiler)
 		local targets = {}
 		for i, target in ipairs(node.lhs) do targets[i] = assignmentTarget(self, target) end
 		local values = emitList(self, node.rhs, #targets)
-		for i, target in ipairs(targets) do storeTarget(self, target, values[i]) end
+		-- Lua stores a parallel assignment from right to left after evaluating RHSs.
+		for i = #targets, 1, -1 do storeTarget(self, targets[i], values[i]) end
 		release(self, values)
 		for _, target in ipairs(targets) do
 			if target.base then self:free(target.base); self:free(target.key) end
@@ -281,6 +278,7 @@ return function(Compiler)
 				self:call(node.args[1], -1, true)
 				return
 			end
+			if self:fixedReturn(node.args) then return end
 			local values = emitList(self, node.args, nil)
 			self:emit("RETURN", values[1])
 			release(self, values)

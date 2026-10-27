@@ -67,6 +67,17 @@ assert(distinctOperands > 1, 'different seeds must change operand layouts')
 
 local source = [[
     local function pack(...) return {n = select('#', ...), ...} end
+    local function fixed(a, b, c) return a, b, c end
+    local function pair(a, b) return a, b end
+    local function empty() end
+    empty()
+    local zero, one = pack(fixed()), pack(fixed(nil))
+    local two, three = pack(fixed(2, nil)), pack(fixed(3, nil, 5))
+    local first, second = pair(8, nil)
+    assert(zero.n == 3 and one.n == 3 and zero[1] == nil and one[1] == nil)
+    assert(two.n == 3 and two[1] == 2 and two[2] == nil and two[3] == nil)
+    assert(three.n == 3 and three[1] == 3 and three[2] == nil and three[3] == 5)
+    assert(first == 8 and second == nil)
     local function make(start)
         local total = start
         local unused = {}

@@ -206,52 +206,28 @@ local function install(Compiler)
 			for _, node in ipairs(expressions) do self:expression(node, 0) end
 			return {}
 		end
-		local tuple = packList(self, expressions)
-		if count == nil then return {tuple} end
-		local results = {}
-		for i = 1, count do
-			results[i] = self:alloc(); self:emit("TAKE", results[i], tuple, i)
+		if count ~= nil then
+			local results = {}
+			for i, node in ipairs(expressions) do
+				local remaining = count - #results
+				if remaining <= 0 then
+					self:expression(node, 0)
+				elseif i == #expressions and expandable(node) then
+					for _, register in ipairs(self:expression(node, remaining)) do
+						results[#results + 1] = register
+					end
+				else
+					results[#results + 1] = self:expression(node, 1)[1]
+				end
+			end
+			while #results < count do results[#results + 1] = self:load(nil) end
+			return results
 		end
-		self:free(tuple)
-		return results
+		local tuple = packList(self, expressions)
+		return {tuple}
 	end
 
-	function Compiler:call(node, count, tail)
-		local fn, prefix
-		if node.kind == Kind.PassSelfFunctionCallExpression then
-			local object = self:expression(node.base, 1)[1]
-			local key = load(self, node.passSelfFunctionName)
-			fn = self:alloc(); self:emit("GETTABLE", fn, object, key)
-			self:free(key)
-			prefix = {object}
-		else
-			fn = self:expression(node.base, 1)[1]
-		end
-		local args = packList(self, node.args, prefix)
-		if tail then
-			self:emit("TAILCALL", fn, args)
-			self:free(args); self:free(fn)
-			return {}
-		end
-		if count == 0 then
-			self:emit("CALL", 0, fn, args, 0)
-			self:free(args); self:free(fn); return {}
-		elseif count == -1 then
-			local result = self:alloc(); self:emit("CALL", result, fn, args, -1)
-			self:free(args); self:free(fn); return {result}
-		elseif count == 1 then
-			local result = self:alloc(); self:emit("CALL", result, fn, args, 1)
-			self:free(args); self:free(fn); return {result}
-		else
-			local tuple = self:alloc(); self:emit("CALL", tuple, fn, args, -1)
-			self:free(args); self:free(fn)
-			local results = {}
-			for i = 1, count do
-				results[i] = self:alloc(); self:emit("TAKE", results[i], tuple, i)
-			end
-			self:free(tuple); return results
-		end
-	end
+	require('prometheus.vm.calls')(Compiler, packList, expandable)
 end
 
 return install

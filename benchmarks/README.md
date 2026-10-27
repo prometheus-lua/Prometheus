@@ -2,6 +2,7 @@
 
 Recorded v0.3 measurements: [v0.3-results.md](v0.3-results.md).
 Updated Medium measurements: [v0.3-medium-native-cff.md](v0.3-medium-native-cff.md).
+Latest VM optimization measurements: [v0.3-vm-fastpaths.md](v0.3-vm-fastpaths.md).
 
 Run from the repository root with Python 3, Lua 5.1, and LuaJIT installed:
 

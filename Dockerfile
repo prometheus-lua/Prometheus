@@ -30,6 +30,7 @@ RUN lua5.1 tests/harness/metadata.lua \
     && timeout 60s lua5.1 tests/harness/cff-native.lua \
     && timeout 60s lua5.1 tests/harness/vm-arity.lua \
     && timeout 60s lua5.1 tests/harness/vm-prototypes.lua \
+    && timeout 60s lua5.1 tests/harness/vm-fastpaths.lua \
     && timeout 60s lua5.1 tests/harness/vm-layout.lua \
     && python3 tests/harness/runner.py
 

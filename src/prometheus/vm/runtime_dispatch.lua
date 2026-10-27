@@ -1,5 +1,6 @@
 -- Opcode bodies are kept separate from runtime.lua so both files stay small.
 local M = {}
+local callBodies = require("prometheus.vm.runtime_calls")
 
 local bodies = {
     LOAD = [==[R[a] = K[b]]==],
@@ -39,32 +40,9 @@ local bodies = {
     ]==],
     TAKE = [==[R[a] = R[b][c]]==],
     VARARG = [==[R[a] = V]==],
-    CALL = [==[
-        x, y = R[b], R[c]
-        if nativeGetfenv and x == nativeGetfenv and (y.n == 0 or y[1] == nil or y[1] == 1) then
-            if d == -1 then
-                R[a] = { n = 1, Env }
-            elseif d == 1 then
-                R[a] = Env
-            end
-        elseif d == -1 then
-            R[a] = pack(x(nativeUnpack(y, 1, y.n)))
-        elseif d == 1 then
-            R[a] = x(nativeUnpack(y, 1, y.n))
-        else
-            x(nativeUnpack(y, 1, y.n))
-        end
-    ]==],
     RETURN = [==[
         x = R[a]
         return nativeUnpack(x, 1, x.n)
-    ]==],
-    TAILCALL = [==[
-        x, y = R[a], R[b]
-        if nativeGetfenv and x == nativeGetfenv and (y.n == 0 or y[1] == nil or y[1] == 1) then
-            return Env
-        end
-        return x(nativeUnpack(y, 1, y.n))
     ]==],
     CLOSURE = [==[
         x = P.children[b]
@@ -119,6 +97,8 @@ local bodies = {
         end
     ]==],
 }
+
+callBodies.merge(bodies)
 
 function M.build(opcodes)
     local entries = {}

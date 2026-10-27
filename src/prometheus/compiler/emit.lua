@@ -237,7 +237,8 @@ return function(Compiler)
         -- Build a strict threshold condition between adjacent block IDs.
         -- Using a midpoint avoids exact-id comparisons while preserving dispatch.
         local function buildBlockThresholdCondition(scope, leftId, rightId, useAndOr)
-            local bound = math.floor((leftId + rightId) / 2);
+            -- Keep the midpoint strictly between the IDs, even when consecutive.
+            local bound = (leftId + rightId) / 2;
             local posExpr = self:pos(scope);
             local boundExpr = Ast.NumberExpression(bound);
 
@@ -303,9 +304,9 @@ return function(Compiler)
             local mid = l + math.ceil(len / 2);
             local leftMaxId = tb[mid - 1].id;
             local rightMinId = tb[mid].id;
-            -- Float-safe split: any bound strictly between adjacent IDs works.
-            -- Midpoint avoids integer-only math.random(min, max) behavior.
-            local bound = math.floor((leftMaxId + rightMinId) / 2);
+            -- IDs are 24-bit integers, so half-integer midpoints are exact.
+            -- Rounding would make consecutive IDs share a dispatch branch.
+            local bound = (leftMaxId + rightMinId) / 2;
             local ifScope = Scope:new(pScope);
 
             local lBlock = buildElseifChain(tb, l, mid - 1, ifScope);

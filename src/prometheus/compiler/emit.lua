@@ -228,8 +228,8 @@ return function(Compiler)
             end
 
             local block = { id = id, index = i, block = Ast.Block(blockstats, block.scope) }
+            -- Block IDs can overlap list indices; keep this table an ordered list.
             table.insert(blocks, block);
-            blocks[id] = block;
         end
 
         table.sort(blocks, function(a, b) return a.id < b.id end);

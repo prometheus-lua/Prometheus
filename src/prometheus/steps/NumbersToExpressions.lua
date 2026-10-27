@@ -121,7 +121,11 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 			if val ~= math.floor(val) or val < 0 then
 				return Ast.NumberExpression(val)
 			end
-			local hexStr = string.format("0x%X", val)
+			local ok, hexStr = pcall(string.format, "0x%X", val)
+			-- Integer formatting can overflow or reject values outside its range.
+			if not ok or tonumber(hexStr) ~= val then
+				return Ast.NumberExpression(val)
+			end
 			local result = ""
 			for i = 1, #hexStr do
 				local c = hexStr:sub(i, i)

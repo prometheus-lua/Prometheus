@@ -208,8 +208,15 @@ return function(Compiler)
     end
 
     function Compiler:env(scope)
-        scope:addReferenceToHigherScope(self.scope, self.envVar);
-        return Ast.VariableExpression(self.scope, self.envVar);
+        scope:addReferenceToHigherScope(self.containerFuncScope, self.currentEnvVar);
+        return Ast.VariableExpression(self.containerFuncScope, self.currentEnvVar);
+    end
+
+    function Compiler:functionCall(scope, reg, args)
+        scope:addReferenceToHigherScope(self.scope, self.callFunctionVar);
+        local callArgs = {self:register(scope, reg), self:env(scope)};
+        for _, arg in ipairs(args) do table.insert(callArgs, arg); end
+        return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.callFunctionVar), callArgs);
     end
 
     function Compiler:jmp(scope, to)

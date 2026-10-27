@@ -161,14 +161,16 @@ return function(Compiler)
             scope:addReferenceToHigherScope(self.scope, self.createVarargClosureVar);
             retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
                 Ast.NumberExpression(block.id),
-                Ast.TableConstructorExpression(upvalueExpressions)
+                Ast.TableConstructorExpression(upvalueExpressions),
+                self:env(scope)
             });
         else
             local varScope, var = self:getCreateClosureVar(#node.args + math.random(0, 5));
             scope:addReferenceToHigherScope(varScope, var);
             retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(varScope, var), {
                 Ast.NumberExpression(block.id),
-                Ast.TableConstructorExpression(upvalueExpressions)
+                Ast.TableConstructorExpression(upvalueExpressions),
+                self:env(scope)
             });
         end
 

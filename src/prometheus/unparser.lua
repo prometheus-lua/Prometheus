@@ -407,12 +407,23 @@ function Unparser:unparseExpression(expression, tabbing)
 	end
 
 	if(expression.kind == AstKind.NumberExpression) then
-		local str = tostring(expression.value);
-		if(str == "inf") then
-			return "2e1024"
-		end
-		if(str == "-inf") then
-			return "-2e1024"
+		local value = expression.value;
+		local str = tostring(value);
+		-- Some steps supply numeric source strings rather than numeric values.
+		if(type(value) == "number") then
+			if(value ~= value) then
+				return "(0/0)";
+			end
+			if(value == math.huge) then
+				return "2e1024";
+			end
+			if(value == -math.huge) then
+				return "-2e1024";
+			end
+			-- Keep compact output when it round-trips; doubles can need 17 digits.
+			if(tonumber(str) ~= value) then
+				str = string.format("%.17g", value);
+			end
 		end
 		if(str:sub(1, 2) == "0.") then
 			str = str:sub(2);

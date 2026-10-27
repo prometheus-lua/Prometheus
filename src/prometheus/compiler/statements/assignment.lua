@@ -78,11 +78,11 @@ return function(self, statement, funcDepth)
             }, {
                 self:register(scope, exprregs[i])
             }), {}, {exprregs[i], baseReg, indexReg}, true);
-            self:freeRegister(exprregs[i], false);
             self:freeRegister(baseReg, false);
             self:freeRegister(indexReg, false);
         else
             error(string.format("Invalid Assignment lhs: %s", statement.lhs));
         end
+        self:freeRegister(exprregs[i], false);
     end
 end;

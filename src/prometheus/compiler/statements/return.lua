@@ -26,11 +26,10 @@ return function(self, statement, funcDepth)
         end
     end
 
+    self:addStatement(self:setReturn(scope, self:pack(scope, entries)), {self.RETURN_REGISTER}, regs, false);
     for _, reg in ipairs(regs) do
         self:freeRegister(reg, false);
     end
-
-    self:addStatement(self:setReturn(scope, self:pack(scope, entries)), {self.RETURN_REGISTER}, regs, false);
     self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
     self.activeBlock.advanceToNextBlock = false;
 end;

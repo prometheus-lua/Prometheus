@@ -99,6 +99,8 @@ return function(self, statement, funcDepth)
     self:compileBlock(statement.body, funcDepth);
     self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
 
+    -- Loop state is live on the back edge; release it only after exiting.
+    self:setActiveBlock(finalBlock);
     self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
     self:freeRegister(finalReg);
     self:freeRegister(incrementIsNegReg);
@@ -106,6 +108,5 @@ return function(self, statement, funcDepth)
     self:freeRegister(currentReg, true);
 
     self.registers[self.POS_REGISTER] = posState;
-    self:setActiveBlock(finalBlock);
 end;
 

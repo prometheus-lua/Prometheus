@@ -19,5 +19,12 @@ for _, seed in ipairs({1, 2, 3}) do
     local generated = Prometheus.Pipeline:fromConfig(config):apply("return nil, nil")
     local actual = pack(assert(loadstring(generated))())
     assert(actual.n == 2 and actual[1] == nil and actual[2] == nil)
+
+    -- Cleanup must preserve values and remain valid when registers spill.
+    local entries = {}
+    for i = 1, 250 do entries[i] = "value(" .. i .. ")" end
+    local source = "local function value(i) return i end; local values = {" .. table.concat(entries, ",") .. "}; assert(#values == 250 and values[250] == 250); return values, nil"
+    local actual = pack(assert(loadstring(Prometheus.Pipeline:fromConfig(config):apply(source)))())
+    assert(actual.n == 2 and actual[1][1] == 1 and actual[1][250] == 250 and actual[2] == nil)
 end
 print("VM chunk arity regression checks passed")

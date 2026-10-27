@@ -32,6 +32,9 @@ return function(Compiler)
         if type(statA) ~= "table" or type(statB) ~= "table" then
             return false;
         end
+        if statA.isCleanup ~= statB.isCleanup then
+            return false;
+        end
 
         if statA.usesUpvals or statB.usesUpvals then
             return false;
@@ -47,6 +50,11 @@ return function(Compiler)
         end
 
         if type(a.lhs) ~= "table" or type(a.rhs) ~= "table" or type(b.lhs) ~= "table" or type(b.rhs) ~= "table" then
+            return false;
+        end
+        -- Spilled temporaries can create more cleanup targets than Lua accepts
+        -- in one assignment. Keep cleanup batches within the register budget.
+        if statA.isCleanup and #a.lhs + #b.lhs > MAX_REGS then
             return false;
         end
 
@@ -112,6 +120,7 @@ return function(Compiler)
             writes = unionLookupTables(statA.writes, statB.writes),
             reads = unionLookupTables(statA.reads, statB.reads),
             usesUpvals = statA.usesUpvals or statB.usesUpvals,
+            isCleanup = statA.isCleanup,
         };
     end
 
@@ -149,6 +158,11 @@ return function(Compiler)
                 local usesUpvals = stat.usesUpvals;
                 for shift = 1, i - 1 do
                     local stat2 = blockstats[i - shift];
+
+                    -- Collection may happen during any operation, including allocation.
+                    if stat.isCleanup or stat2.isCleanup then
+                        break;
+                    end
 
                     if stat2.usesUpvals and usesUpvals then
                         break;

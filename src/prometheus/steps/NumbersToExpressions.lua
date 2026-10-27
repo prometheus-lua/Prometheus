@@ -106,6 +106,11 @@ function NumbersToExpressions:init(_)
 end
 
 function NumbersToExpressions:CreateNumberExpression(val, depth)
+	-- Non-finite values have no safe integer or scientific representation.
+	if val ~= val or val == math.huge or val == -math.huge then
+		return Ast.NumberExpression(val)
+	end
+
 	if depth > 0 and math.random() >= self.InternalThreshold or depth > 15 then
 		local format = self.AllowedNumberRepresentations[math.random(1, #self.AllowedNumberRepresentations)]
 		if not self.NumberRepresentationMutation then
@@ -116,7 +121,11 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 			if val ~= math.floor(val) or val < 0 then
 				return Ast.NumberExpression(val)
 			end
-			local hexStr = string.format("0x%X", val)
+			local ok, hexStr = pcall(string.format, "0x%X", val)
+			-- Integer formatting can overflow or reject values outside its range.
+			if not ok or tonumber(hexStr) ~= val then
+				return Ast.NumberExpression(val)
+			end
 			local result = ""
 			for i = 1, #hexStr do
 				local c = hexStr:sub(i, i)

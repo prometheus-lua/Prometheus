@@ -15,22 +15,21 @@ return function(self, statement, funcDepth)
     for i, expr in ipairs(statement.args) do
         if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
             local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
-            table.insert(entries, Ast.TableEntry(Ast.FunctionCallExpression(
+            table.insert(entries, Ast.FunctionCallExpression(
                 self:unpack(scope),
-                {self:register(scope, reg)})));
+                {self:register(scope, reg)}));
             table.insert(regs, reg);
         else
             local reg = self:compileExpression(expr, funcDepth, 1)[1];
-            table.insert(entries, Ast.TableEntry(self:register(scope, reg)));
+            table.insert(entries, self:register(scope, reg));
             table.insert(regs, reg);
         end
     end
 
+    self:addStatement(self:setReturn(scope, self:pack(scope, entries)), {self.RETURN_REGISTER}, regs, false);
     for _, reg in ipairs(regs) do
         self:freeRegister(reg, false);
     end
-
-    self:addStatement(self:setReturn(scope, Ast.TableConstructorExpression(entries)), {self.RETURN_REGISTER}, regs, false);
     self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
     self.activeBlock.advanceToNextBlock = false;
 end;

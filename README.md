@@ -41,6 +41,11 @@ Currently, Prometheus supports:
 - **Lua 5.1**
 - **LuaU** *(basic support is available, but still not fully finished)*
 
+Lua 5.1's legacy implicit `arg` table in vararg functions is unsupported.
+Use `...` and `select('#', ...)` instead; see [Limitations](doc/reference/limitations.md).
+Replacing a function's environment while it is running is also unsupported;
+set the environment before calling the function.
+
 ---
 
 
@@ -138,7 +143,8 @@ For more advanced use cases, configuration, and presets, see the [documentation]
 
 ## Tests
 
-The test suite runs inside Docker with lua5.1 and Luau:
+The test suite runs existing cases on Lua 5.1 and Luau, plus the adapted
+official Lua 5.1 suite on Lua 5.1, inside Docker:
 
 ```bash
 ./scripts/run-tests.sh           # Run all tests (default: 10 iterations)
@@ -146,6 +152,8 @@ The test suite runs inside Docker with lua5.1 and Luau:
 ./scripts/run-tests.sh -n 5      # Run with 5 iterations
 ./scripts/run-tests.sh -c config.lua  # Use a custom config
 ./scripts/run-tests.sh -v        # Verbose output
+./scripts/run-tests.sh --suite upstream --baseline-only  # Verify official originals
+./scripts/run-tests.sh --case lua51/closure.lua --preset Vmify --seed 4 -n 1
 ```
 
 ---

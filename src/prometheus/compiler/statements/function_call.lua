@@ -29,7 +29,7 @@ return function(self, statement, funcDepth)
         end
     end
 
-    self:addStatement(self:setRegister(scope, retReg, Ast.FunctionCallExpression(self:register(scope, baseReg), args)), {retReg}, {baseReg, unpack(regs)}, true);
+    self:addStatement(self:setRegister(scope, retReg, self:functionCall(scope, baseReg, args)), {retReg}, {baseReg, unpack(regs)}, true);
     self:freeRegister(baseReg, false);
     self:freeRegister(retReg, false);
     for _, reg in ipairs(regs) do

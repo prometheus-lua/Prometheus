@@ -11,11 +11,22 @@ return function(self, statement, funcDepth)
     local scope = self.activeBlock.scope;
     local exprregs = {};
     local assignmentIndexingRegs = {};
+    local function captureTarget(expression)
+        local reg = self:compileExpression(expression, funcDepth, 1)[1];
+        if self:isVarRegister(reg) then
+            local snapshot = self:allocRegister(false);
+            self:addStatement(self:copyRegisters(scope, {snapshot}, {reg}), {snapshot}, {reg}, false);
+            reg = snapshot;
+        end
+        return reg;
+    end
+
     for i, primaryExpr in ipairs(statement.lhs) do
         if(primaryExpr.kind == AstKind.AssignmentIndexing) then
+            -- Later target/RHS evaluation and writes may replace these locals.
             assignmentIndexingRegs [i] = {
-                base = self:compileExpression(primaryExpr.base, funcDepth, 1)[1],
-                index = self:compileExpression(primaryExpr.index, funcDepth, 1)[1],
+                base = captureTarget(primaryExpr.base),
+                index = captureTarget(primaryExpr.index),
             };
         end
     end
@@ -78,11 +89,11 @@ return function(self, statement, funcDepth)
             }, {
                 self:register(scope, exprregs[i])
             }), {}, {exprregs[i], baseReg, indexReg}, true);
-            self:freeRegister(exprregs[i], false);
             self:freeRegister(baseReg, false);
             self:freeRegister(indexReg, false);
         else
             error(string.format("Invalid Assignment lhs: %s", statement.lhs));
         end
+        self:freeRegister(exprregs[i], false);
     end
 end;

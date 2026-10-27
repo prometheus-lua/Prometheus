@@ -19,7 +19,10 @@ return function(self, statement, funcDepth)
     local posState = self.registers[self.POS_REGISTER];
     self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
 
-    local initialReg = self:compileExpression(statement.initialValue, funcDepth, 1)[1];
+    local initialExprReg = self:compileExpression(statement.initialValue, funcDepth, 1)[1];
+    local initialReg = self:allocRegister(false);
+    self:addStatement(self:copyRegisters(scope, {initialReg}, {initialExprReg}), {initialReg}, {initialExprReg}, false);
+    self:freeRegister(initialExprReg);
 
     local finalExprReg = self:compileExpression(statement.finalValue, funcDepth, 1)[1];
     local finalReg = self:allocRegister(false);
@@ -30,6 +33,26 @@ return function(self, statement, funcDepth)
     local incrementReg = self:allocRegister(false);
     self:addStatement(self:copyRegisters(scope, {incrementReg}, {incrementExprReg}), {incrementReg}, {incrementExprReg}, false);
     self:freeRegister(incrementExprReg);
+
+    -- Lua evaluates all three expressions before coercing and validating them.
+    -- Use captured builtins so replacing globals cannot change loop semantics.
+    scope:addReferenceToHigherScope(self.scope, self.tonumberVar, 3);
+    scope:addReferenceToHigherScope(self.scope, self.errorVar, 3);
+    for _, input in ipairs({
+        {initialReg, "initial value"},
+        {finalReg, "limit"},
+        {incrementReg, "step"},
+    }) do
+        local reg, name = input[1], input[2];
+        self:addStatement(self:setRegister(scope, reg, Ast.OrExpression(
+            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.tonumberVar), {
+                self:register(scope, reg),
+            }),
+            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.errorVar), {
+                Ast.StringExpression("'for' " .. name .. " must be a number"),
+            })
+        )), {reg}, {reg}, true);
+    end
 
     local tmpReg = self:allocRegister(false);
     self:addStatement(self:setRegister(scope, tmpReg, Ast.NumberExpression(0)), {tmpReg}, {}, false);
@@ -99,6 +122,8 @@ return function(self, statement, funcDepth)
     self:compileBlock(statement.body, funcDepth);
     self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
 
+    -- Loop state is live on the back edge; release it only after exiting.
+    self:setActiveBlock(finalBlock);
     self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
     self:freeRegister(finalReg);
     self:freeRegister(incrementIsNegReg);
@@ -106,6 +131,5 @@ return function(self, statement, funcDepth)
     self:freeRegister(currentReg, true);
 
     self.registers[self.POS_REGISTER] = posState;
-    self:setActiveBlock(finalBlock);
 end;
 

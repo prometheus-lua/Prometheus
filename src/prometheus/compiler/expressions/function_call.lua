@@ -38,12 +38,12 @@ return function(self, expression, funcDepth, numReturns)
     end
 
     if returnAll then
-        self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), args))}), {retRegs[1]}, {baseReg, unpack(regs)}, true);
+        self:addStatement(self:setRegister(scope, retRegs[1], self:pack(scope, {self:functionCall(scope, baseReg, args)})), {retRegs[1]}, {baseReg, unpack(regs)}, true);
     else
         if numReturns > 1 then
             local tmpReg = self:allocRegister(false);
 
-            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, baseReg), args))}), {tmpReg}, {baseReg, unpack(regs)}, true);
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(self:functionCall(scope, baseReg, args))}), {tmpReg}, {baseReg, unpack(regs)}, true);
 
 
             for i, reg in ipairs(retRegs) do
@@ -52,7 +52,7 @@ return function(self, expression, funcDepth, numReturns)
 
             self:freeRegister(tmpReg, false);
         else
-            self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, baseReg), args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
+            self:addStatement(self:setRegister(scope, retRegs[1], self:functionCall(scope, baseReg, args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
         end
     end
 

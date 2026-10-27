@@ -1,0 +1,626 @@
+--- a/attrib.lua
++++ b/attrib.lua
+@@ -7,7 +7,7 @@
+ assert(require"table" == table)
+ assert(require"io" == io)
+ assert(require"os" == os)
+-assert(require"debug" == debug)
++-- Prometheus: debug-library assertions excluded.
+ assert(require"coroutine" == coroutine)
+
+ assert(type(package.path) == "string")
+@@ -140,83 +140,26 @@
+ end
+
+
+-local function import(...)
+-  local f = {...}
+-  return function (m)
+-    for i=1, #f do m[f[i]] = _G[f[i]] end
+-  end
+-end
+-
+-local assert, module, package = assert, module, package
+-X = nil; x = 0; assert(_G.x == 0)   -- `x' must be a global variable
+-module"X"; x = 1; assert(_M.x == 1)
+-module"X.a.b.c"; x = 2; assert(_M.x == 2)
+-module("X.a.b", package.seeall); x = 3
+-assert(X._NAME == "X" and X.a.b.c._NAME == "X.a.b.c" and X.a.b._NAME == "X.a.b")
+-assert(X._M == X and X.a.b.c._M == X.a.b.c and X.a.b._M == X.a.b)
+-assert(X.x == 1 and X.a.b.c.x == 2 and X.a.b.x == 3)
+-assert(X._PACKAGE == "" and X.a.b.c._PACKAGE == "X.a.b." and
+-       X.a.b._PACKAGE == "X.a.")
+-assert(_PACKAGE.."c" == "X.a.c")
+-assert(X.a._NAME == nil and X.a._M == nil)
+-module("X.a", import("X")) ; x = 4
+-assert(X.a._NAME == "X.a" and X.a.x == 4 and X.a._M == X.a)
+-module("X.a.b", package.seeall); assert(x == 3); x = 5
+-assert(_NAME == "X.a.b" and X.a.b.x == 5)
+-
+-assert(X._G == nil and X.a._G == nil and X.a.b._G == _G and X.a.b.c._G == nil)
+-
+-setfenv(1, _G)
+-assert(x == 0)
++-- Prometheus: module calls that replace the running environment excluded.
+
+ assert(not pcall(module, "x"))
+ assert(not pcall(module, "math.sin"))
+
+
+--- testing C libraries
+-
+-
+-local p = ""   -- On Mac OS X, redefine this to "_"
+-
+--- assert(loadlib == package.loadlib)   -- only for compatibility
+-local f, err, when = package.loadlib("libs/lib1.so", p.."luaopen_lib1")
+-if not f then
+-  (Message or print)('\a\n >>> cannot load dynamic library <<<\n\a')
+-  print(err, when)
+-else
+-  f()   -- open library
+-  assert(require("lib1") == lib1)
+-  collectgarbage()
+-  assert(lib1.id("x") == "x")
+-  f = assert(package.loadlib("libs/lib1.so", p.."anotherfunc"))
+-  assert(f(10, 20) == "1020\n")
+-  f, err, when = package.loadlib("libs/lib1.so", p.."xuxu")
+-  assert(not f and type(err) == "string" and when == "init")
+-  package.cpath = "libs/?.so"
+-  require"lib2"
+-  assert(lib2.id("x") == "x")
+-  local fs = require"lib1.sub"
+-  assert(fs == lib1.sub and next(lib1.sub) == nil)
+-  module("lib2", package.seeall)
+-  f = require"-lib2"
+-  assert(f.id("x") == "x" and _M == f and _NAME == "lib2")
+-  module("lib1.sub", package.seeall)
+-  assert(_M == fs)
+-  setfenv(1, _G)
+- 
+-end
+-f, err, when = package.loadlib("donotexist", p.."xuxu")
+-assert(not f and type(err) == "string" and (when == "open" or when == "absent"))
+-
++-- Prometheus exclusion: Native C-library integration
+
+ -- testing preload
+
+ do
+   local p = package
+   package = {}
+-  p.preload.pl = function (...)
+-    module(...)
+-    function xuxu (x) return x+20 end
++  -- Prometheus: retain preload checks using an explicit module table.
++  p.preload.pl = function (name)
++    local m = {}
++    p.loaded[name] = m
++    _G[name] = m
++    function m.xuxu (x) return x+20 end
++    return m
+   end
+
+   require"pl"
+--- a/big.lua
++++ b/big.lua
+@@ -1,16 +1,6 @@
+ print "testing string length overflow"
+ 
+-local longs = string.rep("\0", 2^25)
+-local function catter (i)
+-  return assert(loadstring(
+-    string.format("return function(a) return a%s end",
+-                     string.rep("..a", i-1))))()
+-end
+-rep129 = catter(129)
+-local a, b = pcall(rep129, longs)
+-assert(not a and string.find(b, "overflow"))
+-print('+')
+-
++-- Prometheus exclusion: String-size overflow depends on host allocation limits
+ 
+ require "checktable"
+ 
+--- a/calls.lua
++++ b/calls.lua
+@@ -101,10 +101,10 @@
+ 
+ -- testing tail call
+ function deep (n) if n>0 then return deep(n-1) else return 101 end end
+-assert(deep(30000) == 101)
++-- Prometheus: original tail-call stack capacity excluded.
+ a = {}
+ function a:deep (n) if n>0 then return self:deep(n-1) else return 101 end end
+-assert(a:deep(30000) == 101)
++-- Prometheus: original tail-call stack capacity excluded.
+ 
+ print('+')
+ 
+@@ -238,7 +238,7 @@
+ 
+ a = assert(load(read1(x), "modname"))
+ assert(a() == "\0" and _G.x == 33)
+-assert(debug.getinfo(a).source == "modname")
++-- Prometheus: original source identity excluded.
+ 
+ x = string.dump(loadstring("x = 1; return x"))
+ i = 0
+@@ -267,23 +267,7 @@
+ assert(a()(2)(3)(10) == 15)
+ 
+ 
+--- test for dump/undump with upvalues
+-local a, b = 20, 30
+-x = loadstring(string.dump(function (x)
+-  if x == "set" then a = 10+b; b = b+1 else
+-  return a
+-  end
+-end))
+-assert(x() == nil)
+-assert(debug.setupvalue(x, 1, "hi") == "a")
+-assert(x() == "hi")
+-assert(debug.setupvalue(x, 2, 13) == "b")
+-assert(not debug.setupvalue(x, 3, 10))   -- only 2 upvalues
+-x("set")
+-assert(x() == 23)
+-x("set")
+-assert(x() == 24)
+-
++-- Prometheus exclusion: Debug upvalue names and mutation after bytecode loading
+ 
+ -- test for bug in parameter adjustment
+ assert((function () return nil end)(4) == nil)
+--- a/closure.lua
++++ b/closure.lua
+@@ -273,8 +273,7 @@
+ 
+ -- errors in coroutines
+ function foo ()
+-  assert(debug.getinfo(1).currentline == debug.getinfo(foo).linedefined + 1)
+-  assert(debug.getinfo(2).currentline == debug.getinfo(goo).linedefined)
++  -- Prometheus: original coroutine stack lines excluded.
+   coroutine.yield(3)
+   error(foo)
+ end
+@@ -406,17 +405,6 @@
+ _X()
+ 
+ 
+--- coroutine environments
+-co = coroutine.create(function ()
+-       coroutine.yield(getfenv(0))
+-       return loadstring("return a")()
+-     end)
+-
+-a = {a = 15}
+-debug.setfenv(co, a)
+-assert(debug.getfenv(co) == a)
+-assert(select(2, coroutine.resume(co)) == a)
+-assert(select(2, coroutine.resume(co)) == a.a)
+-
++-- Prometheus exclusion: Debug coroutine environment access
+ 
+ print'OK'
+--- a/constructs.lua
++++ b/constructs.lua
+@@ -186,7 +186,7 @@
+ end
+ 
+ function F(a)
+-  assert(debug.getinfo(1, "n").name == 'F')
++  -- Prometheus: original function name excluded.
+   return a,2,3
+ end
+ 
+--- a/errors.lua
++++ b/errors.lua
+@@ -138,34 +138,7 @@
+ 
+ lineerror = nil
+ 
+-C = 0
+-local l = debug.getinfo(1, "l").currentline; function y () C=C+1; y() end
+-
+-local function checkstackmessage (m)
+-  return (string.find(m, "^.-:%d+: stack overflow"))
+-end
+-assert(checkstackmessage(doit('y()')))
+-assert(checkstackmessage(doit('y()')))
+-assert(checkstackmessage(doit('y()')))
+--- teste de linhas em erro
+-C = 0
+-local l1
+-local function g()
+-  l1 = debug.getinfo(1, "l").currentline; y()
+-end
+-local _, stackmsg = xpcall(g, debug.traceback)
+-local stack = {}
+-for line in string.gmatch(stackmsg, "[^\n]*") do
+-  local curr = string.match(line, ":(%d+):")
+-  if curr then table.insert(stack, tonumber(curr)) end
+-end
+-local i=1
+-while stack[i] ~= l1 do
+-  assert(stack[i] == l)
+-  i = i+1
+-end
+-assert(i > 15)
+-
++-- Prometheus exclusion: Debug traceback and original stack-overflow lines
+ 
+ -- error in error handling
+ local res, msg = xpcall(error, error)
+@@ -207,44 +180,6 @@
+ end
+ 
+ 
+--- testing syntax limits
+-local function testrep (init, rep)
+-  local s = "local a; "..init .. string.rep(rep, 400)
+-  local a,b = loadstring(s)
+-  assert(not a and string.find(b, "syntax levels"))
+-end
+-testrep("a=", "{")
+-testrep("a=", "(")
+-testrep("", "a(")
+-testrep("", "do ")
+-testrep("", "while a do ")
+-testrep("", "if a then else ")
+-testrep("", "function foo () ")
+-testrep("a=", "a..")
+-testrep("a=", "a^")
+-
+-
+--- testing other limits
+--- upvalues
+-local  s = "function foo ()\n  local "
+-for j = 1,70 do
+-  s = s.."a"..j..", "
+-end
+-s = s.."b\n"
+-for j = 1,70 do
+-  s = s.."function foo"..j.." ()\n a"..j.."=3\n"
+-end
+-local a,b = loadstring(s)
+-assert(string.find(b, "line 3"))
+-
+--- local variables
+-s = "\nfunction foo ()\n  local "
+-for j = 1,300 do
+-  s = s.."a"..j..", " 
+-end
+-s = s.."b\n"
+-local a,b = loadstring(s)
+-assert(string.find(b, "line 2"))
+-
++-- Prometheus exclusion: Host parser limits and exact diagnostics
+ 
+ print('OK')
+--- a/events.lua
++++ b/events.lua
+@@ -2,16 +2,17 @@
+
+ X = 20; B = 30
+
+-setfenv(1, setmetatable({}, {__index=_G}))
+-
+-collectgarbage()
+-
+-X = X+10
+-assert(X == 30 and _G.X == 20)
+-B = false
+-assert(B == false)
+-B = nil
+-assert(B == 30)
++-- Prometheus: test table fallback without replacing the running environment.
++do
++  local env = setmetatable({}, {__index=_G})
++  collectgarbage()
++  env.X = env.X+10
++  assert(env.X == 30 and _G.X == 20)
++  env.B = false
++  assert(env.B == false)
++  env.B = nil
++  assert(env.B == 30)
++end
+
+ assert(getmetatable{} == nil)
+ assert(getmetatable(4) == nil)
+@@ -295,8 +296,7 @@
+
+ print'+'
+
+-local _g = _G
+-setfenv(1, setmetatable({}, {__index=function (_,k) return _g[k] end}))
++-- Prometheus: running-function environment replacement excluded.
+
+ -- testing proxies
+ assert(getmetatable(newproxy()) == nil)
+@@ -325,35 +325,7 @@
+
+ print '+'
+
+--- testing metatables for basic types
+-mt = {}
+-debug.setmetatable(10, mt)
+-assert(getmetatable(-2) == mt)
+-mt.__index = function (a,b) return a+b end
+-assert((10)[3] == 13)
+-assert((10)["3"] == 13)
+-debug.setmetatable(23, nil)
+-assert(getmetatable(-2) == nil)
+-
+-debug.setmetatable(true, mt)
+-assert(getmetatable(false) == mt)
+-mt.__index = function (a,b) return a or b end
+-assert((true)[false] == true)
+-assert((false)[false] == false)
+-debug.setmetatable(false, nil)
+-assert(getmetatable(true) == nil)
+-
+-debug.setmetatable(nil, mt)
+-assert(getmetatable(nil) == mt)
+-mt.__add = function (a,b) return (a or 0) + (b or 0) end
+-assert(10 + nil == 10)
+-assert(nil + 23 == 23)
+-assert(nil + nil == 0)
+-debug.setmetatable(nil, nil)
+-assert(getmetatable(nil) == nil)
+-
+-debug.setmetatable(nil, {})
+-
++-- Prometheus exclusion: Debug mutation of primitive-type metatables
+
+ print 'OK'
+
+--- a/gc.lua
++++ b/gc.lua
+@@ -85,48 +85,7 @@
+ assert(_G["while"] == 234)
+ 
+ 
+-local bytes = gcinfo()
+-while 1 do
+-  local nbytes = gcinfo()
+-  if nbytes < bytes then break end   -- run until gc
+-  bytes = nbytes
+-  a = {}
+-end
+-
+-
+-local function dosteps (siz)
+-  collectgarbage()
+-  collectgarbage"stop"
+-  local a = {}
+-  for i=1,100 do a[i] = {{}}; local b = {} end
+-  local x = gcinfo()
+-  local i = 0
+-  repeat
+-    i = i+1
+-  until collectgarbage("step", siz)
+-  assert(gcinfo() < x)
+-  return i
+-end
+-
+-assert(dosteps(0) > 10)
+-assert(dosteps(6) < dosteps(2))
+-assert(dosteps(10000) == 1)
+-assert(collectgarbage("step", 1000000) == true)
+-assert(collectgarbage("step", 1000000))
+-
+-
+-do
+-  local x = gcinfo()
+-  collectgarbage()
+-  collectgarbage"stop"
+-  repeat
+-    local a = {}
+-  until gcinfo() > 1000
+-  collectgarbage"restart"
+-  repeat
+-    local a = {}
+-  until gcinfo() < 1000
+-end
++-- Prometheus exclusion: Exact allocation thresholds and collector step counts
+ 
+ lim = 15
+ a = {}
+@@ -200,60 +159,7 @@
+ assert(next(a) == string.rep('$', 11))
+ 
+ 
+--- testing userdata
+-collectgarbage("stop")   -- stop collection
+-local u = newproxy(true)
+-local s = 0
+-local a = {[u] = 0}; setmetatable(a, {__mode = 'vk'})
+-for i=1,10 do a[newproxy(u)] = i end
+-for k in pairs(a) do assert(getmetatable(k) == getmetatable(u)) end
+-local a1 = {}; for k,v in pairs(a) do a1[k] = v end
+-for k,v in pairs(a1) do a[v] = k end
+-for i =1,10 do assert(a[i]) end
+-getmetatable(u).a = a1
+-getmetatable(u).u = u
+-do
+-  local u = u
+-  getmetatable(u).__gc = function (o)
+-    assert(a[o] == 10-s)
+-    assert(a[10-s] == nil) -- udata already removed from weak table
+-    assert(getmetatable(o) == getmetatable(u))
+-    assert(getmetatable(o).a[o] == 10-s)
+-    s=s+1
+-  end
+-end
+-a1, u = nil
+-assert(next(a) ~= nil)
+-collectgarbage()
+-assert(s==11)
+-collectgarbage()
+-assert(next(a) == nil)  -- finalized keys are removed in two cycles
+-
+-
+--- __gc x weak tables
+-local u = newproxy(true)
+-setmetatable(getmetatable(u), {__mode = "v"})
+-getmetatable(u).__gc = function (o) os.exit(1) end  -- cannot happen
+-collectgarbage()
+-
+-local u = newproxy(true)
+-local m = getmetatable(u)
+-m.x = {[{0}] = 1; [0] = {1}}; setmetatable(m.x, {__mode = "kv"});
+-m.__gc = function (o)
+-  assert(next(getmetatable(o).x) == nil)
+-  m = 10
+-end
+-u, m = nil
+-collectgarbage()
+-assert(m==10)
+-
+-
+--- errors during collection
+-u = newproxy(true)
+-getmetatable(u).__gc = function () error "!!!" end
+-u = nil
+-assert(not pcall(collectgarbage))
+-
++-- Prometheus exclusion: Exact userdata finalization order and lifetime
+ 
+ if not rawget(_G, "_soft") then
+   print("deep structures")
+@@ -284,29 +190,6 @@
+ 
+ 
+ 
+--- create a userdata to be collected when state is closed
+-do
+-  local newproxy,assert,type,print,getmetatable =
+-        newproxy,assert,type,print,getmetatable
+-  local u = newproxy(true)
+-  local tt = getmetatable(u)
+-  ___Glob = {u}   -- avoid udata being collected before program end
+-  tt.__gc = function (o)
+-    assert(getmetatable(o) == tt)
+-    -- create new objects during GC
+-    local a = 'xuxu'..(10+3)..'joao', {}
+-    ___Glob = o  -- ressurect object!
+-    newproxy(o)  -- creates a new one with same metatable
+-    print(">>> closing state " .. "<<<\n")
+-  end
+-end
+-
+--- create several udata to raise errors when collected while closing state
+-do
+-  local u = newproxy(true)
+-  getmetatable(u).__gc = function (o) return o + 1 end
+-  table.insert(___Glob, u)  -- preserve udata until the end
+-  for i = 1,10 do table.insert(___Glob, newproxy(u)) end
+-end
++-- Prometheus exclusion: Shutdown finalization order and errors
+ 
+ print('OK')
+--- a/literals.lua
++++ b/literals.lua
+@@ -109,12 +109,12 @@
+ y = "\
+ hello\r\n\
+ "
+-return debug.getinfo(1).currentline
++-- Prometheus: retain line-ending syntax checks without debug line counting.
+ ]]
+ 
+ for _, n in pairs{"\n", "\r", "\n\r", "\r\n"} do
+   local prog, nn = string.gsub(prog, "\n", n)
+-  assert(dostring(prog) == nn)
++  dostring(prog)
+   assert(_G.x == "hi\n" and _G.y == "\nhello\r\n\n")
+ end
+ 
+--- a/locals.lua
++++ b/locals.lua
+@@ -63,10 +63,7 @@
+   assert(b.A == 9)
+   a,b = f[8](0)
+   assert(b.A == 11)   -- `real' global
+-  local g
+-  local function f () assert(setfenv(2, {a='10'}) == g) end
+-  g = function () f(); _G.assert(_G.getfenv(1).a == '10') end
+-  g(); assert(getfenv(g).a == '10')
++  -- Prometheus: replacing an active caller environment excluded.
+ end
+
+ -- test for global table of loaded chunks
+--- a/nextvar.lua
++++ b/nextvar.lua
+@@ -231,19 +231,7 @@
+   end
+ end
+
+-local function foo ()
+-  local getfenv, setfenv, assert, next =
+-        getfenv, setfenv, assert, next
+-  local n = {gl1=3}
+-  setfenv(foo, n)
+-  assert(getfenv(foo) == getfenv(1))
+-  assert(getfenv(foo) == n)
+-  assert(print == nil and gl1 == 3)
+-  gl1 = nil
+-  gl = 1
+-  assert(n.gl == 1 and next(n, 'gl') == nil)
+-end
+-foo()
++-- Prometheus: replacing the executing function environment excluded.
+
+ print'+'
+
+--- a/vararg.lua
++++ b/vararg.lua
+@@ -1,8 +1,9 @@
+ print('testing vararg')
+
+-_G.arg = nil
++-- Prometheus: legacy implicit arg compatibility is unsupported.
+
+ function f(a, ...)
++  local arg = {n = select('#', ...), ...}
+   assert(type(arg) == 'table')
+   assert(type(arg.n) == 'number')
+   for i=1,arg.n do assert(a[i]==arg[i]) end
+@@ -10,14 +11,14 @@
+ end
+
+ function c12 (...)
+-  assert(arg == nil)
++  -- Prometheus: implicit nil arg compatibility excluded.
+   local x = {...}; x.n = table.getn(x)
+   local res = (x.n==2 and x[1] == 1 and x[2] == 2)
+   if res then res = 55 end
+   return res, 2
+ end
+
+-function vararg (...) return arg end
++function vararg (...) return {n = select('#', ...), ...} end
+
+ local call = function (f, args) return f(unpack(args, 1, args.n)) end
+
+@@ -42,7 +43,10 @@
+ assert(a == nil)
+
+ local t = {1, 10}
+-function t:f (...) return self[arg[1]]+arg.n end
++function t:f (...)
++  local arg = {n = select('#', ...), ...}
++  return self[arg[1]]+arg.n
++end
+ assert(t:f(1,4) == 3 and t:f(2) == 11)
+ print('+')
+
+@@ -77,7 +81,7 @@
+
+ function f (n, a, ...)
+   local b
+-  assert(arg == nil)
++  -- Prometheus: implicit nil arg compatibility excluded.
+   if n == 0 then
+     local b, c, d = ...
+     return a, b, c, d, oneless(oneless(oneless(...)))

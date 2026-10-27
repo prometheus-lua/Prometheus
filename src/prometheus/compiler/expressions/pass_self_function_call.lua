@@ -41,12 +41,12 @@ return function(self, expression, funcDepth, numReturns)
         local tmpReg = self:allocRegister(false);
 
         self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, true);
 
         if returnAll then
-            self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {retRegs[1]}, {tmpReg, unpack(regs)}, true);
+            self:addStatement(self:setRegister(scope, retRegs[1], self:pack(scope, {self:functionCall(scope, tmpReg, args)})), {retRegs[1]}, {tmpReg, unpack(regs)}, true);
         else
-            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {tmpReg}, {tmpReg, unpack(regs)}, true);
+            self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(self:functionCall(scope, tmpReg, args))}), {tmpReg}, {tmpReg, unpack(regs)}, true);
 
             for i, reg in ipairs(retRegs) do
                 self:addStatement(self:setRegister(scope, reg, Ast.IndexExpression(self:register(scope, tmpReg), Ast.NumberExpression(i))), {reg}, {tmpReg}, false);
@@ -58,8 +58,8 @@ return function(self, expression, funcDepth, numReturns)
         local tmpReg = retRegs[1] or self:allocRegister(false);
 
         self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(expression.passSelfFunctionName)), {tmpReg}, {}, false);
-        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
-        self:addStatement(self:setRegister(scope, retRegs[1], Ast.FunctionCallExpression(self:register(scope, tmpReg), args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
+        self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, true);
+        self:addStatement(self:setRegister(scope, retRegs[1], self:functionCall(scope, tmpReg, args)), {retRegs[1]}, {baseReg, unpack(regs)}, true);
     end
 
     for i, reg in ipairs(regs) do

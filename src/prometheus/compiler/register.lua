@@ -13,6 +13,12 @@ local MAX_REGS = constants.MAX_REGS;
 return function(Compiler)
     function Compiler:freeRegister(id, force)
         if force or not (self.registers[id] == self.VAR_REGISTER) then
+            -- Releasing an allocator slot must also release its runtime reference.
+            -- Control/return slots are reserved and never contain temporaries.
+            if id ~= self.POS_REGISTER and id ~= self.RETURN_REGISTER then
+                local scope = self.activeBlock.scope;
+                self:addStatement(self:setRegister(scope, id, Ast.NilExpression()), {id}, {}, false, true);
+            end
             self.usedRegisters = self.usedRegisters - 1;
             self.registers[id] = false
         end
@@ -25,17 +31,7 @@ return function(Compiler)
     function Compiler:allocRegister(isVar)
         self.usedRegisters = self.usedRegisters + 1;
 
-        if not isVar then
-            if not self.registers[self.POS_REGISTER] then
-                self.registers[self.POS_REGISTER] = true;
-                return self.POS_REGISTER;
-            end
-
-            if not self.registers[self.RETURN_REGISTER] then
-                self.registers[self.RETURN_REGISTER] = true;
-                return self.RETURN_REGISTER;
-            end
-        end
+        -- Dispatch position and final returns outlive ordinary temporary slots.
 
         local id = 0;
         if self.usedRegisters < MAX_REGS * constants.MAX_REGS_MUL then
@@ -202,13 +198,25 @@ return function(Compiler)
     end
 
     function Compiler:unpack(scope)
-        scope:addReferenceToHigherScope(self.scope, self.unpackVar);
-        return Ast.VariableExpression(self.scope, self.unpackVar);
+        scope:addReferenceToHigherScope(self.scope, self.unpackPackedVar);
+        return Ast.VariableExpression(self.scope, self.unpackPackedVar);
+    end
+
+    function Compiler:pack(scope, values)
+        scope:addReferenceToHigherScope(self.scope, self.packVar);
+        return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.packVar), values);
     end
 
     function Compiler:env(scope)
-        scope:addReferenceToHigherScope(self.scope, self.envVar);
-        return Ast.VariableExpression(self.scope, self.envVar);
+        scope:addReferenceToHigherScope(self.containerFuncScope, self.currentEnvVar);
+        return Ast.VariableExpression(self.containerFuncScope, self.currentEnvVar);
+    end
+
+    function Compiler:functionCall(scope, reg, args)
+        scope:addReferenceToHigherScope(self.scope, self.callFunctionVar);
+        local callArgs = {self:register(scope, reg), self:env(scope)};
+        for _, arg in ipairs(args) do table.insert(callArgs, arg); end
+        return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.callFunctionVar), callArgs);
     end
 
     function Compiler:jmp(scope, to)

@@ -28,8 +28,23 @@ return function(Compiler)
         return out;
     end
 
+    local function assignmentSlotCost(statement)
+        local slots = #statement.rhs;
+        for _, target in ipairs(statement.lhs) do
+            -- Indexed targets may keep both their table and key in temporary
+            -- slots while Lua evaluates the right-hand values.
+            if target.kind == AstKind.AssignmentIndexing then
+                slots = slots + 2;
+            end
+        end
+        return slots;
+    end
+
     local function canMergeParallelAssignmentStatements(statA, statB)
         if type(statA) ~= "table" or type(statB) ~= "table" then
+            return false;
+        end
+        if statA.isCleanup ~= statB.isCleanup then
             return false;
         end
 
@@ -47,6 +62,11 @@ return function(Compiler)
         end
 
         if type(a.lhs) ~= "table" or type(a.rhs) ~= "table" or type(b.lhs) ~= "table" or type(b.rhs) ~= "table" then
+            return false;
+        end
+        -- Leave room for the container's locals by keeping merged assignments'
+        -- temporary slot cost within the register budget, including spill targets.
+        if assignmentSlotCost(a) + assignmentSlotCost(b) > MAX_REGS then
             return false;
         end
 
@@ -112,6 +132,7 @@ return function(Compiler)
             writes = unionLookupTables(statA.writes, statB.writes),
             reads = unionLookupTables(statA.reads, statB.reads),
             usesUpvals = statA.usesUpvals or statB.usesUpvals,
+            isCleanup = statA.isCleanup,
         };
     end
 
@@ -149,6 +170,11 @@ return function(Compiler)
                 local usesUpvals = stat.usesUpvals;
                 for shift = 1, i - 1 do
                     local stat2 = blockstats[i - shift];
+
+                    -- Collection may happen during any operation, including allocation.
+                    if stat.isCleanup or stat2.isCleanup then
+                        break;
+                    end
 
                     if stat2.usesUpvals and usesUpvals then
                         break;
@@ -202,8 +228,8 @@ return function(Compiler)
             end
 
             local block = { id = id, index = i, block = Ast.Block(blockstats, block.scope) }
+            -- Block IDs can overlap list indices; keep this table an ordered list.
             table.insert(blocks, block);
-            blocks[id] = block;
         end
 
         table.sort(blocks, function(a, b) return a.id < b.id end);
@@ -211,7 +237,8 @@ return function(Compiler)
         -- Build a strict threshold condition between adjacent block IDs.
         -- Using a midpoint avoids exact-id comparisons while preserving dispatch.
         local function buildBlockThresholdCondition(scope, leftId, rightId, useAndOr)
-            local bound = math.floor((leftId + rightId) / 2);
+            -- Keep the midpoint strictly between the IDs, even when consecutive.
+            local bound = (leftId + rightId) / 2;
             local posExpr = self:pos(scope);
             local boundExpr = Ast.NumberExpression(bound);
 
@@ -277,9 +304,9 @@ return function(Compiler)
             local mid = l + math.ceil(len / 2);
             local leftMaxId = tb[mid - 1].id;
             local rightMinId = tb[mid].id;
-            -- Float-safe split: any bound strictly between adjacent IDs works.
-            -- Midpoint avoids integer-only math.random(min, max) behavior.
-            local bound = math.floor((leftMaxId + rightMinId) / 2);
+            -- IDs are 24-bit integers, so half-integer midpoints are exact.
+            -- Rounding would make consecutive IDs share a dispatch branch.
+            local bound = (leftMaxId + rightMinId) / 2;
             local ifScope = Scope:new(pScope);
 
             local lBlock = buildElseifChain(tb, l, mid - 1, ifScope);
@@ -348,7 +375,7 @@ return function(Compiler)
         }));
 
         table.insert(stats, Ast.ReturnStatement{
-            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
+            Ast.FunctionCallExpression(self:unpack(self.containerFuncScope), {
                 Ast.VariableExpression(self.containerFuncScope, self.returnVar)
             });
         });

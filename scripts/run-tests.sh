@@ -1,106 +1,84 @@
 #!/bin/bash
-# scripts/run-tests.sh
-# Convenience script to build and run Prometheus tests in Docker
+# Build and run the complete Lua semantic suite in Docker.
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
 IMAGE_NAME="${IMAGE_NAME:-prometheus-tests}"
 N="${N:-10}"
-DOCKER_EXTRA_ARGS=""
-
-usage() {
-    cat <<EOF
-Usage: $0 [OPTIONS]
-
-Run Prometheus tests inside a Docker container with lua5.1 and luau.
-
-Options:
-  -n N          Number of iterations per test/preset (default: 10)
-  -c FILE       Use custom config file instead of built-in presets
-  -b            Build the Docker image (rebuilds if already exists)
-  -v            Verbose output (show baseline captures and more detail)
-  --pass-runners  Show baseline pass per runner
-  --no-cache    Force Docker build with --no-cache
-  --ci          Run in CI mode (errors surface more aggressively)
-  -h, --help    Show this help
-
-Runtimes available in the container:
-  lua5.1, luau (built from source)
-
-EOF
-    exit 0
-}
-
 BUILD=0
 CUSTOM_CONFIG=""
-CI_FLAG=""
-VERBOSE_FLAG=""
-PASS_RUNNERS_FLAG=""
+ARTIFACT_DIR="${ARTIFACT_DIR:-$PROJECT_DIR/test-results}"
+BUILD_ARGS=()
+RUNNER_ARGS=()
+if [[ -n "${TEST_CA_BUNDLE:-}" ]]; then
+    BUILD_ARGS+=(--secret "id=ca-bundle,src=$TEST_CA_BUNDLE")
+fi
+
+usage() {
+    cat <<HELP
+Usage: $0 [OPTIONS]
+
+Run existing tests on lua5.1 and Luau, and adapted official tests on lua5.1.
+
+Options:
+  -n N              Iterations per test/preset (default: 10)
+  -c FILE           Custom config instead of built-in presets
+  -b                Build/rebuild the Docker image
+  -v                Verbose baseline reporting
+  --pass-runners    Show passing baselines
+  --no-cache        Build without cached layers
+  --ci              CI invocation (same failure policy)
+  --suite NAME      all (default), existing, or upstream
+  --case NAME       One case, e.g. lua51/closure.lua
+  --preset NAME     One preset
+  --runtime NAME    lua5.1 or luau (lua51 alias accepted)
+  --seed N          First obfuscation seed (default: 1)
+  --timeout N       Seconds per subprocess (default: 30)
+  --baseline-only   Run originals without obfuscation
+  --artifacts DIR   Host artifact directory (default: test-results)
+  -h, --help        Show this help
+
+All applicable cases/presets/iterations run even after failures. Logs and
+failure artifacts persist in the host artifact directory. AntiTamper is
+removed from presets, matching the existing suite's convention.
+HELP
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -n)
-            N="$2"
-            shift 2
-            ;;
-        -c)
-            CUSTOM_CONFIG="$2"
-            shift 2
-            ;;
-        -b)
-            BUILD=1
-            shift
-            ;;
-        -v)
-            VERBOSE_FLAG="--verbose"
-            shift
-            ;;
-        --pass-runners)
-            PASS_RUNNERS_FLAG="--pass-runners"
-            shift
-            ;;
-        --no-cache)
-            DOCKER_EXTRA_ARGS="$DOCKER_EXTRA_ARGS --no-cache"
-            shift
-            ;;
-        --ci)
-            CI_FLAG="--CI"
-            shift
-            ;;
-        -h|--help)
-            usage
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            ;;
+        -n|-c|--suite|--case|--preset|--runtime|--seed|--timeout|--artifacts)
+            [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 2; }
+            case "$1" in
+                -n) N="$2" ;;
+                -c) CUSTOM_CONFIG="$2" ;;
+                --artifacts) ARTIFACT_DIR="$2" ;;
+                *) RUNNER_ARGS+=("$1=$2") ;;
+            esac
+            shift 2 ;;
+        -b) BUILD=1; shift ;;
+        -v) RUNNER_ARGS+=(--verbose); shift ;;
+        --pass-runners|--baseline-only) RUNNER_ARGS+=("$1"); shift ;;
+        --no-cache) BUILD_ARGS+=(--no-cache); BUILD=1; shift ;;
+        --ci) RUNNER_ARGS+=(--ci); shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
 
-# Check if image exists; if not, build
 if [[ $BUILD -eq 1 ]] || ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
-    echo "=== Building Docker image '$IMAGE_NAME' ==="
-    docker build $DOCKER_EXTRA_ARGS -t "$IMAGE_NAME" "$PROJECT_DIR"
-    echo ""
+    docker build "${BUILD_ARGS[@]}" -t "$IMAGE_NAME" "$PROJECT_DIR"
 fi
 
-# Prepare config mount if custom config is specified
-CONFIG_MOUNT=""
-RUNNER_ARGS="--iterations=$N $CI_FLAG $VERBOSE_FLAG $PASS_RUNNERS_FLAG"
+mkdir -p "$ARTIFACT_DIR"
+ARTIFACT_ABS="$(cd "$ARTIFACT_DIR" && pwd)"
+MOUNTS=(-v "$ARTIFACT_ABS:/artifacts")
+RUNNER_ARGS+=("--iterations=$N" --artifacts=/artifacts)
 if [[ -n "$CUSTOM_CONFIG" ]]; then
     CONFIG_ABS="$(cd "$(dirname "$CUSTOM_CONFIG")" && pwd)/$(basename "$CUSTOM_CONFIG")"
-    CONFIG_CONTAINER="/tmp/prometheus_custom_config.lua"
-    CONFIG_MOUNT="-v $CONFIG_ABS:$CONFIG_CONTAINER:ro"
-    RUNNER_ARGS="$RUNNER_ARGS --config=$CONFIG_CONTAINER"
+    MOUNTS+=(-v "$CONFIG_ABS:/tmp/prometheus_custom_config.lua:ro")
+    RUNNER_ARGS+=(--config=/tmp/prometheus_custom_config.lua)
 fi
 
-echo "=== Running Prometheus Tests ==="
-echo "Iterations: $N"
-[[ -n "$CUSTOM_CONFIG" ]] && echo "Custom config: $CUSTOM_CONFIG"
-
-docker run --rm \
-    $CONFIG_MOUNT \
-    "$IMAGE_NAME" \
-    $RUNNER_ARGS
+echo "Running Prometheus tests ($N iterations); artifacts: $ARTIFACT_ABS"
+# Running as the invoking user keeps mounted artifacts readable and writable.
+docker run --rm --user "$(id -u):$(id -g)" "${MOUNTS[@]}" "$IMAGE_NAME" "${RUNNER_ARGS[@]}"

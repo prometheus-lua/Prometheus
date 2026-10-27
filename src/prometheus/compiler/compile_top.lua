@@ -56,7 +56,7 @@ return function(Compiler)
         self:compileBlock(node.body, 0);
         if(self.activeBlock.advanceToNextBlock) then
             self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-            self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {}, false)
+            self:addStatement(self:setReturn(self.activeBlock.scope, self:pack(self.activeBlock.scope, {})), {self.RETURN_REGISTER}, {}, false)
             self.activeBlock.advanceToNextBlock = false;
         end
 
@@ -123,13 +123,13 @@ return function(Compiler)
                 scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
                 scope:addReferenceToHigherScope(self.scope, self.selectVar);
                 scope:addReferenceToHigherScope(self.scope, self.unpackVar);
-                self:addStatement(self:setRegister(scope, self.varargReg, Ast.TableConstructorExpression({
-                    Ast.TableEntry(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.selectVar), {
+                self:addStatement(self:setRegister(scope, self.varargReg, self:pack(scope, {
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.selectVar), {
                         Ast.NumberExpression(i);
-                        Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
+                        Ast.FunctionCallExpression(self:unpack(scope), {
                             Ast.VariableExpression(self.containerFuncScope, self.argsVar),
                         });
-                    })),
+                    }),
                 })), {self.varargReg}, {}, false);
             end
         end
@@ -137,7 +137,7 @@ return function(Compiler)
         self:compileBlock(node.body, funcDepth);
         if(self.activeBlock.advanceToNextBlock) then
             self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-            self:addStatement(self:setReturn(self.activeBlock.scope, Ast.TableConstructorExpression({})), {self.RETURN_REGISTER}, {}, false);
+            self:addStatement(self:setReturn(self.activeBlock.scope, self:pack(self.activeBlock.scope, {})), {self.RETURN_REGISTER}, {}, false);
             self.activeBlock.advanceToNextBlock = false;
         end
 

@@ -348,7 +348,7 @@ return function(Compiler)
         }));
 
         table.insert(stats, Ast.ReturnStatement{
-            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
+            Ast.FunctionCallExpression(self:unpack(self.containerFuncScope), {
                 Ast.VariableExpression(self.containerFuncScope, self.returnVar)
             });
         });

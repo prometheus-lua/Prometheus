@@ -44,7 +44,7 @@ return function(self, expression, funcDepth, numReturns)
         self:addStatement(self:setRegister(scope, tmpReg, Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, tmpReg))), {tmpReg}, {baseReg, tmpReg}, false);
 
         if returnAll then
-            self:addStatement(self:setRegister(scope, retRegs[1], Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {retRegs[1]}, {tmpReg, unpack(regs)}, true);
+            self:addStatement(self:setRegister(scope, retRegs[1], self:pack(scope, {Ast.FunctionCallExpression(self:register(scope, tmpReg), args)})), {retRegs[1]}, {tmpReg, unpack(regs)}, true);
         else
             self:addStatement(self:setRegister(scope, tmpReg, Ast.TableConstructorExpression{Ast.TableEntry(Ast.FunctionCallExpression(self:register(scope, tmpReg), args))}), {tmpReg}, {tmpReg, unpack(regs)}, true);
 

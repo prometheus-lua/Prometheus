@@ -116,11 +116,14 @@ function Compiler:compile(ast)
     psc:addReferenceToHigherScope(newGlobalScope, newproxyVar);
     psc:addReferenceToHigherScope(newGlobalScope, setmetatableVar);
     psc:addReferenceToHigherScope(newGlobalScope, getmetatableVar);
+    psc:addReferenceToHigherScope(newGlobalScope, selectVar);
 
     self.scope = Scope:new(psc);
     self.envVar = self.scope:addVariable();
     self.containerFuncVar = self.scope:addVariable();
     self.unpackVar = self.scope:addVariable();
+    self.packVar = self.scope:addVariable();
+    self.unpackPackedVar = self.scope:addVariable();
     self.newproxyVar = self.scope:addVariable();
     self.setmetatableVar = self.scope:addVariable();
     self.getmetatableVar = self.scope:addVariable();
@@ -183,7 +186,34 @@ function Compiler:compile(ast)
 
     self:compileTopNode(ast);
 
+    -- VM value lists carry an explicit count: table length loses trailing nils.
+    local packScope = Scope:new(self.scope);
+    packScope:addReferenceToHigherScope(self.scope, self.selectVar);
+    local unpackScope = Scope:new(self.scope);
+    local unpackValuesVar = unpackScope:addVariable();
+    unpackScope:addReferenceToHigherScope(self.scope, self.unpackVar);
+
     local functionNodeAssignments = {
+        {
+            var = Ast.AssignmentVariable(self.scope, self.packVar),
+            val = Ast.FunctionLiteralExpression({Ast.VarargExpression()}, Ast.Block({
+                Ast.ReturnStatement{Ast.TableConstructorExpression({
+                    Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.FunctionCallExpression(
+                        Ast.VariableExpression(self.scope, self.selectVar),
+                        {Ast.StringExpression("#"), Ast.VarargExpression()})),
+                    Ast.TableEntry(Ast.VarargExpression()),
+                })},
+            }, packScope)),
+        }, {
+            var = Ast.AssignmentVariable(self.scope, self.unpackPackedVar),
+            val = Ast.FunctionLiteralExpression({Ast.VariableExpression(unpackScope, unpackValuesVar)}, Ast.Block({
+                Ast.ReturnStatement{Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
+                    Ast.VariableExpression(unpackScope, unpackValuesVar),
+                    Ast.NumberExpression(1),
+                    Ast.IndexExpression(Ast.VariableExpression(unpackScope, unpackValuesVar), Ast.StringExpression("n")),
+                })},
+            }, unpackScope)),
+        },
         {
             var = Ast.AssignmentVariable(self.scope, self.containerFuncVar),
             val = Ast.FunctionLiteralExpression({
@@ -214,7 +244,7 @@ function Compiler:compile(ast)
                             Ast.ReturnStatement{
                                 Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.containerFuncVar), {
                                     Ast.VariableExpression(createClosureScope, createClosurePosArg),
-                                    Ast.TableConstructorExpression({Ast.TableEntry(Ast.VarargExpression())}),
+                                    self:pack(createClosureSubScope, {Ast.VarargExpression()}),
                                     Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
                                     Ast.VariableExpression(createClosureScope, createClosureProxyObject)
                                 })
@@ -250,6 +280,8 @@ function Compiler:compile(ast)
     }
 
     local tbl = {
+        Ast.VariableExpression(self.scope, self.packVar),
+        Ast.VariableExpression(self.scope, self.unpackPackedVar),
         Ast.VariableExpression(self.scope, self.containerFuncVar),
         Ast.VariableExpression(self.scope, self.createVarargClosureVar),
         Ast.VariableExpression(self.scope, self.upvaluesTable),
@@ -294,6 +326,8 @@ function Compiler:compile(ast)
         Ast.VariableExpression(newGlobalScope, getmetatableVar);
         Ast.VariableExpression(newGlobalScope, selectVar);
         Ast.TableConstructorExpression({
+            Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.FunctionCallExpression(
+                Ast.VariableExpression(newGlobalScope, selectVar), {Ast.StringExpression("#"), Ast.VarargExpression()})),
             Ast.TableEntry(Ast.VarargExpression());
         })
     }
@@ -308,7 +342,7 @@ function Compiler:compile(ast)
             Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
                     Ast.NumberExpression(self.startBlockId);
                     Ast.TableConstructorExpression(upvalEntries);
-                }), {Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {Ast.VariableExpression(self.scope, argVar)})});
+                }), {Ast.FunctionCallExpression(self:unpack(self.scope), {Ast.VariableExpression(self.scope, argVar)})});
         }
     }, self.scope));
 
@@ -343,6 +377,7 @@ function Compiler:getCreateClosureVar(argCount)
             argsTb[i] = Ast.VariableExpression(createClosureSubScope, arg);
             argsTb2[i] = Ast.TableEntry(Ast.VariableExpression(createClosureSubScope, arg));
         end
+        table.insert(argsTb2, Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.NumberExpression(argCount)));
 
         local val = Ast.FunctionLiteralExpression({
             Ast.VariableExpression(createClosureScope, createClosurePosArg),

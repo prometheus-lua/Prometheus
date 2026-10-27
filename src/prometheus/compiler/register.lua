@@ -202,8 +202,13 @@ return function(Compiler)
     end
 
     function Compiler:unpack(scope)
-        scope:addReferenceToHigherScope(self.scope, self.unpackVar);
-        return Ast.VariableExpression(self.scope, self.unpackVar);
+        scope:addReferenceToHigherScope(self.scope, self.unpackPackedVar);
+        return Ast.VariableExpression(self.scope, self.unpackPackedVar);
+    end
+
+    function Compiler:pack(scope, values)
+        scope:addReferenceToHigherScope(self.scope, self.packVar);
+        return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.packVar), values);
     end
 
     function Compiler:env(scope)

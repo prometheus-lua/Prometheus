@@ -22,7 +22,7 @@
 * [Config Object Reference](reference/config-object.md)
 * [Step Pipeline Overview](reference/steps/overview.md)
 * [Step: WrapInFunction](reference/steps/wrapinfunction.md)
-* [Step: Vmify](reference/steps/vmify.md)
+* [Step: Cff](reference/steps/cff.md)
 * [Step: SplitStrings](reference/steps/splitstrings.md)
 * [Step: ProxifyLocals](reference/steps/proxifylocals.md)
 * [Step: EncryptStrings](reference/steps/encryptstrings.md)

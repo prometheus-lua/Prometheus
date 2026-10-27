@@ -13,11 +13,11 @@ local AstKind = Ast.AstKind;
 
 local unpack = unpack or table.unpack;
 
-local blockModule = require("prometheus.compiler.block");
-local registerModule = require("prometheus.compiler.register");
-local upvalueModule = require("prometheus.compiler.upvalue");
-local emitModule = require("prometheus.compiler.emit");
-local compileCoreModule = require("prometheus.compiler.compile_core");
+local blockModule = require("prometheus.cff.block");
+local registerModule = require("prometheus.cff.register");
+local upvalueModule = require("prometheus.cff.upvalue");
+local emitModule = require("prometheus.cff.emit");
+local compileCoreModule = require("prometheus.cff.compile_core");
 
 local Compiler = {};
 
@@ -207,7 +207,7 @@ function Compiler:compile(ast)
     unpackScope:addReferenceToHigherScope(self.scope, self.unpackVar);
 
     -- Keep query handling shared: a per-call closure would capture the frame's
-    -- environment and delay its collection when another Vmify pass wraps it.
+    -- environment and delay its collection when another Cff pass wraps it.
     -- Ordinary functions receive exactly their original arguments via a tail call.
     local callScope = Scope:new(self.scope);
     local callFuncVar, callEnvVar = callScope:addVariable(), callScope:addVariable();

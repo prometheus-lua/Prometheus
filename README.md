@@ -153,7 +153,7 @@ official Lua 5.1 suite on Lua 5.1, inside Docker:
 ./scripts/run-tests.sh -c config.lua  # Use a custom config
 ./scripts/run-tests.sh -v        # Verbose output
 ./scripts/run-tests.sh --suite upstream --baseline-only  # Verify official originals
-./scripts/run-tests.sh --case lua51/closure.lua --preset Vmify --seed 4 -n 1
+./scripts/run-tests.sh --case lua51/closure.lua --preset Cff --seed 4 -n 1
 ```
 
 ---

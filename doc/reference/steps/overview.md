@@ -6,11 +6,11 @@ After step application, Prometheus performs variable renaming and then unparses 
 
 ## Registered step constructor keys
 
-Use these exact values in `Steps[i].Name`:
+Use one of these constructor keys in `Steps[i].Name`:
 
 - `WrapInFunction`
 - `SplitStrings`
-- `Vmify`
+- `Cff` (also accepted as `ControlFlowFlattening`)
 - `ConstantArray`
 - `ProxifyLocals`
 - `AntiTamper`
@@ -23,7 +23,7 @@ Use these exact values in `Steps[i].Name`:
 
 ```lua
 {
-  Name = "Vmify",
+  Name = "Cff",
   Settings = {}
 }
 ```
@@ -31,6 +31,7 @@ Use these exact values in `Steps[i].Name`:
 ## Notes
 
 - Some constructor keys differ from internal human-readable names.
-- `Vmify` is a legacy constructor key name; behavior is closer to control-flow flattening style obfuscation than full virtualization.
+- `Cff` is the existing control-flow flattening step and has no settings. `ControlFlowFlattening` is also accepted as a constructor key alias.
+- `Vmify` is reserved for a future real VM step and is not registered in this milestone.
 - You can apply the same step more than once.
 - If a step returns a new AST, that AST is used for later steps.

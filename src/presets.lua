@@ -23,7 +23,7 @@ return {
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {
@@ -36,17 +36,17 @@ return {
 	},
 
 	-- This is here for the tests.lua file.
-	-- It helps isolate any problems with the Vmify step.
+	-- It helps isolate any problems with the Cff step.
 	-- It is not recommended to use this preset for obfuscation.
 	-- Use the Weak, Medium, or Strong for obfuscation instead.
-	["Vmify"] = {
+	["Cff"] = {
 		LuaVersion = "Lua51",
 		VarNamePrefix = "",
 		NameGenerator = "MangledShuffled",
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 		},
 	},
 
@@ -65,7 +65,7 @@ return {
 					UseDebug = false,
 				},
 			},
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {
@@ -89,7 +89,7 @@ return {
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{ Name = "EncryptStrings", Settings = {} },
 			{
 				Name = "AntiTamper",
@@ -97,7 +97,7 @@ return {
 					UseDebug = false,
 				},
 			},
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {

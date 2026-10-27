@@ -4,10 +4,13 @@
 --
 -- This Script provides a collection of obfuscation steps.
 
+local Cff = require("prometheus.steps.Cff");
+
 return {
 	WrapInFunction = require("prometheus.steps.WrapInFunction"),
 	SplitStrings = require("prometheus.steps.SplitStrings"),
-	Vmify = require("prometheus.steps.Vmify"),
+	Cff = Cff,
+	ControlFlowFlattening = Cff,
 	ConstantArray = require("prometheus.steps.ConstantArray"),
 	ProxifyLocals = require("prometheus.steps.ProxifyLocals"),
 	AntiTamper = require("prometheus.steps.AntiTamper"),

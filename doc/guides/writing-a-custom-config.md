@@ -19,7 +19,7 @@ return {
   Seed = 0,
   Steps = {
     { Name = "EncryptStrings", Settings = {} },
-    { Name = "Vmify", Settings = {} },
+    { Name = "Cff", Settings = {} },
     { Name = "WrapInFunction", Settings = { Iterations = 1 } },
   }
 }
@@ -28,6 +28,11 @@ return {
 ## Step ordering matters
 
 `Steps` are applied in order. The same step can appear multiple times.
+
+For existing custom configs, replace `Name = "Vmify"` with `Name = "Cff"`.
+The `ControlFlowFlattening` constructor key is also accepted. `Vmify` is
+reserved for a future real VM step and is not registered in this milestone.
+Rename the `Vmify` preset to `Cff` in CLI commands as well.
 
 ## Name generator values
 

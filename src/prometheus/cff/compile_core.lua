@@ -4,9 +4,9 @@
 -- This Script contains the core compilation functions: compileTopNode, compileFunction, compileBlock,
 -- compileStatement, and compileExpression
 
-local compileTop = require("prometheus.compiler.compile_top");
-local statementHandlers = require("prometheus.compiler.statements");
-local expressionHandlers = require("prometheus.compiler.expressions");
+local compileTop = require("prometheus.cff.compile_top");
+local statementHandlers = require("prometheus.cff.statements");
+local expressionHandlers = require("prometheus.cff.expressions");
 local Ast = require("prometheus.ast");
 local logger = require("logger");
 

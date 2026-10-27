@@ -7,7 +7,7 @@
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
-local constants = require("prometheus.compiler.constants");
+local constants = require("prometheus.cff.constants");
 local AstKind = Ast.AstKind;
 
 local MAX_REGS = constants.MAX_REGS;

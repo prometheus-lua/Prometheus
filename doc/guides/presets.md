@@ -4,7 +4,7 @@ Prometheus ships with these preset names in `src/presets.lua`:
 
 - `Minify`
 - `Weak`
-- `Vmify` (test-oriented helper preset)
+- `Cff` (test-oriented helper preset)
 - `Medium`
 - `Strong`
 
@@ -24,7 +24,7 @@ prometheus-lua --preset Medium ./file.lua
 
 Steps:
 
-1. `Vmify`
+1. `Cff`
 2. `ConstantArray`
 3. `WrapInFunction`
 
@@ -34,7 +34,7 @@ Steps:
 
 1. `EncryptStrings`
 2. `AntiTamper` (`UseDebug = false`)
-3. `Vmify`
+3. `Cff`
 4. `ConstantArray`
 5. `NumbersToExpressions`
 6. `WrapInFunction`
@@ -43,10 +43,10 @@ Steps:
 
 Steps:
 
-1. `Vmify`
+1. `Cff`
 2. `EncryptStrings`
 3. `AntiTamper` (`UseDebug = false`)
-4. `Vmify`
+4. `Cff`
 5. `ConstantArray`
 6. `NumbersToExpressions`
 7. `WrapInFunction`
@@ -56,3 +56,5 @@ Steps:
 - Start with `Medium`.
 - Move to `Strong` only after benchmarking your runtime path.
 - Use `Minify` when you want readability reduction only through compression/renaming style behavior.
+
+Preset compositions retain their current behavior in this milestone, with former `Vmify` steps renamed to `Cff`; the test preset is now named `Cff`. `Strong` therefore has two `Cff` passes for now. Its planned future sequence is one real `Vmify` pass followed by `Cff`; no real VM is available in this milestone.

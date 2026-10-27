@@ -83,14 +83,14 @@ From the repository root:
 ```sh
 bash scripts/run-tests.sh -b -n 10 --ci
 bash scripts/run-tests.sh --suite upstream --baseline-only --pass-runners
-bash scripts/run-tests.sh --suite upstream --case lua51/closure.lua --preset Vmify --seed 4 -n 1
+bash scripts/run-tests.sh --suite upstream --case lua51/closure.lua --preset Cff --seed 4 -n 1
 ```
 
 The same selectors are available directly when `lua5.1`, `luau`, Python 3,
 `patch`, and GNU coreutils are installed:
 
 ```sh
-lua5.1 docker-test-runner.lua --suite=upstream --case=lua51/closure.lua --preset=Vmify --seed=4 --iterations=1
+lua5.1 docker-test-runner.lua --suite=upstream --case=lua51/closure.lua --preset=Cff --seed=4 --iterations=1
 lua5.1 tests/harness/metadata.lua
 python3 tests/harness/runner.py
 ```

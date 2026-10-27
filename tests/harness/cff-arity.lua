@@ -3,7 +3,7 @@ Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error
 local function pack(...) return {n = select("#", ...), ...} end
 -- The outer wrapper must preserve chunk arguments and chunk return counts too.
 for _, seed in ipairs({1, 2, 3}) do
-    local config = {LuaVersion = "Lua51", Seed = seed, Steps = {{Name = "Vmify"}}}
+    local config = {LuaVersion = "Lua51", Seed = seed, Steps = {{Name = "Cff"}}}
     local generated = Prometheus.Pipeline:fromConfig(config):apply("return ...")
     local chunk = assert(loadstring(generated))
     for _, args in ipairs({pack(), pack(nil), pack(1, nil), pack(nil, 2, nil)}) do
@@ -33,4 +33,4 @@ for _, seed in ipairs({1, 2, 3}) do
     local actual = pack(assert(loadstring(Prometheus.Pipeline:fromConfig(config):apply(source)))())
     assert(actual.n == 2 and #actual[1] == 250 and actual[2] == nil)
 end
-print("VM chunk arity regression checks passed")
+print("CFF chunk arity regression checks passed")

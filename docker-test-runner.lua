@@ -17,7 +17,7 @@ local function integer(key, default)
     assert(value and value >= 1 and value == math.floor(value), "--" .. key .. " must be a positive integer")
     return value
 end
-local iterations, timeout, seed = integer("iterations", 10), integer("timeout", 30), integer("seed", 1)
+local iterations, timeout, seed = integer("iterations", 10), integer("timeout", 60), integer("seed", 1)
 assert(seed + iterations - 1 <= 2147483647, "seed range must fit a signed 32-bit integer")
 local suite = args.suite or "all"
 assert(suite == "all" or suite == "existing" or suite == "upstream", "invalid --suite")

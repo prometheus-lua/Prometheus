@@ -1,5 +1,30 @@
 [
   {
+    "file": "vararg.lua",
+    "lines": "3-9",
+    "reason": "Unsupported legacy implicit arg compatibility; replace implicit table with explicit varargs while preserving value and count assertions"
+  },
+  {
+    "file": "vararg.lua",
+    "lines": "13-13",
+    "reason": "Unsupported legacy implicit nil arg compatibility in functions using explicit varargs"
+  },
+  {
+    "file": "vararg.lua",
+    "lines": "20-20",
+    "reason": "Unsupported legacy implicit arg compatibility; pack explicit varargs with an exact count"
+  },
+  {
+    "file": "vararg.lua",
+    "lines": "45-45",
+    "reason": "Unsupported legacy implicit arg compatibility; preserve method-call checks with explicitly packed varargs"
+  },
+  {
+    "file": "vararg.lua",
+    "lines": "80-80",
+    "reason": "Unsupported legacy implicit nil arg compatibility in functions using explicit varargs"
+  },
+  {
     "file": "attrib.lua",
     "lines": "10-10",
     "reason": "Debug library"

@@ -35,6 +35,12 @@ manifest. Debug introspection, exact tail-call stack capacity, original source
 names/lines, collector step counts and finalization order, host parser limits,
 and native C libraries fall outside this suite's portable scope.
 
+Lua 5.1's legacy implicit `arg` compatibility is unsupported; see
+[Limitations](../../../doc/reference/limitations.md). In `vararg.lua`, legacy
+table uses are rewritten with `{n = select('#', ...), ...}` and assertions
+about the implicit nil `arg` are removed. Argument values, nils, counts,
+forwarding, and method-call checks remain covered using explicit varargs.
+
 The native `T` library is absent. Upstream guards therefore also exclude:
 
 - `nextvar.lua`: native table sizes/layout and `T.int2fb` checks;

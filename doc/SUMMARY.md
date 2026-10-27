@@ -17,6 +17,7 @@
 
 ## Reference
 
+* [Limitations](reference/limitations.md)
 * [CLI Options Reference](reference/cli-options.md)
 * [Config Object Reference](reference/config-object.md)
 * [Step Pipeline Overview](reference/steps/overview.md)

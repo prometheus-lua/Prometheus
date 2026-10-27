@@ -26,5 +26,11 @@ for _, seed in ipairs({1, 2, 3}) do
     local source = "local function value(i) return i end; local values = {" .. table.concat(entries, ",") .. "}; assert(#values == 250 and values[250] == 250); return values, nil"
     local actual = pack(assert(loadstring(Prometheus.Pipeline:fromConfig(config):apply(source)))())
     assert(actual.n == 2 and actual[1][1] == 1 and actual[1][250] == 250 and actual[2] == nil)
+
+    -- Literal initializers may merge, but must stay within Lua's assignment limit.
+    for i = 1, 250 do entries[i] = tostring(i) end
+    local source = "local values = {" .. table.concat(entries, ",") .. "}; for i = 1, 250 do assert(values[i] == i) end; return values, nil"
+    local actual = pack(assert(loadstring(Prometheus.Pipeline:fromConfig(config):apply(source)))())
+    assert(actual.n == 2 and #actual[1] == 250 and actual[2] == nil)
 end
 print("VM chunk arity regression checks passed")

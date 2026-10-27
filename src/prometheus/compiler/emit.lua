@@ -28,6 +28,18 @@ return function(Compiler)
         return out;
     end
 
+    local function assignmentSlotCost(statement)
+        local slots = #statement.rhs;
+        for _, target in ipairs(statement.lhs) do
+            -- Indexed targets may keep both their table and key in temporary
+            -- slots while Lua evaluates the right-hand values.
+            if target.kind == AstKind.AssignmentIndexing then
+                slots = slots + 2;
+            end
+        end
+        return slots;
+    end
+
     local function canMergeParallelAssignmentStatements(statA, statB)
         if type(statA) ~= "table" or type(statB) ~= "table" then
             return false;
@@ -52,9 +64,9 @@ return function(Compiler)
         if type(a.lhs) ~= "table" or type(a.rhs) ~= "table" or type(b.lhs) ~= "table" or type(b.rhs) ~= "table" then
             return false;
         end
-        -- Spilled temporaries can create more cleanup targets than Lua accepts
-        -- in one assignment. Keep cleanup batches within the register budget.
-        if statA.isCleanup and #a.lhs + #b.lhs > MAX_REGS then
+        -- Leave room for the container's locals by keeping merged assignments'
+        -- temporary slot cost within the register budget, including spill targets.
+        if assignmentSlotCost(a) + assignmentSlotCost(b) > MAX_REGS then
             return false;
         end
 

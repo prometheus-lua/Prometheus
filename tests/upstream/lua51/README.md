@@ -41,6 +41,14 @@ table uses are rewritten with `{n = select('#', ...), ...}` and assertions
 about the implicit nil `arg` are removed. Argument values, nils, counts,
 forwarding, and method-call checks remain covered using explicit varargs.
 
+Replacing a running function's environment is also unsupported, including
+`module(...)` calls from transformed code. The affected blocks in `events.lua`,
+`attrib.lua`, `locals.lua`, and `nextvar.lua` are adapted or excluded in
+`patches/portable.patch` and recorded in `exclusions.json`. Explicit table
+metatable and preload checks remain covered. Tests that set a function's
+environment before calling it, and thread-default environment checks, stay
+enabled; failures of those supported behaviors remain failures.
+
 The native `T` library is absent. Upstream guards therefore also exclude:
 
 - `nextvar.lua`: native table sizes/layout and `T.int2fb` checks;

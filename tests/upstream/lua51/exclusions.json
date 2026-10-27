@@ -137,5 +137,35 @@
     "lines": "109-123",
     "reason": "Native querytab checks; querytab is absent",
     "condition": "native runtime helper unavailable"
+  },
+  {
+    "file": "events.lua",
+    "lines": "5-14",
+    "reason": "Unsupported replacement of a running function environment; retain fallback, false-value, nil-value, and write-isolation checks using an explicit table"
+  },
+  {
+    "file": "events.lua",
+    "lines": "298-299",
+    "reason": "Unsupported replacement of a running function environment; retain subsequent proxy checks"
+  },
+  {
+    "file": "attrib.lua",
+    "lines": "143-170",
+    "reason": "Unsupported module calls that replace the running function environment"
+  },
+  {
+    "file": "attrib.lua",
+    "lines": "217-220",
+    "reason": "Unsupported module call in an executing preload loader; retain preload and require checks using an explicit module table"
+  },
+  {
+    "file": "locals.lua",
+    "lines": "66-69",
+    "reason": "Unsupported replacement of an active caller environment; retain pre-call function environment tests"
+  },
+  {
+    "file": "nextvar.lua",
+    "lines": "234-246",
+    "reason": "Unsupported replacement of the executing function environment"
   }
 ]

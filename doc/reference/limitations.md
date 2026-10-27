@@ -1,5 +1,28 @@
 # Limitations
 
+## Replacing a running function's environment
+
+Prometheus does not support replacing a function's environment while that
+function is running. This includes `setfenv(1, env)`, changing an active
+caller with `setfenv(2, env)`, and `setfenv(f, env)` when `f` is currently
+executing. Subsequent global reads and writes may still use the environment
+from the start of the call.
+
+Lua 5.1's `module(...)` also replaces the calling function's environment,
+so calling it from transformed code is subject to the same limitation.
+Use explicit module tables instead.
+
+Setting a function's environment before calling it is supported:
+
+```lua
+setfenv(f, env)
+f()
+```
+
+This limitation concerns replacing a running function's environment, not
+mutating values in an environment table or changing the thread's default
+environment with `setfenv(0, env)`.
+
 ## Legacy implicit `arg` table
 
 Prometheus does not support Lua 5.1's legacy compatibility behavior that creates

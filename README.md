@@ -43,6 +43,8 @@ Currently, Prometheus supports:
 
 Lua 5.1's legacy implicit `arg` table in vararg functions is unsupported.
 Use `...` and `select('#', ...)` instead; see [Limitations](doc/reference/limitations.md).
+Replacing a function's environment while it is running is also unsupported;
+set the environment before calling the function.
 
 ---
 

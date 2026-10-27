@@ -7,12 +7,46 @@
 -assert(require"debug" == debug)
 +-- Prometheus: debug-library assertions excluded.
  assert(require"coroutine" == coroutine)
- 
+
  assert(type(package.path) == "string")
-@@ -173,41 +173,7 @@
+@@ -140,83 +140,26 @@
+ end
+
+
+-local function import(...)
+-  local f = {...}
+-  return function (m)
+-    for i=1, #f do m[f[i]] = _G[f[i]] end
+-  end
+-end
+-
+-local assert, module, package = assert, module, package
+-X = nil; x = 0; assert(_G.x == 0)   -- `x' must be a global variable
+-module"X"; x = 1; assert(_M.x == 1)
+-module"X.a.b.c"; x = 2; assert(_M.x == 2)
+-module("X.a.b", package.seeall); x = 3
+-assert(X._NAME == "X" and X.a.b.c._NAME == "X.a.b.c" and X.a.b._NAME == "X.a.b")
+-assert(X._M == X and X.a.b.c._M == X.a.b.c and X.a.b._M == X.a.b)
+-assert(X.x == 1 and X.a.b.c.x == 2 and X.a.b.x == 3)
+-assert(X._PACKAGE == "" and X.a.b.c._PACKAGE == "X.a.b." and
+-       X.a.b._PACKAGE == "X.a.")
+-assert(_PACKAGE.."c" == "X.a.c")
+-assert(X.a._NAME == nil and X.a._M == nil)
+-module("X.a", import("X")) ; x = 4
+-assert(X.a._NAME == "X.a" and X.a.x == 4 and X.a._M == X.a)
+-module("X.a.b", package.seeall); assert(x == 3); x = 5
+-assert(_NAME == "X.a.b" and X.a.b.x == 5)
+-
+-assert(X._G == nil and X.a._G == nil and X.a.b._G == _G and X.a.b.c._G == nil)
+-
+-setfenv(1, _G)
+-assert(x == 0)
++-- Prometheus: module calls that replace the running environment excluded.
+
+ assert(not pcall(module, "x"))
  assert(not pcall(module, "math.sin"))
- 
- 
+
+
 --- testing C libraries
 -
 -
@@ -49,9 +83,25 @@
 -assert(not f and type(err) == "string" and (when == "open" or when == "absent"))
 -
 +-- Prometheus exclusion: Native C-library integration
- 
+
  -- testing preload
- 
+
+ do
+   local p = package
+   package = {}
+-  p.preload.pl = function (...)
+-    module(...)
+-    function xuxu (x) return x+20 end
++  -- Prometheus: retain preload checks using an explicit module table.
++  p.preload.pl = function (name)
++    local m = {}
++    p.loaded[name] = m
++    _G[name] = m
++    function m.xuxu (x) return x+20 end
++    return m
+   end
+
+   require"pl"
 --- a/big.lua
 +++ b/big.lua
 @@ -1,16 +1,6 @@
@@ -249,10 +299,48 @@
  print('OK')
 --- a/events.lua
 +++ b/events.lua
+@@ -2,16 +2,17 @@
+
+ X = 20; B = 30
+
+-setfenv(1, setmetatable({}, {__index=_G}))
+-
+-collectgarbage()
+-
+-X = X+10
+-assert(X == 30 and _G.X == 20)
+-B = false
+-assert(B == false)
+-B = nil
+-assert(B == 30)
++-- Prometheus: test table fallback without replacing the running environment.
++do
++  local env = setmetatable({}, {__index=_G})
++  collectgarbage()
++  env.X = env.X+10
++  assert(env.X == 30 and _G.X == 20)
++  env.B = false
++  assert(env.B == false)
++  env.B = nil
++  assert(env.B == 30)
++end
+
+ assert(getmetatable{} == nil)
+ assert(getmetatable(4) == nil)
+@@ -295,8 +296,7 @@
+
+ print'+'
+
+-local _g = _G
+-setfenv(1, setmetatable({}, {__index=function (_,k) return _g[k] end}))
++-- Prometheus: running-function environment replacement excluded.
+
+ -- testing proxies
+ assert(getmetatable(newproxy()) == nil)
 @@ -325,35 +325,7 @@
- 
+
  print '+'
- 
+
 --- testing metatables for basic types
 -mt = {}
 -debug.setmetatable(10, mt)
@@ -283,9 +371,9 @@
 -debug.setmetatable(nil, {})
 -
 +-- Prometheus exclusion: Debug mutation of primitive-type metatables
- 
+
  print 'OK'
- 
+
 --- a/gc.lua
 +++ b/gc.lua
 @@ -85,48 +85,7 @@
@@ -448,6 +536,43 @@
    assert(_G.x == "hi\n" and _G.y == "\nhello\r\n\n")
  end
  
+--- a/locals.lua
++++ b/locals.lua
+@@ -63,10 +63,7 @@
+   assert(b.A == 9)
+   a,b = f[8](0)
+   assert(b.A == 11)   -- `real' global
+-  local g
+-  local function f () assert(setfenv(2, {a='10'}) == g) end
+-  g = function () f(); _G.assert(_G.getfenv(1).a == '10') end
+-  g(); assert(getfenv(g).a == '10')
++  -- Prometheus: replacing an active caller environment excluded.
+ end
+
+ -- test for global table of loaded chunks
+--- a/nextvar.lua
++++ b/nextvar.lua
+@@ -231,19 +231,7 @@
+   end
+ end
+
+-local function foo ()
+-  local getfenv, setfenv, assert, next =
+-        getfenv, setfenv, assert, next
+-  local n = {gl1=3}
+-  setfenv(foo, n)
+-  assert(getfenv(foo) == getfenv(1))
+-  assert(getfenv(foo) == n)
+-  assert(print == nil and gl1 == 3)
+-  gl1 = nil
+-  gl = 1
+-  assert(n.gl == 1 and next(n, 'gl') == nil)
+-end
+-foo()
++-- Prometheus: replacing the executing function environment excluded.
+
+ print'+'
+
 --- a/vararg.lua
 +++ b/vararg.lua
 @@ -1,8 +1,9 @@

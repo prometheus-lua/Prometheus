@@ -29,10 +29,9 @@ return {
 
 `Steps` are applied in order. The same step can appear multiple times.
 
-For existing custom configs, replace `Name = "Vmify"` with `Name = "Cff"`.
-The `ControlFlowFlattening` constructor key is also accepted. `Vmify` is
-reserved for a future real VM step and is not registered in this milestone.
-Rename the `Vmify` preset to `Cff` in CLI commands as well.
+`Cff` performs control flow flattening. `ControlFlowFlattening` is also accepted as an alias for `Cff`. `Vmify` compiles the AST into register instructions and data tables, then emits Lua code with an interpreter for that data.
+
+If an existing config used `Name = "Vmify"` for the former control flow flattening behavior, change it to `Name = "Cff"` to keep that behavior. The same `Vmify` key now selects the register VM. The standalone `Cff` and `Vmify` presets are available with `--preset Cff` and `--preset Vmify`.
 
 ## Name generator values
 

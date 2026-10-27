@@ -1,16 +1,15 @@
 # Step Pipeline Overview
 
-Prometheus applies each configured step to the AST in the order listed in `Steps`.
-
-After step application, Prometheus performs variable renaming and then unparses code.
+Prometheus applies configured steps in the order listed in `Steps`. A step can return a new AST for the following steps to process. After the steps run, Prometheus performs variable renaming and unparses the code.
 
 ## Registered step constructor keys
 
-Use one of these constructor keys in `Steps[i].Name`:
+Use these constructor keys in `Steps[i].Name`:
 
 - `WrapInFunction`
 - `SplitStrings`
 - `Cff` (also accepted as `ControlFlowFlattening`)
+- `Vmify`
 - `ConstantArray`
 - `ProxifyLocals`
 - `AntiTamper`
@@ -23,15 +22,14 @@ Use one of these constructor keys in `Steps[i].Name`:
 
 ```lua
 {
-  Name = "Cff",
+  Name = "Vmify",
   Settings = {}
 }
 ```
 
 ## Notes
 
-- Some constructor keys differ from internal human-readable names.
-- `Cff` is the existing control-flow flattening step and has no settings. `ControlFlowFlattening` is also accepted as a constructor key alias.
-- `Vmify` is reserved for a future real VM step and is not registered in this milestone.
+- `Cff` flattens control flow into Lua statements dispatched through blocks. It has no settings; `ControlFlowFlattening` is accepted as an alias.
+- `Vmify` compiles the AST into register instructions and data tables, then emits Lua code with an interpreter for that data. It has no settings.
+- `Vmify` and `Cff` are separate steps and may both appear in a pipeline. Later steps receive the AST returned by the previous step.
 - You can apply the same step more than once.
-- If a step returns a new AST, that AST is used for later steps.

@@ -11,6 +11,7 @@ return {
 	SplitStrings = require("prometheus.steps.SplitStrings"),
 	Cff = Cff,
 	ControlFlowFlattening = Cff,
+	Vmify = require("prometheus.steps.Vmify"),
 	ConstantArray = require("prometheus.steps.ConstantArray"),
 	ProxifyLocals = require("prometheus.steps.ProxifyLocals"),
 	AntiTamper = require("prometheus.steps.AntiTamper"),

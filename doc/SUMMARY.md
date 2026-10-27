@@ -23,6 +23,7 @@
 * [Step Pipeline Overview](reference/steps/overview.md)
 * [Step: WrapInFunction](reference/steps/wrapinfunction.md)
 * [Step: Cff](reference/steps/cff.md)
+* [Step: Vmify](reference/steps/vmify.md)
 * [Step: SplitStrings](reference/steps/splitstrings.md)
 * [Step: ProxifyLocals](reference/steps/proxifylocals.md)
 * [Step: EncryptStrings](reference/steps/encryptstrings.md)
@@ -35,3 +36,4 @@
 ## Advanced
 
 * [How the Pipeline Works](advanced/how-the-pipeline-works.md)
+* [Register VM](advanced/register-vm.md)

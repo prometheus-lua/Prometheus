@@ -4,11 +4,12 @@ Prometheus ships with these preset names in `src/presets.lua`:
 
 - `Minify`
 - `Weak`
-- `Cff` (test-oriented helper preset)
+- `Cff` (standalone control flow flattening)
+- `Vmify` (standalone register VM)
 - `Medium`
 - `Strong`
 
-Use with:
+Use a preset with:
 
 ```bash
 prometheus-lua --preset Medium ./file.lua
@@ -28,13 +29,21 @@ Steps:
 2. `ConstantArray`
 3. `WrapInFunction`
 
+## Cff
+
+This test-oriented preset runs one `Cff` control flow flattening step.
+
+## Vmify
+
+This test-oriented preset compiles the input to the register VM with one `Vmify` step.
+
 ## Medium
 
 Steps:
 
 1. `EncryptStrings`
 2. `AntiTamper` (`UseDebug = false`)
-3. `Cff`
+3. `Vmify`
 4. `ConstantArray`
 5. `NumbersToExpressions`
 6. `WrapInFunction`
@@ -43,7 +52,7 @@ Steps:
 
 Steps:
 
-1. `Cff`
+1. `Vmify`
 2. `EncryptStrings`
 3. `AntiTamper` (`UseDebug = false`)
 4. `Cff`
@@ -51,10 +60,11 @@ Steps:
 6. `NumbersToExpressions`
 7. `WrapInFunction`
 
+In `Strong`, `Vmify` compiles the input first, then `Cff` flattens control flow in the generated VM Lua code. This preset contains one VM pass.
+
 ## Choosing quickly
 
 - Start with `Medium`.
 - Move to `Strong` only after benchmarking your runtime path.
 - Use `Minify` when you want readability reduction only through compression/renaming style behavior.
-
-Preset compositions retain their current behavior in this milestone, with former `Vmify` steps renamed to `Cff`; the test preset is now named `Cff`. `Strong` therefore has two `Cff` passes for now. Its planned future sequence is one real `Vmify` pass followed by `Cff`; no real VM is available in this milestone.
+- Use `Cff` and `Vmify` to exercise either step on its own in a custom pipeline.

@@ -1,0 +1,56 @@
+# Register VM architecture
+
+`Vmify` compiles the scoped Prometheus AST directly into instructions executed
+by a generated Lua interpreter. It does not use `string.dump`, an external Lua
+compiler, or `loadstring` to execute the original source.
+
+## Modules
+
+- `vm/analysis.lua`: lexical scope ownership and captured-local analysis.
+- `vm/compiler.lua`: function prototypes, constants, registers, and captures.
+- `vm/expressions.lua` and `vm/expressions_tables.lua`: expression lowering,
+  value lists, calls, branches, and table constructors.
+- `vm/statements.lua`: statements, lexical cleanup, and loop control.
+- `vm/opcodes.lua`: semantic instruction IDs.
+- `vm/runtime.lua` and `vm/runtime_dispatch.lua`: runtime templates and the
+  generated dispatcher.
+- `vm/emit.lua`: native prototype table literals and the runtime function IIFE.
+- `vm/flatten.lua`: the Cff integration for generated VM interpreters.
+
+A prototype contains instructions, constants, child prototypes, parameter
+metadata, and capture descriptors. The emitter passes the native prototype
+tables as an argument to a runtime function IIFE. The generated interpreter
+then uses that table data; the prototypes are not encoded as strings.
+
+Each invocation owns its register table and vararg tuple. Closures retain only
+their referenced upvalue cells; leaving a scope detaches its cells without
+destroying values shared by live closures. Value lists carry an explicit `n`
+so trailing nils survive calls, varargs, table constructors, and returns.
+Temporary registers are cleared after consumption, and conditional branches
+consume their test register on both paths.
+
+## Generation and composition
+
+`Cff` normally flattens control flow throughout its input AST. When it receives
+the AST emitted by `Vmify`, a private `vmRuntime` annotation selects a special
+path: `vm/flatten.lua` flattens the interpreter function only. The large native
+prototype table initialization remains outside the flattened function, keeping
+it out of the Cff control structure and jump limits used by Lua and LuaJIT.
+
+The special path passes read-only external lexical helpers through function
+arguments. This supports helpers introduced by intervening steps such as
+`EncryptStrings`. If the interpreter writes to an external lexical variable,
+the special path falls back to ordinary Cff compilation to preserve that
+write's behavior.
+
+`runtime_dispatch.lua` builds a balanced numeric `if`/`else` decision tree from
+the opcode IDs. The interpreter caches the current opcode and checks for an
+exact ID at each leaf before running that instruction's handler.
+
+`Strong` applies one `Vmify` pass followed by `EncryptStrings`, `AntiTamper`,
+and one `Cff` pass over the generated VM interpreter. `Weak` retains the
+standalone `Cff` transformation without the VM.
+
+Runtime compatibility follows the documented
+[limitations](../reference/limitations.md). Native debug representation and
+exact resource limits are not preserved.

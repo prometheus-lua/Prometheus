@@ -13,3 +13,6 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
+
+test-results
+__pycache__

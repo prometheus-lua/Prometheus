@@ -1,0 +1,116 @@
+[
+  {
+    "file": "attrib.lua",
+    "lines": "10-10",
+    "reason": "Debug library"
+  },
+  {
+    "file": "attrib.lua",
+    "lines": "176-211",
+    "reason": "Native C-library integration"
+  },
+  {
+    "file": "big.lua",
+    "lines": "3-14",
+    "reason": "String-size overflow depends on host allocation limits"
+  },
+  {
+    "file": "calls.lua",
+    "lines": "104-104",
+    "reason": "Tail-call stack capacity"
+  },
+  {
+    "file": "calls.lua",
+    "lines": "107-107",
+    "reason": "Tail-call stack capacity"
+  },
+  {
+    "file": "calls.lua",
+    "lines": "241-241",
+    "reason": "Debug source identity"
+  },
+  {
+    "file": "calls.lua",
+    "lines": "270-287",
+    "reason": "Debug upvalue names and mutation after bytecode loading"
+  },
+  {
+    "file": "closure.lua",
+    "lines": "276-277",
+    "reason": "Debug stack/source lines"
+  },
+  {
+    "file": "closure.lua",
+    "lines": "409-421",
+    "reason": "Debug coroutine environment access"
+  },
+  {
+    "file": "constructs.lua",
+    "lines": "189-189",
+    "reason": "Debug function names"
+  },
+  {
+    "file": "errors.lua",
+    "lines": "141-169",
+    "reason": "Debug traceback and original stack-overflow lines"
+  },
+  {
+    "file": "errors.lua",
+    "lines": "210-249",
+    "reason": "Host parser limits and exact diagnostics"
+  },
+  {
+    "file": "events.lua",
+    "lines": "328-357",
+    "reason": "Debug mutation of primitive-type metatables"
+  },
+  {
+    "file": "gc.lua",
+    "lines": "88-130",
+    "reason": "Exact allocation thresholds and collector step counts"
+  },
+  {
+    "file": "gc.lua",
+    "lines": "203-257",
+    "reason": "Exact userdata finalization order and lifetime"
+  },
+  {
+    "file": "gc.lua",
+    "lines": "287-311",
+    "reason": "Shutdown finalization order and errors"
+  },
+  {
+    "file": "literals.lua",
+    "lines": "112-112",
+    "reason": "Debug line counting in generated source"
+  },
+  {
+    "file": "literals.lua",
+    "lines": "117-117",
+    "reason": "Debug line-count assertion; preserve execution and string assertions"
+  },
+  {
+    "file": "nextvar.lua",
+    "lines": "15-134",
+    "reason": "Native table sizes/layout; guarded by T",
+    "condition": "native runtime helper unavailable"
+  },
+  {
+    "file": "closure.lua",
+    "lines": "365-398",
+    "reason": "Native yield/hook tests; skipped when T is absent",
+    "condition": "native runtime helper unavailable"
+  },
+  {
+    "file": "checktable.lua",
+    "lines": "10-77",
+    "reason": "Native table-layout functions; portable stat fallback returns before these",
+    "condition": "native runtime helper unavailable"
+  },
+  {
+    "file": "locals.lua",
+    "lines": "109-123",
+    "reason": "Native querytab checks; querytab is absent",
+    "condition": "native runtime helper unavailable"
+  }
+]

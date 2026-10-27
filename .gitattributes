@@ -1,2 +1,5 @@
 *.lua text=auto
 *.lua eol=lf
+
+# Preserve the official archive byte-for-byte for checksum verification.
+tests/upstream/lua51/vendor/** -text !eol

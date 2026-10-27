@@ -138,7 +138,8 @@ For more advanced use cases, configuration, and presets, see the [documentation]
 
 ## Tests
 
-The test suite runs inside Docker with lua5.1 and Luau:
+The test suite runs existing cases on Lua 5.1 and Luau, plus the adapted
+official Lua 5.1 suite on Lua 5.1, inside Docker:
 
 ```bash
 ./scripts/run-tests.sh           # Run all tests (default: 10 iterations)
@@ -146,7 +147,20 @@ The test suite runs inside Docker with lua5.1 and Luau:
 ./scripts/run-tests.sh -n 5      # Run with 5 iterations
 ./scripts/run-tests.sh -c config.lua  # Use a custom config
 ./scripts/run-tests.sh -v        # Verbose output
+./scripts/run-tests.sh --suite upstream --baseline-only  # Verify official originals
+./scripts/run-tests.sh --case lua51/closure.lua --preset Vmify --seed 4 -n 1
 ```
+
+Failures do not stop remaining cases, presets, or iterations. Logs and failing
+inputs/output persist in `test-results/`. Each obfuscation or execution has a
+30-second limit (override with `--timeout N`). AntiTamper is removed from tested
+presets. See [upstream suite provenance, exclusions, and reproduction](tests/upstream/lua51/README.md).
+
+Metadata directives may appear anywhere in the leading comment region, including
+after license comments and blank lines: `@skip`, `@runtime lua5.1 luau`,
+`@luau-only`, and `@skip-preset Weak`. Underscore aliases are accepted for the
+last two directives, and `lua51` is an alias for `lua5.1`. Preset names are
+case-sensitive; unknown or malformed directives fail with a file/line diagnostic.
 
 ---
 

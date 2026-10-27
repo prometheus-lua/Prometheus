@@ -24,12 +24,12 @@ local bodies = {
     ]==],
     ARGS = [==[
         x = { n = 0 }
-        for _, y in nativeIpairs(I[3]) do
+        for _, y in nativeIpairs(b) do
             x.n = x.n + 1
             x[x.n] = R[y]
         end
-        if I[4] ~= 0 then
-            y = R[I[4]]
+        if c ~= 0 then
+            y = R[c]
             for d = 1, y.n do
                 x.n = x.n + 1
                 x[x.n] = y[d]

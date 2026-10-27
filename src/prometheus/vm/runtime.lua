@@ -1,7 +1,7 @@
 -- Builds the Lua 5.1 runtime used by the bytecode emitter. The emitter replaces
 -- __PROTOTYPES__ with its native Lua table literal before parsing the source.
 local dispatch = require("prometheus.vm.runtime_dispatch")
-local opcodes = require("prometheus.vm.opcodes")
+local Layout = require("prometheus.vm.layout")
 
 local Runtime = {}
 
@@ -28,7 +28,7 @@ local function loop(P, U, Env, R, V)
         I = code[pc]
         pc = pc + 1
         opcode = I[1]
-        a, b, c, d = I[2], I[3], I[4], I[5]
+        __FETCH_OPERANDS__
         __DISPATCH__
         I, opcode, a, b, c, d, x, y, z = nil, nil, nil, nil, nil, nil, nil, nil, nil
     end
@@ -81,9 +81,16 @@ return make(prototypes[1], {}, entryEnv)(...)
 end)(__PROTOTYPES__, ...)
 ]=]
 
-function Runtime.build()
-    local source = template:gsub("__DISPATCH__", function()
-        return dispatch.build(opcodes)
+function Runtime.build(layout)
+    layout = layout or Layout.new()
+    local operands = layout.operands
+    local fetch = "a, b, c, d = I[" .. tostring(operands[1]) .. "], I["
+        .. tostring(operands[2]) .. "], I[" .. tostring(operands[3]) .. "], I["
+        .. tostring(operands[4]) .. "]"
+    local source = template:gsub("__FETCH_OPERANDS__", function()
+        return fetch
+    end):gsub("__DISPATCH__", function()
+        return dispatch.build(layout.opcodes)
     end)
     return source
 end

@@ -12,9 +12,12 @@ compiler, or `loadstring` to execute the original source.
   value lists, calls, branches, and table constructors.
 - `vm/statements.lua`: statements, lexical cleanup, and loop control.
 - `vm/opcodes.lua`: semantic instruction IDs.
+- `vm/layout.lua`: a per-emission opcode and operand layout.
 - `vm/runtime.lua` and `vm/runtime_dispatch.lua`: runtime templates and the
-  generated dispatcher.
-- `vm/emit.lua`: native prototype table literals and the runtime function IIFE.
+  generated dispatcher, configured for the selected opcode IDs and operand
+  positions.
+- `vm/emit.lua`: instruction encoding, native prototype table literals, and the
+  runtime function IIFE.
 - `vm/flatten.lua`: the Cff integration for generated VM interpreters.
 
 A prototype contains instructions, constants, child prototypes, parameter
@@ -43,9 +46,18 @@ arguments. This supports helpers introduced by intervening steps such as
 the special path falls back to ordinary Cff compilation to preserve that
 write's behavior.
 
+The compiler keeps canonical semantic instruction IDs. At emission, `layout.lua`
+chooses a permutation of the opcode IDs and a permutation of operand slots 2
+through 5; slot 1 always contains the opcode. The emitter encodes each
+instruction with that layout without changing the compiler prototypes. One
+layout is shared by the root prototype and all child prototypes in the emitted
+chunk.
+
 `runtime_dispatch.lua` builds a balanced numeric `if`/`else` decision tree from
-the opcode IDs. The interpreter caches the current opcode and checks for an
-exact ID at each leaf before running that instruction's handler.
+the selected opcode IDs. The interpreter reads each operand from its selected
+slot, then checks the opcode for an exact ID at each leaf before running its
+handler. For the same input, configuration, and Lua runtime, a fixed pipeline
+seed reproduces the layout. Different seeds can produce different layouts.
 
 `Strong` applies one `Vmify` pass followed by `EncryptStrings`, `AntiTamper`,
 and one `Cff` pass over the generated VM interpreter. `Weak` retains the

@@ -1,4 +1,4 @@
--- Semantic instruction IDs for the baseline VM. Layout mutation is a later pass.
+-- Semantic instruction IDs for compiler IR. Emission assigns randomized IDs.
 local names = {
     'LOAD', 'NIL', 'MOVE', 'CLEAR', 'CELL', 'GETCELL', 'SETCELL',
     'GETUP', 'SETUP', 'GLOBAL', 'SETGLOBAL', 'GETTABLE', 'SETTABLE',

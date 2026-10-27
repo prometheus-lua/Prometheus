@@ -4,9 +4,11 @@ local Parser = require('prometheus.parser')
 local Unparser = require('prometheus.unparser')
 local Enums = require('prometheus.enums')
 local Runtime = require('prometheus.vm.runtime')
+local Layout = require('prometheus.vm.layout')
 local Emit = {}
 
-function Emit.source(proto)
+function Emit.source(proto, layout)
+    layout = layout or Layout.new()
     local unparser = Unparser:new({LuaVersion = Enums.LuaVersion.Lua51})
     local function literal(value)
         if type(value) ~= 'table' then
@@ -17,8 +19,15 @@ function Emit.source(proto)
         return '{' .. table.concat(parts, ',') .. '}'
     end
     local function prototype(value)
-        local parts = {}
-        for _, key in ipairs({'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister'}) do
+        local instructions = {}
+        for _, instruction in ipairs(value.code) do
+            local encoded, length = layout:encode(instruction)
+            local operands = {}
+            for slot = 1, length do operands[slot] = literal(encoded[slot]) end
+            instructions[#instructions + 1] = '{' .. table.concat(operands, ',') .. '}'
+        end
+        local parts = {'code={' .. table.concat(instructions, ',') .. '}'}
+        for _, key in ipairs({'constants', 'captures', 'params', 'vararg', 'maxRegister'}) do
             parts[#parts + 1] = key .. '=' .. literal(value[key])
         end
         local children = {}
@@ -27,7 +36,7 @@ function Emit.source(proto)
         return '{' .. table.concat(parts, ',') .. '}'
     end
     local data = '{' .. prototype(proto) .. '}'
-    local source, count = Runtime.build():gsub('__PROTOTYPES__', function() return data end)
+    local source, count = Runtime.build(layout):gsub('__PROTOTYPES__', function() return data end)
     assert(count == 1, 'Runtime template must contain one prototype marker')
     return source
 end

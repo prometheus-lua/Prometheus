@@ -19,7 +19,7 @@ return {
   Seed = 0,
   Steps = {
     { Name = "EncryptStrings", Settings = {} },
-    { Name = "Vmify", Settings = {} },
+    { Name = "Cff", Settings = {} },
     { Name = "WrapInFunction", Settings = { Iterations = 1 } },
   }
 }
@@ -28,6 +28,10 @@ return {
 ## Step ordering matters
 
 `Steps` are applied in order. The same step can appear multiple times.
+
+`Cff` performs control flow flattening. `ControlFlowFlattening` is also accepted as an alias for `Cff`. `Vmify` compiles the AST into register instructions and data tables, then emits Lua code with an interpreter for that data.
+
+If an existing config used `Name = "Vmify"` for the former control flow flattening behavior, change it to `Name = "Cff"` to keep that behavior. The same `Vmify` key now selects the register VM. The standalone `Cff` and `Vmify` presets are available with `--preset Cff` and `--preset Vmify`.
 
 ## Name generator values
 

@@ -23,7 +23,7 @@ return {
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {
@@ -35,10 +35,21 @@ return {
 		},
 	},
 
-	-- This is here for the tests.lua file.
-	-- It helps isolate any problems with the Vmify step.
+	-- Standalone control-flow flattening for tests and custom pipelines.
 	-- It is not recommended to use this preset for obfuscation.
 	-- Use the Weak, Medium, or Strong for obfuscation instead.
+	["Cff"] = {
+		LuaVersion = "Lua51",
+		VarNamePrefix = "",
+		NameGenerator = "MangledShuffled",
+		PrettyPrint = false,
+		Seed = 0,
+		Steps = {
+			{ Name = "Cff", Settings = {} },
+		},
+	},
+
+	-- Standalone register VM for tests and custom pipelines.
 	["Vmify"] = {
 		LuaVersion = "Lua51",
 		VarNamePrefix = "",
@@ -58,14 +69,14 @@ return {
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "EncryptStrings", Settings = {} },
+			{ Name = "Vmify", Settings = {} },
+			{ Name = "EncryptStrings", Settings = { HoistVmStrings = true } },
 			{
 				Name = "AntiTamper",
 				Settings = {
 					UseDebug = false,
 				},
 			},
-			{ Name = "Vmify", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {
@@ -76,8 +87,9 @@ return {
 					LocalWrapperThreshold = 0,
 				},
 			},
-			{ Name = "NumbersToExpressions", Settings = {} },
 			{ Name = "WrapInFunction", Settings = {} },
+			{ Name = "Cff", Settings = { ExcludeVm = true } },
+			{ Name = "NumbersToExpressions", Settings = {} },
 		},
 	},
 
@@ -97,7 +109,7 @@ return {
 					UseDebug = false,
 				},
 			},
-			{ Name = "Vmify", Settings = {} },
+			{ Name = "Cff", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {

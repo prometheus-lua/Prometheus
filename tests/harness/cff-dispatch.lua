@@ -1,6 +1,6 @@
 local Prometheus = require("src.prometheus")
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error
-local Compiler = require("prometheus.compiler.compiler")
+local Compiler = require("prometheus.cff.compiler")
 local createBlock = Compiler.createBlock
 local firstId
 
@@ -18,7 +18,7 @@ local ok, err = pcall(function()
     for _, start in ipairs({0, 100}) do
         firstId = start
         for seed = 1, 10 do
-            local config = {LuaVersion = "Lua51", Seed = seed, Steps = {{Name = "Vmify"}}}
+            local config = {LuaVersion = "Lua51", Seed = seed, Steps = {{Name = "Cff"}}}
             local pipeline = Prometheus.Pipeline:fromConfig(config)
 
             -- Four blocks exercise the short elseif dispatcher.
@@ -39,4 +39,4 @@ local ok, err = pcall(function()
 end)
 Compiler.createBlock = createBlock
 assert(ok, err)
-print("VM dispatch boundary regression checks passed")
+print("CFF dispatch boundary regression checks passed")

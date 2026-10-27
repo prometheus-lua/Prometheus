@@ -32,7 +32,7 @@
 **Prometheus** is a Lua obfuscator written in pure Lua.
 
 It applies a range of **AST-based transformations** to make source code significantly harder to read, analyze, and reverse engineer.  
-These include techniques such as **control-flow flattening**, **constant encryption**, and other Lua-specific obfuscation strategies.
+These include **register VM virtualization**, **control-flow flattening**, **constant encryption**, and other Lua-specific obfuscation strategies.
 
 The project was inspired by the excellent [javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator).
 
@@ -153,7 +153,7 @@ official Lua 5.1 suite on Lua 5.1, inside Docker:
 ./scripts/run-tests.sh -c config.lua  # Use a custom config
 ./scripts/run-tests.sh -v        # Verbose output
 ./scripts/run-tests.sh --suite upstream --baseline-only  # Verify official originals
-./scripts/run-tests.sh --case lua51/closure.lua --preset Vmify --seed 4 -n 1
+./scripts/run-tests.sh --case lua51/closure.lua --preset Cff --seed 4 -n 1
 ```
 
 ---

@@ -33,7 +33,7 @@ Options:
   --preset NAME     One preset
   --runtime NAME    lua5.1 or luau (lua51 alias accepted)
   --seed N          First obfuscation seed (default: 1)
-  --timeout N       Seconds per subprocess (default: 30)
+  --timeout N       Seconds per subprocess (default: 60)
   --baseline-only   Run originals without obfuscation
   --artifacts DIR   Host artifact directory (default: test-results)
   -h, --help        Show this help

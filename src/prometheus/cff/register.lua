@@ -5,7 +5,7 @@
 -- This Script contains the register management for the compiler.
 
 local Ast = require("prometheus.ast");
-local constants = require("prometheus.compiler.constants");
+local constants = require("prometheus.cff.constants");
 local randomStrings = require("prometheus.randomStrings");
 
 local MAX_REGS = constants.MAX_REGS;

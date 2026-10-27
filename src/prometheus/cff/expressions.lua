@@ -8,7 +8,7 @@ local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;
 
 local handlers = {};
-local expressions = "prometheus.compiler.expressions.";
+local expressions = "prometheus.cff.expressions.";
 local function requireExpression(name)
     return require(expressions .. name);
 end

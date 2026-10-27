@@ -4,9 +4,9 @@
 -- This Script contains the core compilation functions: compileTopNode, compileFunction, compileBlock,
 -- compileStatement, and compileExpression
 
-local compileTop = require("prometheus.compiler.compile_top");
-local statementHandlers = require("prometheus.compiler.statements");
-local expressionHandlers = require("prometheus.compiler.expressions");
+local compileTop = require("prometheus.cff.compile_top");
+local statementHandlers = require("prometheus.cff.statements");
+local expressionHandlers = require("prometheus.cff.expressions");
 local Ast = require("prometheus.ast");
 local logger = require("logger");
 
@@ -23,6 +23,9 @@ return function(Compiler)
     end
 
     function Compiler:compileExpression(expression, funcDepth, numReturns)
+        if self.nativeExpressions and self.nativeExpressions[expression] then
+            return self:compileNativeExpression(expression, funcDepth, numReturns);
+        end
         local handler = expressionHandlers[expression.kind];
         if handler then
             local kind = expression.kind;

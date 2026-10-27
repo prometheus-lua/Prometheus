@@ -114,6 +114,7 @@ function Tokenizer:new(settings)
 		length = 0,
 		source = "", -- Source to Tokenize
 		luaVersion = luaVersion, -- LuaVersion to be used while Tokenizing
+		allowInternalIdentifiers = settings and settings.AllowInternalIdentifiers == true,
 		conventions = conventions;
 
 		NumberChars = conventions.NumberChars,
@@ -358,7 +359,8 @@ function Tokenizer:ident()
 
 	local tk = token(self, startPos, Tokenizer.TokenKind.Ident, source);
 
-	if(string.sub(source, 1, string.len(config.IdentPrefix)) == config.IdentPrefix) then
+	if(not self.allowInternalIdentifiers
+		and string.sub(source, 1, string.len(config.IdentPrefix)) == config.IdentPrefix) then
 		logger:warn(generateWarning(tk, string.format("identifiers should not start with \"%s\" as this may break the program", config.IdentPrefix)));
 	end
 

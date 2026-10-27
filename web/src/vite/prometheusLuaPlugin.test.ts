@@ -7,7 +7,7 @@ describe("luaPathToModuleName", () => {
     ["src/prometheus.lua", "prometheus"],
     ["src/presets.lua", "presets"],
     ["src/prometheus/pipeline.lua", "prometheus.pipeline"],
-    ["src/prometheus/compiler/expressions/string.lua", "prometheus.compiler.expressions.string"],
+    ["src/prometheus/cff/expressions/string.lua", "prometheus.cff.expressions.string"],
   ])("maps %s to %s", (filePath, moduleName) => {
     expect(luaPathToModuleName(filePath)).toBe(moduleName)
   })

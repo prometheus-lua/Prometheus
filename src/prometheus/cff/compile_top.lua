@@ -13,6 +13,7 @@ local AstKind = Ast.AstKind;
 
 return function(Compiler)
     function Compiler:compileTopNode(node)
+        if self.nativeExpressions then self:prepareNativeExpressions(node); end
         local startBlock = self:createBlock();
         local scope = startBlock.scope;
         self.startBlockId = startBlock.id;

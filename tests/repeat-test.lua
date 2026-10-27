@@ -1,6 +1,6 @@
 --============================================================
 -- Repeat-Until Semantics Test Suite
--- Target: Vmify
+-- Target: Cff
 -- Author: Zaenalos
 -- Purpose: Validate correct scope, control flow, and condition
 --============================================================

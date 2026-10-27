@@ -9,6 +9,7 @@
 --
 -- Settings Object:
 -- luaVersion : The LuaVersion of the Script - Currently Supported : Lua51 and LuaU
+-- AllowInternalIdentifiers : Skip reserved-prefix warnings for generated code (default false)
 --
 
 local Tokenizer = require("prometheus.tokenizer");
@@ -63,7 +64,8 @@ function Parser:new(settings)
 	local parser = {
 		luaVersion = luaVersion,
 		tokenizer = Tokenizer:new({
-			luaVersion = luaVersion
+			luaVersion = luaVersion,
+			AllowInternalIdentifiers = settings and settings.AllowInternalIdentifiers == true,
 		}),
 		tokens = {};
 		length = 0;

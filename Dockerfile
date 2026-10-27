@@ -27,6 +27,7 @@ COPY . /app
 RUN lua5.1 tests/harness/metadata.lua \
     && timeout 60s lua5.1 tests/harness/numbers-to-expressions.lua \
     && timeout 60s lua5.1 tests/harness/cff-arity.lua \
+    && timeout 60s lua5.1 tests/harness/cff-native.lua \
     && timeout 60s lua5.1 tests/harness/vm-arity.lua \
     && timeout 60s lua5.1 tests/harness/vm-prototypes.lua \
     && timeout 60s lua5.1 tests/harness/vm-layout.lua \

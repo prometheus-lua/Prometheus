@@ -1,6 +1,7 @@
 # Preset benchmarks
 
 Recorded v0.3 measurements: [v0.3-results.md](v0.3-results.md).
+Updated Medium measurements: [v0.3-medium-native-cff.md](v0.3-medium-native-cff.md).
 
 Run from the repository root with Python 3, Lua 5.1, and LuaJIT installed:
 
@@ -33,6 +34,8 @@ Other options include `--seeds 1 4 17`, `--samples 3`, `--target 0.1` (target
 CPU seconds per batch), `--timeout 60` (seconds per process), and
 `--runtimes lua5.1 luajit`. The LuaJIT run leaves JIT enabled. Tiny native JIT
 times can produce large slowdown ratios; compare absolute times as well.
+
+Use `--presets Medium` to benchmark a subset of presets against original source.
 
 Use `--resume` with the same output directory and options to reuse completed
 measurements after an interrupted run.

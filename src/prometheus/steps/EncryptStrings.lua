@@ -10,13 +10,16 @@ local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
 local visitast = require("prometheus.visitast");
 local util = require("prometheus.util")
+local hoistVmStrings = require("prometheus.vm.strings")
 local AstKind = Ast.AstKind;
 
 local EncryptStrings = Step:extend()
 EncryptStrings.Description = "This Step will encrypt strings within your Program."
 EncryptStrings.Name = "Encrypt Strings"
 
-EncryptStrings.SettingsDescriptor = {}
+EncryptStrings.SettingsDescriptor = {
+    HoistVmStrings = {type = "boolean", default = false},
+}
 
 function EncryptStrings:init(_) end
 
@@ -187,6 +190,7 @@ end]]
 end
 
 function EncryptStrings:apply(ast, _)
+    if self.HoistVmStrings then hoistVmStrings(ast); end
     local Encryptor = self:CreateEncryptionService();
 
 	local code = Encryptor.genCode();

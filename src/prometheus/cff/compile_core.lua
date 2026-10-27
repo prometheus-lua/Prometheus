@@ -23,6 +23,9 @@ return function(Compiler)
     end
 
     function Compiler:compileExpression(expression, funcDepth, numReturns)
+        if self.nativeExpressions and self.nativeExpressions[expression] then
+            return self:compileNativeExpression(expression, funcDepth, numReturns);
+        end
         local handler = expressionHandlers[expression.kind];
         if handler then
             local kind = expression.kind;

@@ -18,6 +18,8 @@ compiler, or `loadstring` to execute the original source.
   positions.
 - `vm/emit.lua`: instruction encoding, native prototype table literals, and the
   runtime function IIFE.
+- `vm/strings.lua`: optional hoisting of generated interpreter string literals
+  into an outer initializer.
 - `vm/flatten.lua`: the Cff integration for generated VM interpreters.
 
 A prototype contains instructions, constants, child prototypes, parameter
@@ -36,15 +38,29 @@ consume their test register on both paths.
 
 `Cff` normally flattens control flow throughout its input AST. When it receives
 the AST emitted by `Vmify`, a private `vmRuntime` annotation selects a special
-path: `vm/flatten.lua` flattens the interpreter function only. The large native
-prototype table initialization remains outside the flattened function, keeping
-it out of the Cff control structure and jump limits used by Lua and LuaJIT.
+path: by default, `vm/flatten.lua` flattens the interpreter function only. The
+large native prototype table initialization remains outside the flattened
+function, keeping it out of the Cff control structure and jump limits used by
+Lua and LuaJIT.
 
-The special path passes read-only external lexical helpers through function
-arguments. This supports helpers introduced by intervening steps such as
-`EncryptStrings`. If the interpreter writes to an external lexical variable,
-the special path falls back to ordinary Cff compilation to preserve that
-write's behavior.
+Set `Cff`'s `ExcludeVm` setting to `true` to leave both the generated
+interpreter and the native prototype table literal out of flattening. Cff then
+flattens the surrounding code, including helpers introduced by intervening
+steps such as string decoders or tamper checks. The interpreter remains native
+Lua, so its lexical captures continue to share variables with surrounding
+closures according to ordinary Lua upvalue semantics.
+
+`cff/native.lua` emits the excluded expressions directly and bridges their
+external locals through Cff's shared upvalue cells. Garbage-collected capture
+proxies keep those cells alive for native closures; captures are not value
+snapshots. The `vmData` annotation identifies the entire prototype initializer,
+including its child prototypes.
+
+With the default `ExcludeVm = false` behavior, the special path passes
+read-only external lexical helpers through function arguments. This supports
+helpers introduced by intervening steps such as `EncryptStrings`. If the
+interpreter writes to an external lexical variable, the special path falls
+back to ordinary Cff compilation to preserve that write's behavior.
 
 The compiler keeps canonical semantic instruction IDs. At emission, `layout.lua`
 chooses a permutation of the opcode IDs and a permutation of operand slots 2
@@ -59,9 +75,25 @@ slot, then checks the opcode for an exact ID at each leaf before running its
 handler. For the same input, configuration, and Lua runtime, a fixed pipeline
 seed reproduces the layout. Different seeds can produce different layouts.
 
+In Medium, `EncryptStrings` uses `HoistVmStrings = true` after `Vmify`. It moves
+the generated interpreter's literal strings into an outer initializer, where
+normal string encryption and later `ConstantArray` processing apply. The
+initializer decodes them once at startup and binds them to native lexical
+locals used by the interpreter, avoiding decoder or wrapper calls on hot
+paths. Strings in `vmData` prototype tables remain encrypted by the normal
+`EncryptStrings` behavior. `vm/strings.lua` implements this transformation.
+
+Medium then applies `AntiTamper`, `ConstantArray`, and `WrapInFunction`,
+followed by `Cff` with `ExcludeVm = true`. The interpreter and prototype table
+initializers stay native while Cff flattens the surrounding code and generated
+helpers. `NumbersToExpressions` runs after Cff: it adds no helper functions,
+and this ordering prevents Cff from virtualizing arithmetic constant
+expressions.
+
 `Strong` applies one `Vmify` pass followed by `EncryptStrings`, `AntiTamper`,
-and one `Cff` pass over the generated VM interpreter. `Weak` retains the
-standalone `Cff` transformation without the VM.
+and one default `Cff` pass over the generated VM interpreter. It retains the
+default `HoistVmStrings = false` and `ExcludeVm = false` settings. `Weak`
+retains the standalone `Cff` transformation without the VM.
 
 Runtime compatibility follows the documented
 [limitations](../reference/limitations.md). Native debug representation and

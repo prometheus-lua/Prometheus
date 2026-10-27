@@ -65,6 +65,7 @@ registerModule(Compiler);
 upvalueModule(Compiler);
 emitModule(Compiler);
 compileCoreModule(Compiler);
+require("prometheus.cff.native")(Compiler);
 
 function Compiler:pushRegisterUsageInfo()
     table.insert(self.registerUsageStack, {

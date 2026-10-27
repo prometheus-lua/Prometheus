@@ -63,7 +63,7 @@ def report(data, output):
         for case in data['cases']:
             rows = [row for row in data['results'] if row['runtime'] == runtime and row['case'] == case]
             baseline = statistics.median(next(row for row in rows if row['preset'] == 'Original')['seconds'])
-            for preset in ('Original',) + PRESETS:
+            for preset in ('Original',) + tuple(data.get('presets', PRESETS)):
                 selected = [row for row in rows if row['preset'] == preset]
                 seconds = statistics.median([t for row in selected for t in row['seconds']])
                 seed_times = [statistics.median(row['seconds']) * 1000 for row in selected]
@@ -87,6 +87,7 @@ def main():
     parser.add_argument('--target', type=float, default=0.1)
     parser.add_argument('--timeout', type=int, default=60)
     parser.add_argument('--runtimes', nargs='+', default=['lua5.1', 'luajit'])
+    parser.add_argument('--presets', nargs='+', choices=PRESETS, default=list(PRESETS))
     parser.add_argument('--resume', action='store_true', help='reuse completed rows in the output directory')
     args = parser.parse_args()
     if args.samples < 1 or args.target <= 0 or args.timeout < 1:
@@ -97,18 +98,19 @@ def main():
     assert cases, 'No benchmark cases found'
     data = dict(host=platform.platform(), cpu=cpu_model(), seeds=args.seeds, samples=args.samples,
                 target_seconds=args.target, cases=[case.stem for case in cases],
-                versions={}, results=[])
+                presets=args.presets, versions={}, results=[])
     if args.resume:
         previous = json.loads((output / 'results.json').read_text())
         for key in ('seeds', 'samples', 'target_seconds', 'cases'):
             assert previous[key] == data[key], f'Resume configuration mismatch: {key}'
+        assert previous.get('presets', list(PRESETS)) == args.presets, 'Resume preset mismatch'
         data['results'] = previous['results']
     for runtime in args.runtimes:
         version = subprocess.run([runtime, '-v'], text=True, capture_output=True, check=True)
         data['versions'][runtime] = (version.stdout + version.stderr).strip()
     for case in cases:
         generated = [('Original', 0, case, 0.0)]
-        for preset in PRESETS:
+        for preset in args.presets:
             for seed in args.seeds:
                 path = output / f'{case.stem}-{preset}-{seed}.lua'
                 completed = next((row for row in data['results'] if row['case'] == case.stem

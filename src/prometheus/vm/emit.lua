@@ -44,6 +44,7 @@ end
 function Emit.ast(proto)
     local ast = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(Emit.source(proto))
     ast.vmRuntime = ast.body.statements[1].args[1].base
+    ast.vmData = ast.body.statements[1].args[1].args[1]
     return ast
 end
 

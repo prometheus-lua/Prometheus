@@ -69,14 +69,14 @@ return {
 		PrettyPrint = false,
 		Seed = 0,
 		Steps = {
-			{ Name = "EncryptStrings", Settings = {} },
+			{ Name = "Vmify", Settings = {} },
+			{ Name = "EncryptStrings", Settings = { HoistVmStrings = true } },
 			{
 				Name = "AntiTamper",
 				Settings = {
 					UseDebug = false,
 				},
 			},
-			{ Name = "Vmify", Settings = {} },
 			{
 				Name = "ConstantArray",
 				Settings = {
@@ -87,8 +87,9 @@ return {
 					LocalWrapperThreshold = 0,
 				},
 			},
-			{ Name = "NumbersToExpressions", Settings = {} },
 			{ Name = "WrapInFunction", Settings = {} },
+			{ Name = "Cff", Settings = { ExcludeVm = true } },
+			{ Name = "NumbersToExpressions", Settings = {} },
 		},
 	},
 

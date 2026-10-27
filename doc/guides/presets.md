@@ -41,12 +41,26 @@ This test-oriented preset compiles the input to the register VM with one `Vmify`
 
 Steps:
 
-1. `EncryptStrings`
-2. `AntiTamper` (`UseDebug = false`)
-3. `Vmify`
+1. `Vmify`
+2. `EncryptStrings` (`HoistVmStrings = true`)
+3. `AntiTamper` (`UseDebug = false`)
 4. `ConstantArray`
-5. `NumbersToExpressions`
-6. `WrapInFunction`
+5. `WrapInFunction`
+6. `Cff` (`ExcludeVm = true`)
+7. `NumbersToExpressions`
+
+`HoistVmStrings` moves interpreter string literals into an outer initializer;
+that initializer follows the regular encryption and constant array flow,
+decodes the strings once at startup, then binds them to native lexical locals
+inside the interpreter. This avoids decoder and wrapper calls on the
+interpreter's hot paths. Strings in `vmData` remain encrypted normally.
+
+`Cff` runs after the helper-producing steps, so it flattens their surrounding
+code, including string decoder, tamper check, constant array, and wrapper
+code. The generated VM interpreter and its native prototype table
+initializers remain outside Cff flattening. `NumbersToExpressions` runs after
+Cff because it adds no helper functions and keeps arithmetic constant
+expressions from being virtualized by Cff.
 
 ## Strong
 
@@ -60,7 +74,7 @@ Steps:
 6. `NumbersToExpressions`
 7. `WrapInFunction`
 
-In `Strong`, `Vmify` compiles the input first, then `Cff` flattens control flow in the generated VM Lua code. This preset contains one VM pass.
+In `Strong`, `Vmify` compiles the input first, then `Cff` flattens control flow in the generated VM Lua code. It keeps the defaults `HoistVmStrings = false` and `ExcludeVm = false`; the preset is unchanged and contains one VM pass.
 
 ## Choosing quickly
 

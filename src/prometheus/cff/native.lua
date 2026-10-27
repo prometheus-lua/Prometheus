@@ -115,7 +115,7 @@ return function(Compiler)
             finish = 'if ' .. names.setenv .. ' then ' .. names.setenv .. '(' .. names.result
                 .. ',' .. names.env .. ') end;'
         end
-        local parsed = Parser:new({LuaVersion = 'Lua51'}):parse('return function('
+        local parsed = Parser:new({LuaVersion = 'Lua51', AllowInternalIdentifiers = true}):parse('return function('
             .. names.proxy .. ',' .. names.env .. ',' .. names.values .. ') local '
             .. names.result .. '=' .. source .. ';' .. finish .. 'return ' .. names.result .. ' end')
         local factory = parsed.body.statements[1].args[1]

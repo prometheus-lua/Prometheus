@@ -42,7 +42,7 @@ return function(ast)
     local runtime = ast.vmRuntime
     local variables, writes = externalVariables(ast, runtime)
     if writes then return nil end
-    local parser = Parser:new({LuaVersion = Enums.LuaVersion.Lua51})
+    local parser = Parser:new({LuaVersion = Enums.LuaVersion.Lua51, AllowInternalIdentifiers = true})
     local unparser = Unparser:new({LuaVersion = Enums.LuaVersion.Lua51})
     local runtimeSource = unparser:unparseExpression(runtime, 0)
     local prefix = ''

@@ -24,6 +24,8 @@ RUN lua5.1 -v && printf 'print("luau OK")\n' > /tmp/luau_check.lua && luau /tmp/
 WORKDIR /app
 COPY . /app
 
-RUN lua5.1 tests/harness/metadata.lua && python3 tests/harness/runner.py
+RUN lua5.1 tests/harness/metadata.lua \
+    && timeout 30s lua5.1 tests/harness/numbers-to-expressions.lua \
+    && python3 tests/harness/runner.py
 
 ENTRYPOINT ["lua5.1", "docker-test-runner.lua"]

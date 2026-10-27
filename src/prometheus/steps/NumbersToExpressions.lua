@@ -106,6 +106,11 @@ function NumbersToExpressions:init(_)
 end
 
 function NumbersToExpressions:CreateNumberExpression(val, depth)
+	-- Non-finite values have no safe integer or scientific representation.
+	if val ~= val or val == math.huge or val == -math.huge then
+		return Ast.NumberExpression(val)
+	end
+
 	if depth > 0 and math.random() >= self.InternalThreshold or depth > 15 then
 		local format = self.AllowedNumberRepresentations[math.random(1, #self.AllowedNumberRepresentations)]
 		if not self.NumberRepresentationMutation then

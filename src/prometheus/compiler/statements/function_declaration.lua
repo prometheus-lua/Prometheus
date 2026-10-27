@@ -37,7 +37,7 @@ return function(self, statement, funcDepth)
             local indexReg = self:compileExpression(Ast.StringExpression(index), funcDepth, 1)[1];
             local tblRegOld = tblReg;
             tblReg = self:allocRegister(false);
-            self:addStatement(self:setRegister(scope, tblReg, Ast.IndexExpression(self:register(scope, tblRegOld), self:register(scope, indexReg))), {tblReg}, {tblReg, indexReg}, false);
+            self:addStatement(self:setRegister(scope, tblReg, Ast.IndexExpression(self:register(scope, tblRegOld), self:register(scope, indexReg))), {tblReg}, {tblRegOld, indexReg}, false);
             self:freeRegister(tblRegOld, false);
             self:freeRegister(indexReg, false);
         end

@@ -7,6 +7,12 @@
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;
 
+local function isSideEffectFreeLiteral(expression)
+    local kind = expression.kind;
+    return kind == AstKind.NilExpression or kind == AstKind.BooleanExpression or
+        kind == AstKind.NumberExpression or kind == AstKind.StringExpression;
+end
+
 return function(self, statement, funcDepth)
     local scope = self.activeBlock.scope;
     local exprregs = {};
@@ -17,9 +23,16 @@ return function(self, statement, funcDepth)
                 table.insert(exprregs, reg);
             end
         else
-            if statement.ids[i] or expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression then
+            if statement.ids[i] then
                 local reg = self:compileExpression(expr, funcDepth, 1)[1];
                 table.insert(exprregs, reg);
+            else
+                -- Initializers past the declared names are discarded, but
+                -- Lua still evaluates them for their effects and errors.
+                if not isSideEffectFreeLiteral(expr) then
+                    local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                    self:freeRegister(reg, false);
+                end
             end
         end
     end

@@ -93,6 +93,11 @@ end
 function Compiler:load(value)
     local register = self:alloc()
     if value == nil then self:emit('NIL', register)
+    elseif type(value) == 'number' and value == 0 and 1 / value < 0 then
+        -- Lua 5.1 merges signed-zero literals in one native function's constants.
+        -- Materialize the sign with a VM operation so it cannot be lost in emitted data.
+        self:emit('LOAD', register, self:constant(0))
+        self:emit('NEG', register, register)
     else self:emit('LOAD', register, self:constant(value)) end
     return register
 end

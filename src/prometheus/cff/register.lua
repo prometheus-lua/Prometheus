@@ -6,7 +6,6 @@
 
 local Ast = require("prometheus.ast");
 local constants = require("prometheus.cff.constants");
-local randomStrings = require("prometheus.randomStrings");
 
 local MAX_REGS = constants.MAX_REGS;
 
@@ -226,9 +225,8 @@ return function(Compiler)
 
     function Compiler:setPos(scope, val)
         if not val then
-            local v = Ast.IndexExpression(self:env(scope), randomStrings.randomStringNode(math.random(12, 14)));
             scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
-            return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {v});
+            return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {Ast.NilExpression()});
         end
         scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {Ast.NumberExpression(val) or Ast.NilExpression()});

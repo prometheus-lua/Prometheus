@@ -12,6 +12,37 @@ obfuscation:
 
 Source code constructed or loaded at runtime is not automatically obfuscated.
 
+## Luau
+
+Use `--LuaU` or `LuaVersion = "LuaU"` for Luau input. Type declarations,
+annotations, assertions (`::`), and type function declarations are removed;
+Prometheus does not type-check them, evaluate `typeof` expressions in type
+positions, or retain exported types for consumers. The type grammar is validated
+before erasure, including type packs, generic parameter defaults, and union and
+intersection grouping. Unknown type names remain syntactically valid; use Luau's
+type checker to resolve names and verify type compatibility. Run the output on Luau.
+
+Conditional expressions, including `elseif` branches, interpolated strings,
+contextual [`const` declarations](https://rfcs.luau.org/const-keyword.html), and
+generalized `for` iteration are supported. `const` bindings are checked for
+reassignment and lowered to locals; tables
+referenced by a `const` remain mutable. Interpolation uses Luau's `%*` string
+formatting and therefore requires a Luau runtime for the transformed code.
+
+Minify leaves generalized iteration to Luau. The `Cff` and `Vmify` compilers normalize tables, `__iter`, callable objects, and
+ordinary iterator triples. This normalization uses the runtime's `type`,
+`getmetatable`, `rawget`, `next`, and `error` globals; they must retain their
+standard behavior. Generalized iteration over objects with protected
+metatables is not supported by these compilers: Luau hides the real metatable
+from ordinary Lua code. Use an explicit iterator function, for example
+`for k, v in pairs(t) do`, when appropriate. A non-table protection value
+is rejected; a table used as `__metatable` cannot be distinguished from a
+real metatable and may cause different behavior.
+
+Luau's floor division (`//` and `//=`) and the use of
+`continue` as an identifier are not supported. Type function bodies must use
+syntax that the parser supports even though those declarations are erased.
+
 ## Replacing a running function's environment
 
 Prometheus does not support replacing a function's environment while that

@@ -30,3 +30,6 @@ config.lua
 # Lua test logs and reproduction artifacts
 /test-results/
 __pycache__/
+
+# Local reference implementation, not part of Prometheus
+/.reference-obfuscator/

@@ -74,7 +74,7 @@ return function(self, statement, funcDepth)
     self:addStatement(Ast.AssignmentStatement({
         self:posAssignment(scope)
     }, {
-        Ast.OrExpression(Ast.AndExpression(self:register(scope, exprregs[3]), Ast.NumberExpression(bodyBlock.id)), Ast.NumberExpression(finalBlock.id))
+        Ast.OrExpression(Ast.AndExpression(Ast.NotEqualsExpression(self:register(scope, exprregs[3]), Ast.NilExpression()), Ast.NumberExpression(bodyBlock.id)), Ast.NumberExpression(finalBlock.id))
     }), {self.POS_REGISTER}, {exprregs[3]}, false);
 
     self:setActiveBlock(bodyBlock);

@@ -19,7 +19,7 @@ local Tokenizer = {};
 
 Tokenizer.EOF_CHAR = "<EOF>";
 Tokenizer.WHITESPACE_CHARS = lookupify{
-	" ", "\t", "\n", "\r",
+	" ", "\t", "\n", "\r", "\v", "\f",
 }
 
 Tokenizer.ANNOTATION_CHARS = lookupify(chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"))
@@ -34,6 +34,7 @@ Tokenizer.TokenKind = {
 	Ident = "Identifier",
 	Number = "Number",
 	String = "String",
+	InterpolatedString = "InterpolatedString",
 }
 
 Tokenizer.EOF_TOKEN = {
@@ -432,6 +433,100 @@ function Tokenizer:singleLineString()
 	return token(self, startPos, Tokenizer.TokenKind.String, table.concat(buffer))
 end
 
+-- Scan interpolation expressions with the regular lexer, including nested
+-- strings, comments, table constructors, and interpolated strings.
+function Tokenizer:interpolatedString()
+	local startPos = self.index;
+	expect(self, "`");
+	local parts, literal = {}, {};
+	local function flush()
+		if #literal > 0 then
+			parts[#parts + 1] = {literal = table.concat(literal)};
+			literal = {};
+		end
+	end
+	local function escapedCharacter()
+		local char = get(self);
+		local escape = self.EscapeSequences[char];
+		if type(escape) == "string" then return escape end
+		if self.NumericalEscapes and self.NumberCharsLookup[char] then
+			local digits = char;
+			for _ = 1, 2 do
+				if is(self, self.NumberCharsLookup) then digits = digits .. get(self) else break end
+			end
+			local value = tonumber(digits);
+			if value > 255 then logger:error(generateError(self, "Decimal escape exceeds 255")) end
+			return string.char(value);
+		end
+		if self.UnicodeEscapes and char == "u" then
+			expect(self, "{");
+			local hex = "";
+			while is(self, self.HexNumberCharsLookup) do hex = hex .. get(self) end
+			expect(self, "}");
+			local value = tonumber(hex, 16);
+			if not value or value > 0x10ffff then
+				logger:error(generateError(self, "Invalid Unicode escape"));
+			end
+			return util.utf8char(value);
+		end
+		if self.HexEscapes and char == "x" then
+			return string.char(tonumber(expect(self, self.HexNumberCharsLookup) .. expect(self, self.HexNumberCharsLookup), 16));
+		end
+		if self.EscapeZIgnoreNextWhitespace and char == "z" then
+			while is(self, Tokenizer.WHITESPACE_CHARS) do self.index = self.index + 1 end
+			return "";
+		end
+		if char == "\n" or char == "\r" then
+			local nextChar = peek(self);
+			if (char == "\n" and nextChar == "\r") or (char == "\r" and nextChar == "\n") then
+				self.index = self.index + 1;
+			end
+			return "\n";
+		end
+		return char;
+	end
+
+	while self.index < self.length do
+		local char = get(self);
+		if char == "`" then
+			flush();
+			return token(self, startPos, Tokenizer.TokenKind.InterpolatedString, parts);
+		elseif char == "\n" or char == "\r" then
+			logger:error(generateError(self, "Unterminated interpolated string"));
+		elseif char == "\\" then
+			literal[#literal + 1] = escapedCharacter();
+		elseif char == "{" then
+			if is(self, "{") then
+				logger:error(generateError(self, "Escape a literal '{' as \\{ in an interpolated string"));
+			end
+			flush();
+			local tokens, depth = {}, 1;
+			while depth > 0 do
+				local tk = self:next();
+				if tk.kind == Tokenizer.TokenKind.Eof then
+					logger:error(generateError(self, "Expected '}' to close interpolation"));
+				end
+				if tk.kind == Tokenizer.TokenKind.Symbol then
+					if tk.source == "{" then depth = depth + 1 end
+					if tk.source == "}" then depth = depth - 1 end
+				end
+				if depth > 0 then
+					tokens[#tokens + 1] = tk;
+				else
+					tokens[#tokens + 1] = {
+						kind = Tokenizer.TokenKind.Eof, source = "", value = "<EOF>",
+						line = tk.line, linePos = tk.linePos,
+					};
+				end
+			end
+			parts[#parts + 1] = {tokens = tokens};
+		else
+			literal[#literal + 1] = char;
+		end
+	end
+	logger:error(generateError(self, "Unterminated interpolated string"));
+end
+
 function Tokenizer:multiLineString()
 	local startPos = self.index;
 	if(is(self, "[")) then
@@ -518,6 +613,11 @@ function Tokenizer:next()
 	-- Identifiers and Keywords
 	if(is(self, self.IdentCharsLookup)) then
 		return self:ident();
+	end
+
+	-- Backtick strings are only available in Luau.
+	if(self.luaVersion == LuaVersion.LuaU and is(self, "`")) then
+		return self:interpolatedString();
 	end
 
 	-- Singleline String Literals

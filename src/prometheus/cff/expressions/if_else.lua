@@ -41,6 +41,7 @@ return function(self, expression, funcDepth, numReturns)
 
 	local trueReg = self:compileExpression(expression.true_value, funcDepth, 1)[1];
 	self:addStatement(self:copyRegisters(scope, {resReg}, {trueReg}), {resReg}, {trueReg}, false);
+	self:freeRegister(trueReg, false);
 	self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 
 	for _, elif in ipairs(expression.elseifs) do
@@ -57,6 +58,7 @@ return function(self, expression, funcDepth, numReturns)
 		elifScope = elifBlock.scope;
 		local valueReg = self:compileExpression(elif.value, funcDepth, 1)[1];
 		self:addStatement(self:copyRegisters(elifScope, {resReg}, {valueReg}), {resReg}, {valueReg}, false);
+		self:freeRegister(valueReg, false);
 		self:addStatement(self:setRegister(elifScope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 	end
 
@@ -64,6 +66,7 @@ return function(self, expression, funcDepth, numReturns)
 	scope = self.activeBlock.scope;
 	local falseReg = self:compileExpression(expression.false_value, funcDepth, 1)[1];
 	self:addStatement(self:copyRegisters(scope, {resReg}, {falseReg}), {resReg}, {falseReg}, false);
+	self:freeRegister(falseReg, false);
 	self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(finalBlock.id)), {self.POS_REGISTER}, {}, false);
 
 	self.registers[self.POS_REGISTER] = posState;

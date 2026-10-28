@@ -445,15 +445,27 @@ function Tokenizer:multiLineString()
 			-- Multiline String
 			-- Parse String to Closing bracket but also consider that the count of equal signs must be the same
 
-			-- Skip Leading newline if existing
+			-- Lua normalizes CR, LF, CRLF, and LFCR line breaks to LF in long strings.
+			local function normalizedNewline(char)
+				local nextChar = peek(self)
+				if (char == "\r" and nextChar == "\n") or (char == "\n" and nextChar == "\r") then
+					self.index = self.index + 1
+				end
+				return "\n"
+			end
+
+			-- Skip one leading newline sequence, if present.
 			self.index = self.index + 1;
-			if(is(self, "\n")) then
-				self.index = self.index + 1;
+			if(is(self, "\n") or is(self, "\r")) then
+				normalizedNewline(get(self))
 			end
 
 			local value = "";
 			while true do
 				local char = get(self);
+				if char == "\n" or char == "\r" then
+					char = normalizedNewline(char)
+				end
 				if(char == ']') then
 					local eqCount2 = 0;
 					while(is(self, "=")) do

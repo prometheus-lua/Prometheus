@@ -12,7 +12,14 @@ return function(self, expression, funcDepth, numReturns)
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i == 1 then
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(expression.value)), {regs[i]}, {}, false);
+            if type(expression.value) == "number" and expression.value == 0 and 1 / expression.value < 0 then
+                -- Keep negative zero out of native Lua 5.1 numeric constants.
+                -- The register read makes this runtime negation distinct from a -0 literal.
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(0)), {regs[i]}, {}, false);
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, regs[i]))), {regs[i]}, {regs[i]}, false);
+            else
+                self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(expression.value)), {regs[i]}, {}, false);
+            end
         else
             self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end

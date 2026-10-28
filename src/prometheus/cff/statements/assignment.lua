@@ -7,6 +7,12 @@
 local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;
 
+local function isSideEffectFreeLiteral(expression)
+    local kind = expression.kind;
+    return kind == AstKind.NilExpression or kind == AstKind.BooleanExpression or
+        kind == AstKind.NumberExpression or kind == AstKind.StringExpression;
+end
+
 return function(self, statement, funcDepth)
     local scope = self.activeBlock.scope;
     local exprregs = {};
@@ -44,7 +50,7 @@ return function(self, statement, funcDepth)
                 table.insert(exprregs, reg);
             end
         else
-            if statement.lhs[i] or expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression then
+            if statement.lhs[i] then
                 local reg = self:compileExpression(expr, funcDepth, 1)[1];
                 if(self:isVarRegister(reg)) then
                     local ro = reg;
@@ -52,11 +58,19 @@ return function(self, statement, funcDepth)
                     self:addStatement(self:copyRegisters(scope, {reg}, {ro}), {reg}, {ro}, false);
                 end
                 table.insert(exprregs, reg);
+            else
+                -- Lua evaluates every RHS expression, including values that
+                -- have no corresponding assignment target.
+                if not isSideEffectFreeLiteral(expr) then
+                    local reg = self:compileExpression(expr, funcDepth, 1)[1];
+                    self:freeRegister(reg, false);
+                end
             end
         end
     end
 
-    for i, primaryExpr in ipairs(statement.lhs) do
+    for i = #statement.lhs, 1, -1 do
+        local primaryExpr = statement.lhs[i];
         if primaryExpr.kind == AstKind.AssignmentVariable then
             if primaryExpr.scope.isGlobal then
                 local tmpReg = self:allocRegister(false);

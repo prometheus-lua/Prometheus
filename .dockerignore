@@ -16,3 +16,6 @@ Dockerfile
 
 test-results
 __pycache__
+
+# Local reference implementation
+.reference-obfuscator/

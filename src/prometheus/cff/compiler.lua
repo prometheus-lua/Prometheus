@@ -21,8 +21,9 @@ local compileCoreModule = require("prometheus.cff.compile_core");
 
 local Compiler = {};
 
-function Compiler:new()
+function Compiler:new(settings)
     local compiler = {
+        luaVersion = settings and settings.LuaVersion;
         blocks = {};
         registers = {};
         activeBlock = nil;
@@ -49,6 +50,7 @@ function Compiler:new()
             AstKind.SubExpression,
             AstKind.MulExpression,
             AstKind.DivExpression,
+            AstKind.FloorDivExpression,
             AstKind.ModExpression,
             AstKind.PowExpression,
         };
@@ -83,6 +85,7 @@ function Compiler:popRegisterUsageInfo()
 end
 
 function Compiler:compile(ast)
+    self.luaVersion = self.luaVersion or ast.luaVersion or "Lua51";
     self.blocks = {};
     self.registers = {};
     self.activeBlock = nil;

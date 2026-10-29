@@ -33,6 +33,7 @@ local AstKind = {
 	CompoundSubStatement = "CompoundSubStatement";
 	CompoundMulStatement = "CompoundMulStatement";
 	CompoundDivStatement = "CompoundDivStatement";
+	CompoundFloorDivStatement = "CompoundFloorDivStatement";
 	CompoundModStatement = "CompoundModStatement";
 	CompoundPowStatement = "CompoundPowStatement";
 	CompoundConcatStatement = "CompoundConcatStatement";
@@ -44,6 +45,7 @@ local AstKind = {
 	-- Expression Nodes
 	BooleanExpression = "BooleanExpression";
 	NumberExpression = "NumberExpression";
+	IntegerExpression = "IntegerExpression";
 	StringExpression = "StringExpression";
 	NilExpression = "NilExpression";
 	VarargExpression = "VarargExpression";
@@ -60,6 +62,7 @@ local AstKind = {
 	SubExpression = "SubExpression";
 	MulExpression = "MulExpression";
 	DivExpression = "DivExpression";
+	FloorDivExpression = "FloorDivExpression";
 	ModExpression = "ModExpression";
 	NotExpression = "NotExpression";
 	LenExpression = "LenExpression";
@@ -85,6 +88,7 @@ local AstKind = {
 local astKindExpressionLookup = {
 	[AstKind.BooleanExpression] = 0;
 	[AstKind.NumberExpression] = 0;
+	[AstKind.IntegerExpression] = 0;
 	[AstKind.StringExpression] = 0;
 	[AstKind.NilExpression] = 0;
 	[AstKind.VarargExpression] = 0;
@@ -101,6 +105,7 @@ local astKindExpressionLookup = {
 	[AstKind.SubExpression] = 8;
 	[AstKind.MulExpression] = 7;
 	[AstKind.DivExpression] = 7;
+	[AstKind.FloorDivExpression] = 7;
 	[AstKind.ModExpression] = 7;
 	[AstKind.NotExpression] = 5;
 	[AstKind.LenExpression] = 5;
@@ -272,6 +277,14 @@ function Ast.CompoundDivStatement(lhs, rhs)
 	}
 end
 
+function Ast.CompoundFloorDivStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundFloorDivStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
 function Ast.CompoundPowStatement(lhs, rhs)
 	return {
 		kind = AstKind.CompoundPowStatement,
@@ -407,6 +420,10 @@ function Ast.LocalVariableDeclaration(scope, ids, expressions)
 		ids = ids,
 		expressions = expressions,
 	}
+end
+
+function Ast.IntegerExpression(source)
+	return {kind = AstKind.IntegerExpression, value = source, isConstant = false};
 end
 
 function Ast.VarargExpression()
@@ -656,6 +673,19 @@ function Ast.DivExpression(lhs, rhs, simplify)
 	}
 end
 
+function Ast.FloorDivExpression(lhs, rhs, simplify)
+	if simplify and lhs.isConstant and rhs.isConstant
+		and type(lhs.value) == "number" and type(rhs.value) == "number" and rhs.value ~= 0 then
+		return Ast.NumberExpression(math.floor(lhs.value / rhs.value));
+	end
+	return {
+		kind = AstKind.FloorDivExpression,
+		lhs = lhs,
+		rhs = rhs,
+		isConstant = false,
+	}
+end
+
 function Ast.ModExpression(lhs, rhs, simplify)
 	if(simplify and rhs.isConstant and lhs.isConstant) then
 		local success, val = pcall(function() return lhs.value % rhs.value end);
@@ -688,6 +718,28 @@ function Ast.NotExpression(rhs, simplify)
 end
 
 function Ast.NegateExpression(rhs, simplify)
+	if simplify and rhs.kind == AstKind.IntegerExpression then
+		local source = rhs.value;
+		if source:sub(1, 1) == "-" then return Ast.IntegerExpression(source:sub(2)) end
+		local prefix = source:sub(1, 2):lower();
+		if prefix ~= "0x" and prefix ~= "0b" then return Ast.IntegerExpression("-" .. source) end
+		local digits = source:sub(3, -2):lower();
+		if prefix == "0b" then
+			digits = string.rep("0", (4 - #digits % 4) % 4) .. digits;
+			local hex = {};
+			for i = 1, #digits, 4 do hex[#hex + 1] = string.format("%x", tonumber(digits:sub(i, i + 3), 2)) end
+			digits = table.concat(hex);
+		end
+		digits = digits:gsub("^0+", "");
+		digits = string.rep("0", 16 - #digits) .. digits;
+		local hex, carry = {}, 1;
+		for i = 16, 1, -1 do
+			local value = 15 - tonumber(digits:sub(i, i), 16) + carry;
+			hex[i] = string.format("%x", value % 16);
+			carry = math.floor(value / 16);
+		end
+		return Ast.IntegerExpression("0x" .. table.concat(hex) .. "i");
+	end
 	if(simplify and rhs.isConstant) then
 		local success, val = pcall(function() return -rhs.value end);
 		if success then

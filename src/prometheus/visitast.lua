@@ -45,6 +45,7 @@ local compundStats = lookupify{
 	AstKind.CompoundSubStatement,
 	AstKind.CompoundMulStatement,
 	AstKind.CompoundDivStatement,
+	AstKind.CompoundFloorDivStatement,
 	AstKind.CompoundModStatement,
 	AstKind.CompoundPowStatement,
 	AstKind.CompoundConcatStatement,
@@ -183,6 +184,7 @@ local binaryExpressions = lookupify{
 	AstKind.SubExpression,
 	AstKind.MulExpression,
 	AstKind.DivExpression,
+	AstKind.FloorDivExpression,
 	AstKind.ModExpression,
 	AstKind.PowExpression,
 }
@@ -239,7 +241,7 @@ function visitExpression(expression, previsit, postvisit, data)
 	if(expression.kind == AstKind.IfElseExpression) then
 		expression.condition = visitExpression(expression.condition, previsit, postvisit, data);
 		expression.true_value = visitExpression(expression.true_value, previsit, postvisit, data);
-		for i, elif in pairs(expression.elseifs) do
+		for i, elif in ipairs(expression.elseifs) do
 			elif.condition = visitExpression(elif.condition, previsit, postvisit, data);
 			elif.value = visitExpression(elif.value, previsit, postvisit, data);
 		end

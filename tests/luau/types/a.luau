@@ -1,0 +1,1 @@
+local x: number = 100

@@ -1,0 +1,17 @@
+contexto: `src.zip` é o meu obfuscator, `prometheus.zip` é o prometheus que eu estou modificando para dar suporte a luau.
+caso comente no codigo, comente em inglês. e adicione arquivos inuteis no .gitignore
+
+- hybrid keywords
+    - no prometheus não temos a validação de se é uma "hybrid keyword" ou uma keyword normal. incluindo o "continue", e varias outras.
+- floor division
+    - atualmente não possui suporte a floor division. o `src.zip` possui algumas coisas sobre.
+- verificar vararg (não tenho certeza sobre esse problema)
+    - atualmente não existe nada que diga se a vararg está em um lugar valido
+    - caso se a vararg esteja dentro de uma função, mas a função não possui vararg, não é avisado (não da erro na ofuscação).
+- semicolon
+    - a forma que o ";" é "pulado" em luau é completamente diferente de lua.
+    - em luau, é muito mais rigido sobre a declaração de Semicolon, e atualmente não possui essa verificação.
+- numerais em luau (não tenho certeza sobre isso)
+    - o prometheus não possui suporte para numerais de luau
+
+pequeno aviso: nem tudo em `src.zip` está correto, pois é uma versão mais antiga.

@@ -1,0 +1,3 @@
+local function fixed()
+    return ...
+end

@@ -93,6 +93,10 @@ function Scope:addVariable(name, token)
 	table.insert(self.variables, name);
 	local id = #self.variables;
 	self.variablesLookup[name] = id;
+	if token then
+		self.declarationTokens = self.declarationTokens or {};
+		self.declarationTokens[id] = token;
+	end
 	return id;
 end
 
@@ -119,6 +123,10 @@ function Scope:addDisabledVariable(name, token)
 
 	table.insert(self.variables, name);
 	local id = #self.variables;
+	if token then
+		self.declarationTokens = self.declarationTokens or {};
+		self.declarationTokens[id] = token;
+	end
 	return id;
 end
 

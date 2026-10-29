@@ -30,8 +30,13 @@ return function(self, expression, funcDepth, numReturns)
                         table.insert(entryRegs, reg);
                     end
                 else
-                    local keyReg = self:compileExpression(entry.key, funcDepth, 1)[1];
+                    local keyReg;
+                    local key = entry.key;
+                    local deferRead = self.luaVersion == "LuaU" and key.kind == AstKind.VariableExpression
+                        and not key.scope.isGlobal and self.scopeFunctionDepths[key.scope] == funcDepth;
+                    if not deferRead then keyReg = self:compileExpression(key, funcDepth, 1)[1] end
                     local valReg = self:compileExpression(entry.value, funcDepth, 1)[1];
+                    if deferRead then keyReg = self:compileExpression(key, funcDepth, 1)[1] end
                     table.insert(entries, Ast.KeyedTableEntry(self:register(scope, keyReg), self:register(scope, valReg)));
                     table.insert(entryRegs, valReg);
                     table.insert(entryRegs, keyReg);

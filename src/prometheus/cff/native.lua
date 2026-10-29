@@ -109,17 +109,18 @@ return function(Compiler)
             end
         end)
 
-        local source = Unparser:new({LuaVersion = 'Lua51'}):unparseExpression(expression, 0)
+        local source = Unparser:new({LuaVersion = self.luaVersion}):unparseExpression(expression, 0)
         local finish = ''
         if expression.kind == Kind.FunctionLiteralExpression then
             finish = 'if ' .. names.setenv .. ' then ' .. names.setenv .. '(' .. names.result
                 .. ',' .. names.env .. ') end;'
         end
-        local parsed = Parser:new({LuaVersion = 'Lua51', AllowInternalIdentifiers = true}):parse('return function('
+        local parsed = Parser:new({LuaVersion = self.luaVersion, AllowInternalIdentifiers = true}):parse('return function('
             .. names.proxy .. ',' .. names.env .. ',' .. names.values .. ') local '
             .. names.result .. '=' .. source .. ';' .. finish .. 'return ' .. names.result .. ' end')
         local factory = parsed.body.statements[1].args[1]
         self.nativeResults[expression] = factory.body.statements[1].expressions[1]
+        self.nativeResults[expression].isNativeLuau = expression.isNativeLuau
         factory.body.scope:setParent(scope)
         require('prometheus.visitast')(parsed, nil, function(node, data)
             if node.kind == Kind.VariableExpression and node.scope.isGlobal then

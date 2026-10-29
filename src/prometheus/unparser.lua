@@ -5,7 +5,7 @@
 -- This Script provides a class for lua code generation from an ast
 -- This UnParser is Capable of generating LuaU and Lua5.1
 --
--- Note that a LuaU ast can only be unparsed as LuaU if it contains any continue statements
+-- Luau-only nodes require Luau output unless a compiler has lowered them.
 --
 -- Settings Object:
 -- luaVersion : The LuaVersion of the Script
@@ -107,7 +107,11 @@ function Unparser:unparse(ast)
 		logger:error("Unparser:unparse expects a TopNode as first argument")
 	end
 
-	return self:unparseBlock(ast.body);
+	local source = self:unparseBlock(ast.body);
+	if self.luaVersion == LuaVersion.LuaU and ast.directives and #ast.directives > 0 then
+		source = table.concat(ast.directives, "\n") .. "\n" .. source;
+	end
+	return source;
 end
 
 -- Helper to join parts table (optimized string building)
@@ -368,6 +372,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			[AstKind.CompoundSubStatement] = "-=",
 			[AstKind.CompoundMulStatement] = "*=",
 			[AstKind.CompoundDivStatement] = "/=",
+			[AstKind.CompoundFloorDivStatement] = "//=",
 			[AstKind.CompoundModStatement] = "%=",
 			[AstKind.CompoundPowStatement] = "^=",
 			[AstKind.CompoundConcatStatement] = "..=",
@@ -382,7 +387,8 @@ function Unparser:unparseStatement(statement, tabbing)
 		end
 	end
 
-	return self:tabs(tabbing, false) .. joinParts(parts);
+	local attributes = statement.attributes and (table.concat(statement.attributes, " ") .. " ") or "";
+	return self:tabs(tabbing, false) .. attributes .. joinParts(parts);
 end
 
 function Unparser:unparseExpression(expression, tabbing)
@@ -406,6 +412,10 @@ function Unparser:unparseExpression(expression, tabbing)
 		return expression.value and "true" or "false";
 	end
 
+	if expression.kind == AstKind.IntegerExpression then
+		if self.luaVersion ~= LuaVersion.LuaU then logger:error("Integer literals require a recent Luau runtime") end
+		return expression.value;
+	end
 	if(expression.kind == AstKind.NumberExpression) then
 		local value = expression.value;
 		local str = tostring(value);
@@ -518,12 +528,16 @@ function Unparser:unparseExpression(expression, tabbing)
 		[AstKind.SubExpression] = "-",
 		[AstKind.MulExpression] = "*",
 		[AstKind.DivExpression] = "/",
+		[AstKind.FloorDivExpression] = "//",
 		[AstKind.ModExpression] = "%",
 		[AstKind.PowExpression] = "^",
 	}
 
 	op = arithmeticOps[expression.kind]
 	if op then
+		if op == "//" and self.luaVersion ~= LuaVersion.LuaU then
+			logger:error("Floor division requires Luau output");
+		end
 		k = expression.kind
 		local lhs = self:unparseExpression(expression.lhs, tabbing);
 		if(Ast.astKindExpressionToNumber(expression.lhs.kind) >= Ast.astKindExpressionToNumber(k)) then
@@ -632,6 +646,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.FunctionLiteralExpression;
 	if(expression.kind == k) then
+		if expression.attributes then push(table.concat(expression.attributes, " "), " ") end
 		push("function", "(");
 		for i, arg in ipairs(expression.args) do
 			if i > 1 then
@@ -699,7 +714,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			push(self:unparseExpression(expression.condition));
 			push(" then ");
 			push(self:unparseExpression(expression.true_value));
-			for _, elseifexp in pairs(expression.elseifs) do
+			for _, elseifexp in ipairs(expression.elseifs) do
 				push(" elseif ");
 				push(self:unparseExpression(elseifexp.condition));
 				push(" then ");

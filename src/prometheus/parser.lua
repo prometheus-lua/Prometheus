@@ -5,8 +5,6 @@
 -- This Script provides a class for parsing of lua code.
 -- This Parser is Capable of parsing LuaU and Lua5.1
 --
--- Note that when parsing LuaU "continue" is treated as a Keyword, so no variable may be named "continue" even though this would be valid in LuaU
---
 -- Settings Object:
 -- luaVersion : The LuaVersion of the Script - Currently Supported : Lua51 and LuaU
 -- AllowInternalIdentifiers : Skip reserved-prefix warnings for generated code (default false)
@@ -18,6 +16,8 @@ local util = require("prometheus.util");
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
 local logger = require("logger");
+local lowerExports = require("prometheus.luau_exports");
+local lowerIteration = require("prometheus.luau_iteration");
 
 local AstKind = Ast.AstKind;
 
@@ -47,7 +47,8 @@ local function generateError(self, message)
 	if(self.index > self.length) then
 		token = self.tokens[self.length];
 	elseif(self.index < 1) then
-		return "Parsing Error at Position 0:0, " .. message;
+		token = self.tokens[1];
+		if not token then return "Parsing Error at Position 0:0, " .. message end
 	else
 		token = self.tokens[self.index];
 	end
@@ -70,6 +71,7 @@ function Parser:new(settings)
 		tokens = {};
 		length = 0;
 		index = 0;
+		lowerLuauIteration = settings and settings.LowerLuauIteration == true;
 	};
 
 	setmetatable(parser, self);
@@ -101,23 +103,14 @@ local function get(self)
 end
 
 local function is(self, kind, sourceOrN, n)
-	local token = peek(self, n);
-
-	local source = nil;
-	if(type(sourceOrN) == "string") then
-		source = sourceOrN;
-	else
+	local source;
+	if type(sourceOrN) == "number" then
 		n = sourceOrN;
+	else
+		source = sourceOrN;
 	end
-	n = n or 0;
-
-	if(token.kind == kind) then
-		if(source == nil or token.source == source) then
-			return true;
-		end
-	end
-
-	return false;
+	local tk = peek(self, n);
+	return tk.kind == kind and (source == nil or tk.source == source);
 end
 
 local function consume(self, kind, source)
@@ -142,18 +135,81 @@ local function expect(self, kind, source)
 	end
 end
 
+require("prometheus.luau_types")(Parser, TokenKind, is, consume, expect, peek, get);
+require("prometheus.luau_attributes")(Parser, TokenKind, is, consume, expect, peek, get);
+
+local function markConst(scope, id)
+	scope.constBindings = scope.constBindings or {};
+	scope.constBindings[id] = true;
+end
+
+local function assertMutable(self, scope, id)
+	scope.assignedBindings = scope.assignedBindings or {};
+	scope.assignedBindings[id] = true;
+	if scope.constBindings and scope.constBindings[id] then
+		if self.disableLog then error() end
+		logger:error(generateError(self, string.format("Cannot reassign constant '%s'", scope:getVariableName(id))));
+	end
+end
+
+-- Match Luau's reachable-branch check for locals skipped by repeat/continue.
+local function repeatContinue(block, loop)
+	for _, node in ipairs(block.statements) do
+		if node.kind == AstKind.ContinueStatement then
+			return node.loop == loop and node.sourceToken or nil;
+		elseif node.kind == AstKind.ReturnStatement or node.kind == AstKind.BreakStatement then
+			return nil;
+		elseif node.kind == AstKind.DoStatement then
+			local found = repeatContinue(node.body, loop);
+			if found then return found end
+		elseif node.kind == AstKind.IfStatement then
+			local branches = {{condition = node.condition, body = node.body}};
+			for _, branch in ipairs(node.elseifs) do branches[#branches + 1] = branch end
+			local remaining = true;
+			for _, branch in ipairs(branches) do
+				if remaining and (not branch.condition.isConstant or branch.condition.value) then
+					local found = repeatContinue(branch.body, loop);
+					if found then return found end
+					if branch.condition.isConstant then remaining = false end
+				end
+			end
+			if remaining and node.elsebody then
+				local found = repeatContinue(node.elsebody, loop);
+				if found then return found end
+			end
+		end
+	end
+end
+
 -- Parse the given code to an Abstract Syntax Tree
 function Parser:parse(code)
+	-- A failed parse must not leave input behind for the next invocation.
+	self.tokenizer:reset();
+	self.tokens, self.index, self.length = {}, 0, 0;
+	self.disableLog = false;
+	self.noSimplify = false;
+	self.varargAllowed = true;
+	self.functionDepth = 0;
+	self.lexicalScope = nil;
+	self.typeFunctionRoot = nil;
+	self.moduleScope = nil;
+	self.exportBindings, self.exportNames = {}, {};
+	self.hasModuleReturn = false;
 	self.tokenizer:append(code);
 	self.tokens = self.tokenizer:scanAll();
+
 	self.length = #self.tokens;
 
 	-- Create Global Variable Scope
 	local globalScope = Scope:newGlobal();
 
 	local ast = Ast.TopNode(self:block(globalScope, false), globalScope);
+	ast.luaVersion = self.luaVersion;
+	ast.directives = self.luaVersion == LuaVersion.LuaU and self.tokenizer.directives or nil;
 	-- File Must be Over when Top Node is Fully Parsed
 	expect(self, TokenKind.Eof);
+	if #self.exportBindings > 0 then lowerExports(ast, self.exportBindings) end
+	if self.luaVersion == LuaVersion.LuaU and self.lowerLuauIteration then lowerIteration(ast, Parser) end
 
 	logger:debug("Cleaning up Parser for next Use ...")
 	-- Clean Up
@@ -170,24 +226,76 @@ end
 -- Parse a Code Block
 function Parser:block(parentScope, currentLoop, scope)
 	scope = scope or Scope:new(parentScope);
+	if not self.moduleScope then self.moduleScope = scope end
+	local savedScope = self.lexicalScope;
+	self.lexicalScope = scope;
 	local statements = {};
 
-	repeat
-		local statement, isTerminatingStatement = self:statement(scope, currentLoop);
-		table.insert(statements, statement);
-	until isTerminatingStatement or not statement
+	while true do
+		-- Erased type declarations still count as statements for semicolon syntax.
+		local declaration = self:parseLuauDeclaration();
+		local statement, isTerminatingStatement;
+		if not declaration then statement, isTerminatingStatement = self:statement(scope, currentLoop) end
+		if not declaration and not statement then break end
+		if statement then table.insert(statements, statement) end
+		consume(self, TokenKind.Symbol, ";");
+		if isTerminatingStatement then break end
+	end
 
-	-- Consume Eventual Semicolon after terminating return, break or continue
-	consume(self, TokenKind.Symbol, ";");
-
+	self.lexicalScope = savedScope;
 	return Ast.Block(statements, scope);
 end
 
 function Parser:statement(scope, currentLoop)
-	-- Skip all semicolons before next real statement
-	-- NOP statements are therefore ignored
-	while(consume(self, TokenKind.Symbol, ";")) do
-
+	local attributes = self:parseLuauAttributes(scope);
+	if attributes then
+		local node, terminating = self:statement(scope, currentLoop);
+		if not node or (node.kind ~= AstKind.FunctionDeclaration and node.kind ~= AstKind.LocalFunctionDeclaration) then
+			logger:error(generateError(self, "Function attributes require a function declaration"));
+		end
+		if node.attributes then logger:error(generateError(self, "Duplicate function attribute list")) end
+		node.attributes = attributes;
+		return node, terminating;
+	end
+	if self.luaVersion == LuaVersion.LuaU and is(self, TokenKind.Ident, "export")
+		and (is(self, TokenKind.Keyword, "local", 1) or is(self, TokenKind.Keyword, "function", 1) or is(self, TokenKind.Ident, "const", 1)) then
+		get(self);
+		if scope ~= self.moduleScope or self.functionDepth ~= 0 then logger:error(generateError(self, "Value exports require a top-level statement")) end
+		if self.hasModuleReturn then logger:error(generateError(self, "Value exports conflict with a top-level return")) end
+		local node;
+		if consume(self, TokenKind.Keyword, "function") then
+			local ident = expect(self, TokenKind.Ident);
+			local id = scope:addVariable(ident.value, ident);
+			markConst(scope, id);
+			local funcScope = Scope:new(scope);
+			self:parseLuauGenerics();
+			expect(self, TokenKind.Symbol, "(");
+			local args = self:functionArgList(funcScope);
+			expect(self, TokenKind.Symbol, ")");
+			self:parseLuauReturnAnnotation();
+			local body = self:functionBody(funcScope, args);
+			expect(self, TokenKind.Keyword, "end");
+			node = Ast.LocalFunctionDeclaration(scope, id, args, body);
+		else
+			if is(self, TokenKind.Keyword, "function", 1) or is(self, TokenKind.Symbol, "@", 1) then
+				logger:error(generateError(self, "Use 'export function' for an exported function"));
+			end
+			node = self:statement(scope, currentLoop);
+			if not node or node.kind ~= AstKind.LocalVariableDeclaration then logger:error(generateError(self, "Expected an exported binding")) end
+		end
+		node.isExported = true;
+		for _, id in ipairs(node.ids or {node.id}) do
+			local name = scope:getVariableName(id);
+			if self.exportNames[name] then logger:error(generateError(self, "Duplicate exported identifier '" .. name .. "'")) end
+			self.exportNames[name] = true;
+			self.exportBindings[#self.exportBindings + 1] = {scope = scope, id = id, name = name};
+		end
+		return node;
+	end
+	-- Preserve the legacy Lua 5.1 empty-statement behavior. Luau permits only
+	-- one optional semicolon after an actual statement, consumed by block().
+	if self.luaVersion == LuaVersion.Lua51 then
+		while consume(self, TokenKind.Symbol, ";") do end
 	end
 
 	-- Break Statement - only valid inside of Loops
@@ -198,16 +306,6 @@ function Parser:statement(scope, currentLoop)
 		end
 		-- Return true as Second value because break must be the last Statement in a block
 		return Ast.BreakStatement(currentLoop, scope), true;
-	end
-
-	-- Continue Statement - only valid inside of Loops - only valid in LuaU
-	if(self.luaVersion == LuaVersion.LuaU and consume(self, TokenKind.Keyword, "continue")) then
-		if(not currentLoop) then
-			if self.disableLog then error() end;
-			logger:error(generateError(self, "the continue Statement is only valid inside of loops"));
-		end
-		-- Return true as Second value because continue must be the last Statement in a block
-		return Ast.ContinueStatement(currentLoop, scope), true;
 	end
 
 	-- do ... end Statement
@@ -234,13 +332,32 @@ function Parser:statement(scope, currentLoop)
 		stat.body = self:block(nil, stat, repeatScope);
 		expect(self, TokenKind.Keyword, "until");
 		stat.condition = self:expression(repeatScope);
+		stat.continueToken = repeatContinue(stat.body, stat);
+		if self.luaVersion == LuaVersion.LuaU and stat.continueToken then
+			local visitast = require("prometheus.visitast");
+			visitast(Ast.TopNode(Ast.Block({Ast.ReturnStatement{stat.condition}}, repeatScope), scope), function(node, data)
+				if node.kind == AstKind.VariableExpression and node.scope == repeatScope then
+					local declaration = repeatScope.declarationTokens and repeatScope.declarationTokens[node.id];
+					local capturedConstant = data.functionData.depth > 0 and repeatScope.constantInitializers
+						and repeatScope.constantInitializers[node.id] and not (repeatScope.assignedBindings and repeatScope.assignedBindings[node.id]);
+					if declaration and declaration.startPos > stat.continueToken.startPos and not capturedConstant then
+						logger:error(generateError(self, "Local '" .. repeatScope:getVariableName(node.id)
+							.. "' in the repeat condition is skipped by continue"));
+					end
+				end
+			end);
+		end
 		return stat;
 	end
 
 	-- Return Statement
 	if(consume(self, TokenKind.Keyword, "return")) then
+		if self.luaVersion == LuaVersion.LuaU and self.functionDepth == 0 then
+			self.hasModuleReturn = true;
+			if #self.exportBindings > 0 then logger:error(generateError(self, "Value exports conflict with a top-level return")) end
+		end
 		local args = {};
-		if(not is(self, TokenKind.Keyword, "end") and not is(self, TokenKind.Keyword, "elseif") and not is(self, TokenKind.Keyword, "else") and not is(self, TokenKind.Symbol, ";") and not is(self, TokenKind.Eof)) then
+		if(not is(self, TokenKind.Keyword, "end") and not is(self, TokenKind.Keyword, "elseif") and not is(self, TokenKind.Keyword, "else") and not is(self, TokenKind.Keyword, "until") and not is(self, TokenKind.Symbol, ";") and not is(self, TokenKind.Eof)) then
 			args = self:exprList(scope);
 		end
 		-- Return true as Second value because return must be the last Statement in a block
@@ -284,39 +401,47 @@ function Parser:statement(scope, currentLoop)
 		local baseScope = obj.scope;
 		local baseId = obj.id;
 		local indices = obj.indices;
+		if #indices == 0 then assertMutable(self, baseScope, baseId) end
 
 		local funcScope = Scope:new(scope);
 
+		self:parseLuauGenerics();
 		expect(self, TokenKind.Symbol, "(");
 		local args = self:functionArgList(funcScope);
 		expect(self, TokenKind.Symbol, ")");
+		self:parseLuauReturnAnnotation();
 
 		if(obj.passSelf) then
 			local id = funcScope:addVariable("self", obj.token);
 			table.insert(args, 1, Ast.VariableExpression(funcScope, id));
 		end
 
-		local body = self:block(nil, false, funcScope);
+		local body = self:functionBody(funcScope, args);
 		expect(self, TokenKind.Keyword, "end");
 
 		return Ast.FunctionDeclaration(baseScope, baseId, indices, args, body);
 	end
 
-	-- Local Function or Variable Declaration
-	if(consume(self, TokenKind.Keyword, "local")) then
+	-- 'const' is contextual and remains a valid identifier outside declarations.
+	local isConst = self.luaVersion == LuaVersion.LuaU and is(self, TokenKind.Ident, "const")
+		and (is(self, TokenKind.Ident, nil, 1) or is(self, TokenKind.Keyword, "function", 1) or is(self, TokenKind.Symbol, "@", 1));
+	if consume(self, TokenKind.Keyword, "local") or (isConst and consume(self, TokenKind.Ident, "const")) then
 		-- Local Function Declaration
 		if(consume(self, TokenKind.Keyword, "function")) then
 			local ident = expect(self, TokenKind.Ident);
 			local name = ident.value;
 
 			local id = scope:addVariable(name, ident);
+			if isConst then markConst(scope, id) end
 			local funcScope = Scope:new(scope);
 
+			self:parseLuauGenerics();
 			expect(self, TokenKind.Symbol, "(");
 			local args = self:functionArgList(funcScope);
 			expect(self, TokenKind.Symbol, ")");
+			self:parseLuauReturnAnnotation();
 
-			local body = self:block(nil, false, funcScope);
+			local body = self:functionBody(funcScope, args);
 			expect(self, TokenKind.Keyword, "end");
 
 			return Ast.LocalFunctionDeclaration(scope, id, args, body);
@@ -324,12 +449,33 @@ function Parser:statement(scope, currentLoop)
 
 		-- Local Variable Declaration
 		local ids = self:nameList(scope);
+		if isConst then
+			for _, id in ipairs(ids) do markConst(scope, id) end
+		end
 		local expressions = {};
 		if(consume(self, TokenKind.Symbol, "=")) then
 			expressions = self:exprList(scope);
+		elseif isConst then
+			if self.disableLog then error() end
+			logger:error(generateError(self, "A const declaration requires an initializer"));
+		end
+
+		if isConst and #expressions < #ids then
+			local last = expressions[#expressions];
+			local expands = last and not last.isParenthesizedExpression
+				and (last.kind == AstKind.FunctionCallExpression or last.kind == AstKind.PassSelfFunctionCallExpression
+					or last.kind == AstKind.VarargExpression);
+			if not expands then
+				if self.disableLog then error() end
+				logger:error(generateError(self, "A const declaration requires an initializer for each binding"));
+			end
 		end
 
 		-- Variables can only be reffered to in the next statement, so the id's are enabled after the expressions have been parsed
+		scope.constantInitializers = scope.constantInitializers or {};
+		for i, id in ipairs(ids) do
+			if expressions[i] and expressions[i].isConstant then scope.constantInitializers[id] = true end
+		end
 		self:enableNameList(scope, ids);
 
 		if(#expressions > #ids) then
@@ -344,11 +490,17 @@ function Parser:statement(scope, currentLoop)
 	-- For Statement
 	if(consume(self, TokenKind.Keyword, "for")) then
 		-- Normal for Statement
-		if(is(self, TokenKind.Symbol, "=", 1)) then
+		local savedIndex = self.index;
+		expect(self, TokenKind.Ident);
+		self:parseLuauTypeAnnotation();
+		local isNumericFor = is(self, TokenKind.Symbol, "=");
+		self.index = savedIndex;
+		if(isNumericFor) then
 			local forScope = Scope:new(scope);
 
 			local ident = expect(self, TokenKind.Ident);
 			local varId = forScope:addDisabledVariable(ident.value, ident);
+			self:parseLuauTypeAnnotation();
 
 			expect(self, TokenKind.Symbol, "=");
 			local initialValue = self:expression(scope);
@@ -391,6 +543,10 @@ function Parser:statement(scope, currentLoop)
 	local expr = self:primaryExpression(scope);
 	-- Variable Assignment or Function Call
 	if expr then
+		if expr.isInterpolatedStringExpression then
+			if self.disableLog then error() end
+			logger:error(generateError(self, "An interpolated string is not a valid statement"));
+		end
 		-- Function Call Statement
 		if(expr.kind == AstKind.FunctionCallExpression) then
 			return Ast.FunctionCallStatement(expr.base, expr.args);
@@ -403,11 +559,29 @@ function Parser:statement(scope, currentLoop)
 
 		-- Variable Assignment
 		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+			-- A call or assignment using this name takes precedence over continue.
+			local nextToken = peek(self);
+			local assignmentFollows = nextToken.kind == TokenKind.Symbol
+				and (nextToken.source == "=" or nextToken.source == "," or nextToken.source:match("^[+%-%*/%%%^%.]+=$"));
+			if self.luaVersion == LuaVersion.LuaU and expr.kind == AstKind.VariableExpression
+				and not expr.isParenthesizedExpression and expr.scope:getVariableName(expr.id) == "continue"
+				and not assignmentFollows then
+				if not currentLoop then
+					if self.disableLog then error() end
+					logger:error(generateError(self, "the continue Statement is only valid inside of loops"));
+				end
+				local node = Ast.ContinueStatement(currentLoop, scope);
+				node.sourceToken = peek(self, -1);
+				return node, true;
+			end
 			if(expr.kind == AstKind.IndexExpression) then
+				if expr.isParenthesizedExpression then logger:error(generateError(self, "Assigned expression must be a variable or field")) end
 				expr.kind = AstKind.AssignmentIndexing
 			end
 			if(expr.kind == AstKind.VariableExpression) then
+				if expr.isParenthesizedExpression then logger:error(generateError(self, "Assigned expression must be a variable or field")) end
 				expr.kind = AstKind.AssignmentVariable
+				assertMutable(self, expr.scope, expr.id);
 			end
 
 			if(self.luaVersion == LuaVersion.LuaU) then
@@ -430,6 +604,11 @@ function Parser:statement(scope, currentLoop)
 				if(consume(self, TokenKind.Symbol, "/=")) then
 					local rhs = self:expression(scope);
 					return Ast.CompoundDivStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "//=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundFloorDivStatement(expr, rhs);
 				end
 
 				if(consume(self, TokenKind.Symbol, "%=")) then
@@ -461,11 +640,13 @@ function Parser:statement(scope, currentLoop)
 				end
 
 				if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+					if expr.isParenthesizedExpression then logger:error(generateError(self, "Assigned expression must be a variable or field")) end
 					if(expr.kind == AstKind.IndexExpression) then
 						expr.kind = AstKind.AssignmentIndexing
 					end
 					if(expr.kind == AstKind.VariableExpression) then
 						expr.kind = AstKind.AssignmentVariable
+						assertMutable(self, expr.scope, expr.id);
 					end
 					table.insert(lhs, expr);
 				else
@@ -489,17 +670,13 @@ function Parser:statement(scope, currentLoop)
 end
 
 function Parser:primaryExpression(scope)
-	local i = self.index;
-	local s = self;
-	self.disableLog = true;
-	local status, val = pcall(self.expressionFunctionCall, self, scope);
-	self.disableLog = false;
-	if(status) then
-		return val;
-	else
-		self.index = i;
+	local tk = peek(self);
+	if tk.kind == TokenKind.Eof or (tk.kind == TokenKind.Keyword
+		and (tk.source == "end" or tk.source == "else" or tk.source == "elseif" or tk.source == "until")) then
 		return nil;
 	end
+	-- Invalid calls must keep their diagnostics, including vararg and type errors.
+	return self:expressionFunctionCall(scope);
 end
 
 -- List of expressions Seperated by a comma
@@ -519,11 +696,13 @@ function Parser:nameList(scope)
 
 	local ident = expect(self, TokenKind.Ident);
 	local id = scope:addDisabledVariable(ident.value, ident);
+	self:parseLuauTypeAnnotation();
 	table.insert(ids, id);
 
 	while(consume(self, TokenKind.Symbol, ",")) do
 		ident = expect(self, TokenKind.Ident);
 		id = scope:addDisabledVariable(ident.value, ident);
+		self:parseLuauTypeAnnotation();
 		table.insert(ids, id);
 	end
 
@@ -566,7 +745,11 @@ end
 
 -- Expression
 function Parser:expression(scope)
-	return self:expressionOr(scope);
+	local savedScope = self.lexicalScope;
+	self.lexicalScope = scope;
+	local result = self:expressionOr(scope);
+	self.lexicalScope = savedScope;
+	return result;
 end
 
 function Parser:expressionOr(scope)
@@ -574,7 +757,7 @@ function Parser:expressionOr(scope)
 
 	if(consume(self, TokenKind.Keyword, "or")) then
 		local rhs = self:expressionOr(scope);
-		return Ast.OrExpression(lhs, rhs, true);
+		return Ast.OrExpression(lhs, rhs, not self.noSimplify);
 	end
 
 	return lhs;
@@ -585,7 +768,7 @@ function Parser:expressionAnd(scope)
 
 	if(consume(self, TokenKind.Keyword, "and")) then
 		local rhs = self:expressionAnd(scope);
-		return Ast.AndExpression(lhs, rhs, true);
+		return Ast.AndExpression(lhs, rhs, not self.noSimplify);
 	end
 
 	return lhs;
@@ -597,37 +780,37 @@ function Parser:expressionComparision(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "<")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.LessThanExpression(curr, rhs, true);
+			curr = Ast.LessThanExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, ">")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.GreaterThanExpression(curr, rhs, true);
+			curr = Ast.GreaterThanExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "<=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.LessThanOrEqualsExpression(curr, rhs, true);
+			curr = Ast.LessThanOrEqualsExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, ">=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.GreaterThanOrEqualsExpression(curr, rhs, true);
+			curr = Ast.GreaterThanOrEqualsExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "~=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.NotEqualsExpression(curr, rhs, true);
+			curr = Ast.NotEqualsExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "==")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.EqualsExpression(curr, rhs, true);
+			curr = Ast.EqualsExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 	until not found;
@@ -640,7 +823,7 @@ function Parser:expressionStrCat(scope)
 
 	if(consume(self, TokenKind.Symbol, "..")) then
 		local rhs = self:expressionStrCat(scope);
-		return Ast.StrCatExpression(lhs, rhs, true);
+		return Ast.StrCatExpression(lhs, rhs, not self.noSimplify);
 	end
 
 	return lhs;
@@ -653,13 +836,13 @@ function Parser:expressionAddSub(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "+")) then
 			local rhs = self:expressionMulDivMod(scope);
-			curr = Ast.AddExpression(curr, rhs, true);
+			curr = Ast.AddExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "-")) then
 			local rhs = self:expressionMulDivMod(scope);
-			curr = Ast.SubExpression(curr, rhs, true);
+			curr = Ast.SubExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 	until not found;
@@ -675,19 +858,25 @@ function Parser:expressionMulDivMod(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "*")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.MulExpression(curr, rhs, true);
+			curr = Ast.MulExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "/")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.DivExpression(curr, rhs, true);
+			curr = Ast.DivExpression(curr, rhs, not self.noSimplify);
+			found = true;
+		end
+
+		if(consume(self, TokenKind.Symbol, "//")) then
+			local rhs = self:expressionUnary(scope);
+			curr = Ast.FloorDivExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "%")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.ModExpression(curr, rhs, true);
+			curr = Ast.ModExpression(curr, rhs, not self.noSimplify);
 			found = true;
 		end
 	until not found;
@@ -698,17 +887,17 @@ end
 function Parser:expressionUnary(scope)
 	if(consume(self, TokenKind.Keyword, "not")) then
 		local rhs = self:expressionUnary(scope);
-		return Ast.NotExpression(rhs, true);
+		return Ast.NotExpression(rhs, not self.noSimplify);
 	end
 
 	if(consume(self, TokenKind.Symbol, "#")) then
 		local rhs = self:expressionUnary(scope);
-		return Ast.LenExpression(rhs, true);
+		return Ast.LenExpression(rhs, not self.noSimplify);
 	end
 
 	if(consume(self, TokenKind.Symbol, "-")) then
 		local rhs = self:expressionUnary(scope);
-		return Ast.NegateExpression(rhs, true);
+		return Ast.NegateExpression(rhs, not self.noSimplify);
 	end
 
 	return self:expressionPow(scope);
@@ -717,10 +906,16 @@ end
 function Parser:expressionPow(scope)
 	local lhs = self:tableOrFunctionLiteral(scope);
 
+	if self:parseLuauCast() then
+		if lhs.kind == AstKind.FunctionCallExpression or lhs.kind == AstKind.PassSelfFunctionCallExpression or lhs.kind == AstKind.VarargExpression then
+			lhs.isParenthesizedExpression = true;
+		end
+	end
+
 	if(consume(self, TokenKind.Symbol, "^")) then
 		-- Allow unary operators on the rhs (e.g. 2 ^ #x, 2 ^ -x) while preserving right-associativity. ~ SpinnySpiwal
 		local rhs = self:expressionUnary(scope);
-		return Ast.PowExpression(lhs, rhs, true);
+		return Ast.PowExpression(lhs, rhs, not self.noSimplify);
 	end
 
 	return lhs;
@@ -728,6 +923,8 @@ end
 
 -- Table Literals and Function Literals cannot directly be called or indexed
 function Parser:tableOrFunctionLiteral(scope)
+	local attributes = self:parseLuauAttributes(scope);
+	if attributes then return self:expressionFunctionLiteral(scope, attributes) end
 
 	if(is(self, TokenKind.Symbol, "{")) then
 		return self:tableConstructor(scope);
@@ -740,24 +937,41 @@ function Parser:tableOrFunctionLiteral(scope)
 	return self:expressionFunctionCall(scope);
 end
 
-function Parser:expressionFunctionLiteral(parentScope)
+function Parser:expressionFunctionLiteral(parentScope, attributes)
 	local scope = Scope:new(parentScope);
 
 	expect(self, TokenKind.Keyword, "function");
 
+	self:parseLuauGenerics();
 	expect(self, TokenKind.Symbol, "(");
 	local args = self:functionArgList(scope);
 	expect(self, TokenKind.Symbol, ")");
+	self:parseLuauReturnAnnotation();
 
-	local body = self:block(nil, false, scope);
+	local body = self:functionBody(scope, args);
 	expect(self, TokenKind.Keyword, "end");
 
-	return Ast.FunctionLiteralExpression(args, body);
+	local node = Ast.FunctionLiteralExpression(args, body);
+	node.attributes = attributes;
+	return node;
+end
+
+-- An inner function never inherits its enclosing function's vararg parameter.
+-- Signature annotations are parsed before entering the new function context.
+function Parser:functionBody(scope, args)
+	local savedVararg = self.varargAllowed;
+	self.varargAllowed = #args > 0 and args[#args].kind == AstKind.VarargExpression;
+	self.functionDepth = self.functionDepth + 1;
+	local body = self:block(nil, false, scope);
+	self.functionDepth = self.functionDepth - 1;
+	self.varargAllowed = savedVararg;
+	return body;
 end
 
 function Parser:functionArgList(scope)
 	local args = {};
 	if(consume(self, TokenKind.Symbol, "...")) then
+		self:parseLuauVarargAnnotation();
 		table.insert(args, Ast.VarargExpression());
 		return args;
 	end
@@ -765,18 +979,21 @@ function Parser:functionArgList(scope)
 	if(is(self, TokenKind.Ident)) then
 		local ident = get(self);
 		local name = ident.value;
+		self:parseLuauTypeAnnotation();
 
 		local id = scope:addVariable(name, ident);
 		table.insert(args, Ast.VariableExpression(scope, id));
 
 		while(consume(self, TokenKind.Symbol, ",")) do
 			if(consume(self, TokenKind.Symbol, "...")) then
+				self:parseLuauVarargAnnotation();
 				table.insert(args, Ast.VarargExpression());
 				return args;
 			end
 
-			ident = get(self);
+			ident = expect(self, TokenKind.Ident);
 			name = ident.value;
+			self:parseLuauTypeAnnotation();
 
 			id = scope:addVariable(name, ident);
 			table.insert(args, Ast.VariableExpression(scope, id));
@@ -786,6 +1003,15 @@ function Parser:functionArgList(scope)
 	return args;
 end
 
+local function checkCallLine(self)
+	if self.luaVersion == LuaVersion.LuaU and is(self, TokenKind.Symbol, "(")
+		and peek(self, -1).line ~= peek(self).line then
+		local message = generateError(self, "Ambiguous function call; use ';' to separate statements");
+		if self.disableLog then error(message, 0) end
+		logger:error(message);
+	end
+end
+
 function Parser:expressionFunctionCall(scope, base)
 	base = base or self:expressionIndex(scope);
 
@@ -793,6 +1019,17 @@ function Parser:expressionFunctionCall(scope, base)
 		return base;
 	end
 
+	local instantiated = false;
+	while self:parseLuauInstantiation() do
+		instantiated = true;
+		if base.kind == AstKind.FunctionCallExpression or base.kind == AstKind.PassSelfFunctionCallExpression then
+			base.isParenthesizedExpression = true;
+		end
+	end
+	if instantiated and (is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[") or is(self, TokenKind.Symbol, ":")) then
+		return self:expressionFunctionCall(scope, self:expressionIndex(scope, base));
+	end
+	checkCallLine(self);
 	-- Normal Function Call
 	local args = {};
 	if(is(self, TokenKind.String)) then
@@ -852,7 +1089,9 @@ function Parser:expressionIndex(scope, base)
 	-- Function Passing self
 	if(consume(self, TokenKind.Symbol, ":")) then
 		local passSelfFunctionName = expect(self, TokenKind.Ident).value;
+		self:parseLuauInstantiation();
 		local args = {};
+		checkCallLine(self);
 		if(is(self, TokenKind.String)) then
 			args = {
 				Ast.StringExpression(get(self).value),
@@ -892,6 +1131,41 @@ function Parser:expressionIndex(scope, base)
 	return base;
 end
 
+function Parser:interpolatedString(scope, parts)
+	local format, expressions = {}, {};
+	for _, part in ipairs(parts) do
+		if part.literal then
+			format[#format + 1] = part.literal:gsub("%%", "%%%%");
+		else
+			local savedTokens, savedIndex, savedLength = self.tokens, self.index, self.length;
+			self.tokens, self.index, self.length = part.tokens, 0, #part.tokens;
+			local ok, expression = pcall(function()
+				local result = self:expression(scope);
+				expect(self, TokenKind.Eof);
+				return result;
+			end);
+			self.tokens, self.index, self.length = savedTokens, savedIndex, savedLength;
+			if not ok then error(expression, 0) end
+			if expression.kind == AstKind.FunctionCallExpression or expression.kind == AstKind.PassSelfFunctionCallExpression
+				or expression.kind == AstKind.VarargExpression then
+				expression.isParenthesizedExpression = true;
+			end
+			expressions[#expressions + 1] = expression;
+			format[#format + 1] = "%*";
+		end
+	end
+	local template = table.concat(format);
+	if #expressions == 0 then
+		return Ast.StringExpression(template:gsub("%%%%", "%%"));
+	end
+	-- Luau's %* formatting has interpolation's conversion and evaluation order.
+	-- Looking up the string method avoids shadowing of the global string library.
+	local result = Ast.PassSelfFunctionCallExpression(Ast.StringExpression(template), "format", expressions);
+	result.isParenthesizedExpression = true;
+	result.isInterpolatedStringExpression = true;
+	return result;
+end
+
 function Parser:expressionLiteral(scope)
 	-- () expression
 	if(consume(self, TokenKind.Symbol, "(")) then
@@ -903,12 +1177,18 @@ function Parser:expressionLiteral(scope)
 		return expr;
 	end
 
+	-- Luau interpolated string
+	if(is(self, TokenKind.InterpolatedString)) then
+		return self:interpolatedString(scope, get(self).value);
+	end
+
 	-- String Literal
 	if(is(self, TokenKind.String)) then
 		return Ast.StringExpression(get(self).value);
 	end
 
 	-- Number Literal
+	if is(self, TokenKind.Integer) then return Ast.IntegerExpression(get(self).value) end
 	if(is(self, TokenKind.Number)) then
 		return Ast.NumberExpression(get(self).value);
 	end
@@ -930,6 +1210,11 @@ function Parser:expressionLiteral(scope)
 
 	-- Vararg Literal
 	if(consume(self, TokenKind.Symbol, "...")) then
+		if not self.varargAllowed then
+			local message = generateError(self, "Cannot use '...' outside a vararg function");
+			if self.disableLog then error(message, 0) end
+			logger:error(message);
+		end
 		return Ast.VarargExpression();
 	end
 
@@ -939,11 +1224,16 @@ function Parser:expressionLiteral(scope)
 		local name = ident.value;
 
 		local scope, id = scope:resolve(name);
+		if self.typeFunctionRoot and not scope.isGlobal then
+			local current = scope;
+			while current and current ~= self.typeFunctionRoot do current = current.parentScope end
+			if not current then logger:error(generateError(self, "Type function cannot reference outer local '" .. name .. "'")) end
+		end
 		return Ast.VariableExpression(scope, id);
 	end
 
 	-- IfElse
-	if(LuaVersion.LuaU) then
+	if(self.luaVersion == LuaVersion.LuaU) then
 		if(consume(self, TokenKind.Keyword, "if")) then
 			local condition = self:expression(scope);
 			expect(self, TokenKind.Keyword, "then");
@@ -989,7 +1279,9 @@ function Parser:tableConstructor(scope)
 			local key = Ast.StringExpression(get(self).value);
 			expect(self, TokenKind.Symbol, "=");
 			local value = self:expression(scope);
-			table.insert(entries, Ast.KeyedTableEntry(key, value));
+			local entry = Ast.KeyedTableEntry(key, value);
+			entry.isRecord = true;
+			table.insert(entries, entry);
 		else
 			local value = self:expression(scope);
 			table.insert(entries, Ast.TableEntry(value));

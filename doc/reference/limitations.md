@@ -12,6 +12,65 @@ obfuscation:
 
 Source code constructed or loaded at runtime is not automatically obfuscated.
 
+## Luau
+
+The obfuscator itself is written in Lua 5.1 and supports LuaJIT. `LuaVersion`
+selects the input/output language; a Luau runtime is needed to execute Luau
+output, not to run the obfuscator.
+
+Use `--LuaU` or `LuaVersion = "LuaU"` for Luau input. Type declarations,
+annotations, assertions (`::`), and type function declarations are removed;
+Prometheus does not type-check them, evaluate `typeof` expressions in type
+positions, or retain exported types for consumers. The type grammar is validated
+before erasure, including type packs, generic parameter defaults, and union and
+intersection grouping. Unknown type names remain syntactically valid; use Luau's
+type checker to resolve names and verify type compatibility. Run the output on Luau.
+
+Conditional expressions, including `elseif` branches, interpolated strings,
+contextual [`const` declarations](https://rfcs.luau.org/const-keyword.html), and
+generalized `for` iteration are supported. `const` bindings are checked for
+reassignment and lowered to locals; tables
+referenced by a `const` remain mutable. Interpolation uses Luau's `%*` string
+formatting and therefore requires a Luau runtime for the transformed code.
+
+Generalized iteration supports tables, `__iter`, callable objects, ordinary
+iterator triples, and protected metatables in every preset. `Cff` and `Vmify`
+retain native iterator initialization in a small function and compile the loop
+body as a callback. This preserves the caller's coroutine, break/continue,
+outer returns, iteration-local captures, and trailing nil return values without
+reflecting on the object's metatable. Vararg/return transport uses the standard
+`select` and `unpack` globals.
+
+Floor division (`//` and `//=`) is supported in every preset and preserves
+Luau's native `__idiv` metamethod. Contextual keywords such as `continue`,
+`type`, `export`, and `const` remain valid identifiers outside their statement
+contexts. Decimal, hexadecimal, and binary numerals support Luau's underscore
+separators; malformed number tokens are rejected.
+
+Luau accepts one optional semicolon after a statement, including a type
+declaration. Leading or repeated empty semicolons are rejected. Varargs are
+valid at chunk level and inside functions that declare `...`; an inner function
+does not inherit its enclosing function's varargs. These checks also apply to
+erased type syntax. Type function bodies must use syntax that the parser
+supports even though those declarations are erased.
+
+Explicit generic instantiation such as `identity<<number>>(value)` is validated
+and erased. Function attributes `@native`, `@checked`, `@deprecated`, and their
+`@[...]` forms are validated. Minify preserves function attributes. Virtualizing
+a function changes its layout, so its original per-function compilation hints
+do not directly describe the generated dispatcher. Header directives
+`--!native` and `--!optimize 0/1/2` are preserved by every preset.
+
+Recent Luau runtimes also support value exports (`export local`, `export const`,
+and `export function`) and 64-bit integer literals such as `9007199254740993i`.
+Exports are lowered to a module table with live bindings and a frozen module
+return, including duplicate-export and top-level-return checks. Integer
+literals retain their exact digits and bit patterns without converting them
+to the obfuscator host's double-precision numbers. Their available operations
+follow the selected Luau runtime; no arithmetic behavior is emulated by the
+obfuscator. Lune 0.11.0 does not accept these newer input forms. Integer output
+therefore requires a more recent Luau runtime.
+
 ## Replacing a running function's environment
 
 Prometheus does not support replacing a function's environment while that

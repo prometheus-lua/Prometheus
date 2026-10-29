@@ -12,8 +12,14 @@ return function(self, expression, funcDepth, numReturns)
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i == 1 then
-            local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
-            local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            local lhsReg, rhsReg;
+            local lhs = expression.lhs;
+            local deferRead = self.luaVersion == "LuaU" and expression.kind ~= Ast.AstKind.StrCatExpression
+                and lhs.kind == Ast.AstKind.VariableExpression and not lhs.scope.isGlobal
+                and self.scopeFunctionDepths[lhs.scope] == funcDepth;
+            if not deferRead then lhsReg = self:compileExpression(lhs, funcDepth, 1)[1] end
+            rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
+            if deferRead then lhsReg = self:compileExpression(lhs, funcDepth, 1)[1] end
 
             local binaryExpr = Ast[expression.kind](self:register(scope, lhsReg), self:register(scope, rhsReg));
             self:addStatement(self:setRegister(scope, regs[i], binaryExpr), {regs[i]}, {lhsReg, rhsReg}, true);

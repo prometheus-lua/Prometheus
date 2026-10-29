@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y \
     lua5.1 \
+    luajit \
     python3 \
     patch \
     git \
@@ -14,8 +15,8 @@ RUN --mount=type=secret,id=ca-bundle \
     if [ -f /run/secrets/ca-bundle ]; then export CURL_CA_BUNDLE=/run/secrets/ca-bundle; fi; \
     curl -fsSLo /tmp/luau-ubuntu.zip \
     https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip \
-    && unzip -j /tmp/luau-ubuntu.zip luau -d /usr/local/bin \
-    && chmod +x /usr/local/bin/luau \
+    && unzip -j /tmp/luau-ubuntu.zip luau luau-compile -d /usr/local/bin \
+    && chmod +x /usr/local/bin/luau /usr/local/bin/luau-compile \
     && rm /tmp/luau-ubuntu.zip
 
 # Verify installations
@@ -25,6 +26,16 @@ WORKDIR /app
 COPY . /app
 
 RUN lua5.1 tests/harness/metadata.lua \
+    && timeout 60s lua5.1 tests/harness/luau-parser.lua \
+    && python3 tests/harness/luau-syntax.py \
+    && python3 tests/harness/luau.py \
+    && python3 tests/harness/luau-recent.py \
+    && lua5.1 tests/harness/luau-strings.lua \
+    && LUA51=luajit python3 tests/harness/luau-syntax.py \
+    && LUA51=luajit python3 tests/harness/luau.py \
+    && LUA51=luajit python3 tests/harness/luau-recent.py \
+    && luajit tests/harness/luau-strings.lua \
+    && python3 tests/harness/cli.py \
     && timeout 60s lua5.1 tests/harness/numbers-to-expressions.lua \
     && timeout 60s lua5.1 tests/harness/cff-arity.lua \
     && timeout 60s lua5.1 tests/harness/cff-native.lua \

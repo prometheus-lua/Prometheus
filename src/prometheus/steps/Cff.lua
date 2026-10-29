@@ -18,9 +18,10 @@ Cff.SettingsDescriptor = {
 
 function Cff:init(_) end
 
-function Cff:apply(ast)
+function Cff:apply(ast, pipeline)
+    local settings = {LuaVersion = pipeline and pipeline:getLuaVersion() or "Lua51"};
     if self.ExcludeVm and ast.vmRuntime then
-        local compiler = Compiler:new();
+        local compiler = Compiler:new(settings);
         compiler.nativeExpressions = {[ast.vmRuntime] = true};
         if ast.vmData then compiler.nativeExpressions[ast.vmData] = true; end
         local flattened = compiler:compile(ast);
@@ -29,10 +30,10 @@ function Cff:apply(ast)
         return flattened;
     end
     if ast.vmRuntime then
-        local flattened = flattenVm(ast);
+        local flattened = flattenVm(ast, settings.LuaVersion);
         if flattened then return flattened; end
     end
-	local compiler = Compiler:new();
+	local compiler = Compiler:new(settings);
 
     return compiler:compile(ast);
 end

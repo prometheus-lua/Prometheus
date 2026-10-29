@@ -165,11 +165,18 @@ return function(Compiler)
 		release(self, values)
 	end
 
-	local function assignmentTarget(self, target)
+	local function isCurrentLocal(self, expression)
+		return expression.kind == K.VariableExpression and not expression.scope.isGlobal
+			and self.analysis.owners[expression.scope] == self.owner
+	end
+
+	local function assignmentTarget(self, target, compound)
 		if target.kind == K.AssignmentVariable then return {scope = target.scope, id = target.id} end
 		if target.kind == K.AssignmentIndexing then
-			local base = self:expression(target.base, 1)[1]
+			local base
+			if not compound or not isCurrentLocal(self, target.base) then base = self:expression(target.base, 1)[1] end
 			local key = self:expression(target.index, 1)[1]
+			if not base then base = self:expression(target.base, 1)[1] end
 			return {base = base, key = key}
 		end
 		error("invalid assignment target: " .. tostring(target.kind))
@@ -195,13 +202,22 @@ return function(Compiler)
 	local compoundOp = {
 		[K.CompoundAddStatement] = "ADD", [K.CompoundSubStatement] = "SUB",
 		[K.CompoundMulStatement] = "MUL", [K.CompoundDivStatement] = "DIV",
+		[K.CompoundFloorDivStatement] = "IDIV",
 		[K.CompoundModStatement] = "MOD", [K.CompoundPowStatement] = "POW",
 		[K.CompoundConcatStatement] = "CONCAT",
 	}
 
 	local function compileCompound(self, node)
-		local target = assignmentTarget(self, node.lhs)
+		local target = assignmentTarget(self, node.lhs, true)
 		local old = self:alloc()
+		local rhs
+		local localTarget = target.scope and not target.scope.isGlobal
+			and self.analysis.owners[target.scope] == self.owner
+		local deferRead = localTarget and node.kind ~= K.CompoundConcatStatement
+		-- Concatenation snapshots its left operand even when it is a local.
+		if deferRead then
+			rhs = self:expression(node.rhs, 1)[1]
+		end
 		if target.scope then
 			local value = self:readVariable(target.scope, target.id)
 			self:emit("MOVE", old, value)
@@ -209,9 +225,17 @@ return function(Compiler)
 		else
 			self:emit("GETTABLE", old, target.base, target.key)
 		end
-		local rhs = self:expression(node.rhs, 1)[1]
+		if not deferRead then rhs = self:expression(node.rhs, 1)[1] end
 		local result = self:alloc()
 		self:emit(compoundOp[node.kind], result, old, rhs)
+		if target.base and isCurrentLocal(self, node.lhs.base) then
+			self:free(target.base)
+			target.base = self:expression(node.lhs.base, 1)[1]
+		end
+		if target.key and isCurrentLocal(self, node.lhs.index) then
+			self:free(target.key)
+			target.key = self:expression(node.lhs.index, 1)[1]
+		end
 		storeTarget(self, target, result)
 		release(self, {old, rhs, result})
 		if target.base then self:free(target.base); self:free(target.key) end

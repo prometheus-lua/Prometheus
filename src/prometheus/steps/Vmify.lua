@@ -10,8 +10,8 @@ Vmify.SettingsDescriptor = {}
 
 function Vmify:init() end
 
-function Vmify:apply(ast)
-    return Emit.ast(Compiler:compile(ast))
+function Vmify:apply(ast, pipeline)
+    return Emit.ast(Compiler:compile(ast, pipeline and pipeline:getLuaVersion()))
 end
 
 return Vmify

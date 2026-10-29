@@ -12,7 +12,10 @@ Thanks for contributing to Prometheus.
 
 ## Running Tests
 
-Tests run inside a Docker container with lua5.1 and Luau:
+The obfuscator source must remain valid Lua 5.1 and run in both Lua 5.1 and
+LuaJIT. `LuaVersion` selects the input/output dialect; Luau is a target runtime,
+not a dependency of the obfuscator host. Tests run inside a Docker container
+with Lua 5.1, LuaJIT, and the official Luau runtime:
 
 ```bash
 ./scripts/run-tests.sh           # Run all tests (default: 10 iterations)
@@ -21,6 +24,19 @@ Tests run inside a Docker container with lua5.1 and Luau:
 ./scripts/run-tests.sh -c config.lua  # Use a custom config
 ./scripts/run-tests.sh -v        # Verbose output
 ```
+
+The Docker build runs Luau syntax and execution checks with both Lua 5.1 and
+LuaJIT as the obfuscator host. The same checks can be run directly:
+
+```bash
+LUA51=luajit python3 tests/harness/luau-syntax.py
+LUA51=luajit python3 tests/harness/luau.py
+LUA51=luajit python3 tests/harness/luau-recent.py
+luajit tests/harness/luau-strings.lua
+```
+
+`LUAU` and `LUAU_COMPILE` select the target runtime and compiler. The recent
+syntax checks require a Luau version with value exports and integer literals.
 
 ### Test File Metadata
 

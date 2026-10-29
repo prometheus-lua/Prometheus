@@ -41,14 +41,17 @@ local function print_help()
 	print("  --version, -v          Print CLI version")
 	print("")
 	print("Obfuscation options:")
-	print("  --preset, --p <name>   Use preset (e.g. Minify, Medium, High)")
+	print("  --preset, --p <name>   Use preset (e.g. Minify, Medium, Strong)")
 	print("  --config, --c <file>   Use custom config Lua file")
 	print("  --out, --o <file>      Set output path")
-	print("  --Lua51                Force Lua 5.1 target")
-	print("  --LuaU                 Force LuaU target")
+	print("  --lua51                Force Lua 5.1 target")
+	print("  --luau                 Force Luau target")
 	print("  --pretty               Pretty print output")
 	print("  --nocolors             Disable colored logs")
 	print("  --saveerrors           Persist parser errors to file")
+	print("")
+	print("Command, option, and preset names are case-insensitive; paths keep their original case.")
+	print("Options with a value also accept --option=value. Use -- before an input starting with '-'.")
 end
 
 local function run_update()
@@ -71,17 +74,17 @@ local function run_update()
 	print("Update completed")
 end
 
-if arg[1] == "update" then
+local firstArg = arg[1] and arg[1]:lower()
+if firstArg == "update" then
 	run_update()
 	os.exit(0)
 end
-
-if arg[1] == "--version" or arg[1] == "-v" then
+if firstArg == "--version" or firstArg == "-v" then
 	print(get_version())
 	os.exit(0)
 end
 
-if arg[1] == "--help" or arg[1] == "-h" or arg[1] == "help" then
+if firstArg == "--help" or firstArg == "-h" or firstArg == "help" then
 	print_help()
 	os.exit(0)
 end
@@ -148,80 +151,127 @@ local function load_chunk(content, chunkName, environment)
 	return load(content, chunkName, "t", environment)
 end
 
-local function run_cli()
-	-- CLI
-	local config, sourceFile, outFile, luaVersion, prettyPrint
+local function output_stem(path)
+	local base, extension = path:match("^(.*)(%.[^/\\%.]+)$")
+	if extension and (extension:lower() == ".lua" or extension:lower() == ".luau") then
+		return base, extension
+	end
+	return path, ".lua"
+end
 
+local function find_preset(name)
+	local exact = Prometheus.Presets[name]
+	if exact then return exact end
+	for presetName, preset in pairs(Prometheus.Presets) do
+		if presetName:lower() == name:lower() then return preset end
+	end
+end
+
+local function run_cli()
+	local config, sourceFile, outFile, luaVersion, prettyPrint
+	local optionsEnabled = true
 	Prometheus.colors.enabled = true
 
-	-- Parse Arguments
 	local i = 1
 	while i <= #arg do
 		local curr = arg[i]
-		if curr:sub(1, 2) == "--" then
-			if curr == "--preset" or curr == "--p" then
-				if config then
-					Prometheus.Logger:warn("The config was set multiple times")
-				end
+		if optionsEnabled and curr == "--" then
+			optionsEnabled = false
+		elseif optionsEnabled and #curr > 1 and curr:sub(1, 1) == "-" then
+			local option, inlineValue = curr:match("^(%-%-[^=]+)=(.*)$")
+			option = (option or curr):lower()
 
+			local function value()
+				if inlineValue ~= nil then
+					if inlineValue == "" then
+						Prometheus.Logger:error(string.format('The option "%s" requires a value', curr))
+					end
+					return inlineValue
+				end
+				local nextArg = arg[i + 1]
+				if not nextArg or nextArg == "" or nextArg:sub(1, 1) == "-" then
+					Prometheus.Logger:error(string.format('The option "%s" requires a value', curr))
+				end
 				i = i + 1
-				local preset = Prometheus.Presets[arg[i]]
+				return nextArg
+			end
+
+			local takesValue = option == "--preset" or option == "--p" or option == "--config"
+				or option == "--c" or option == "--out" or option == "--o"
+			local isFlag = option == "--help" or option == "-h" or option == "--version" or option == "-v"
+				or option == "--nocolors" or option == "--lua51" or option == "--luau"
+				or option == "--pretty" or option == "--saveerrors"
+			if inlineValue ~= nil and not takesValue and isFlag then
+				Prometheus.Logger:error(string.format('The option "%s" does not accept a value', curr))
+			end
+
+			if option == "--help" or option == "-h" then
+				print_help()
+				return
+			elseif option == "--version" or option == "-v" then
+				print(get_version())
+				return
+			elseif option == "--preset" or option == "--p" then
+				local name = value()
+				local preset = find_preset(name)
 				if not preset then
-					Prometheus.Logger:error(string.format('A Preset with the name "%s" was not found!', tostring(arg[i])))
+					Prometheus.Logger:error(string.format('A preset with the name "%s" was not found!', name))
 				end
-
-				config = preset
-			elseif curr == "--config" or curr == "--c" then
-				i = i + 1
-				local filename = tostring(arg[i])
+				if config then Prometheus.Logger:warn("The config was set multiple times") end
+				config = {}
+				for key, entry in pairs(preset) do config[key] = entry end
+			elseif option == "--config" or option == "--c" then
+				local filename = value()
 				if not file_exists(filename) then
 					Prometheus.Logger:error(string.format('The config file "%s" was not found!', filename))
 				end
-
 				local content = table.concat(lines_from(filename), "\n")
-				-- Load Config from File
 				local func, err = load_chunk(content, "@" .. filename, {})
 				if not func then
 					Prometheus.Logger:error(string.format('Failed to parse config file "%s": %s', filename, tostring(err)))
 				end
+				if config then Prometheus.Logger:warn("The config was set multiple times") end
 				config = func()
-			elseif curr == "--out" or curr == "--o" then
-				i = i + 1
-				if outFile then
-					Prometheus.Logger:warn("The output file was specified multiple times!")
+				if type(config) ~= "table" then
+					Prometheus.Logger:error(string.format('The config file "%s" must return a table', filename))
 				end
-				outFile = arg[i]
-			elseif curr == "--nocolors" then
+			elseif option == "--out" or option == "--o" then
+				local filename = value()
+				if outFile then Prometheus.Logger:warn("The output file was specified multiple times!") end
+				outFile = filename
+			elseif option == "--nocolors" then
 				Prometheus.colors.enabled = false
-			elseif curr == "--Lua51" then
+			elseif option == "--lua51" then
 				luaVersion = "Lua51"
-			elseif curr == "--LuaU" then
+			elseif option == "--luau" then
 				luaVersion = "LuaU"
-			elseif curr == "--pretty" then
+			elseif option == "--pretty" then
 				prettyPrint = true
-			elseif curr == "--saveerrors" then
-				-- Override error callback
+			elseif option == "--saveerrors" then
 				Prometheus.Logger.errorCallback = function(...)
-					local args = { ... }
-					local message = table.concat(args, " ")
+					local message = table.concat({ ... }, " ")
 					io.stderr:write(Prometheus.colors(Prometheus.Config.NameUpper .. ": " .. message, "red") .. "\n")
-
-					local fileName = sourceFile:sub(-4) == ".lua" and sourceFile:sub(0, -5) .. ".error.txt"
-						or sourceFile .. ".error.txt"
-					local handle = io.open(fileName, "w")
-					handle:write(message)
-					handle:close()
-
+					if sourceFile then
+						local stem = output_stem(sourceFile)
+						local filename = stem .. ".error.txt"
+						local handle, writeError = io.open(filename, "w")
+						if handle then
+							handle:write(message)
+							handle:close()
+						else
+							io.stderr:write(string.format('Cannot write error file "%s": %s\n', filename, tostring(writeError)))
+						end
+					end
 					os.exit(1)
 				end
 			else
-				Prometheus.Logger:warn(string.format('The option "%s" is not valid and therefore ignored', curr))
+				Prometheus.Logger:error(string.format('Unknown option "%s"', curr))
 			end
 		else
 			if sourceFile then
-				Prometheus.Logger:error(string.format('Unexpected argument "%s"', arg[i]))
+				Prometheus.Logger:error(string.format('Unexpected argument "%s"', curr))
 			end
-			sourceFile = tostring(arg[i])
+			sourceFile = curr
 		end
 		i = i + 1
 	end
@@ -229,26 +279,21 @@ local function run_cli()
 	if not sourceFile then
 		Prometheus.Logger:error("No input file was specified!")
 	end
-
 	if not config then
 		Prometheus.Logger:warn("No config was specified, falling back to Minify preset")
-		config = Prometheus.Presets.Minify
+		config = {}
+		for key, entry in pairs(Prometheus.Presets.Minify) do config[key] = entry end
 	end
 
-	-- Add Option to override Lua Version
 	config.LuaVersion = luaVersion or config.LuaVersion
 	config.PrettyPrint = prettyPrint ~= nil and prettyPrint or config.PrettyPrint
 
 	if not file_exists(sourceFile) then
-		Prometheus.Logger:error(string.format('The File "%s" was not found!', sourceFile))
+		Prometheus.Logger:error(string.format('The file "%s" was not found!', sourceFile))
 	end
-
 	if not outFile then
-		if sourceFile:sub(-4) == ".lua" then
-			outFile = sourceFile:sub(0, -5) .. ".obfuscated.lua"
-		else
-			outFile = sourceFile .. ".obfuscated.lua"
-		end
+		local stem, extension = output_stem(sourceFile)
+		outFile = stem .. ".obfuscated" .. extension
 	end
 
 	local source = table.concat(lines_from(sourceFile), "\n")
@@ -256,8 +301,10 @@ local function run_cli()
 	local out = pipeline:apply(source, sourceFile)
 	Prometheus.Logger:info(string.format('Writing output to "%s"', outFile))
 
-	-- Write Output
-	local handle = io.open(outFile, "w")
+	local handle, writeError = io.open(outFile, "w")
+	if not handle then
+		Prometheus.Logger:error(string.format('Cannot write output file "%s": %s', outFile, tostring(writeError)))
+	end
 	handle:write(out)
 	handle:close()
 end

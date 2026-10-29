@@ -134,12 +134,14 @@ function Pipeline:setLuaVersion(luaVersion)
 	});
 	self.unparser = Unparser:new({
 		LuaVersion = luaVersion;
+		PrettyPrint = self.PrettyPrint;
 	});
+	self.LuaVersion = luaVersion;
 	self.conventions = conventions;
 end
 
 function Pipeline:getLuaVersion()
-	return self.luaVersion;
+	return self.LuaVersion;
 end
 
 function Pipeline:setNameGenerator(nameGenerator)
@@ -196,7 +198,17 @@ function Pipeline:apply(code, filename)
 	local parserStartTime = gettime();
 
 	local sourceLen = string.len(code);
-	local ast = self.parser:parse(code);
+	local parser = self.parser;
+	if self.LuaVersion == LuaVersion.LuaU then
+		for _, step in ipairs(self.steps) do
+			if step.Name == "Vmify" or step.Name == "Cff" then
+				parser = Parser:new({LuaVersion = LuaVersion.LuaU, LowerLuauIteration = true});
+				break;
+			end
+		end
+	end
+	local ast = parser:parse(code);
+	local directives = ast.directives;
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
@@ -213,6 +225,7 @@ function Pipeline:apply(code, filename)
 	end
 
 	-- Rename Variables Step
+	ast.directives = directives;
 	self:renameVariables(ast);
 
 	code = self:unparse(ast);

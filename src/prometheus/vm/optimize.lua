@@ -12,7 +12,7 @@ end
 local function isUnary(op) return op == 'NOT' or op == 'NEG' or op == 'LEN' end
 local function isBinary(op)
     return op == 'ADD' or op == 'SUB' or op == 'MUL' or op == 'DIV'
-        or op == 'MOD' or op == 'POW' or op == 'CONCAT' or op == 'LT'
+        or op == 'IDIV' or op == 'MOD' or op == 'POW' or op == 'CONCAT' or op == 'LT'
         or op == 'LE' or op == 'GT' or op == 'GE' or op == 'EQ' or op == 'NE'
 end
 local function producer(ins)

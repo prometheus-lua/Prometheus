@@ -39,7 +39,11 @@ The project was inspired by the excellent [javascript-obfuscator](https://github
 Currently, Prometheus supports:
 
 - **Lua 5.1**
-- **LuaU** *(basic support is available, but still not fully finished)*
+- **Luau** *(partial support, including type erasure, interpolation, `const`, and generalized iteration; see [limitations](doc/reference/limitations.md#luau))*
+
+To process Luau, pass `--luau` (or `--LuaU`) to the CLI or set `LuaVersion = "LuaU"` in
+configuration. Type annotations, assertions, and type declarations are removed;
+output still targets the Luau runtime. See [Luau limitations](doc/reference/limitations.md#luau).
 
 Lua 5.1's legacy implicit `arg` table in vararg functions is unsupported.
 Use `...` and `select('#', ...)` instead; see [Limitations](doc/reference/limitations.md).

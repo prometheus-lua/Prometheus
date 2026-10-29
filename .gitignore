@@ -44,6 +44,8 @@ __pycache__/
 /luau
 /luau-compile
 /luau-*.zip
+/LuaJIT-*/
+/luajit-source.tar.gz
 *.obfuscated.lua
 *.obfuscated.luau
 *.out.luau

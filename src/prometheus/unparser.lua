@@ -107,7 +107,11 @@ function Unparser:unparse(ast)
 		logger:error("Unparser:unparse expects a TopNode as first argument")
 	end
 
-	return self:unparseBlock(ast.body);
+	local source = self:unparseBlock(ast.body);
+	if self.luaVersion == LuaVersion.LuaU and ast.directives and #ast.directives > 0 then
+		source = table.concat(ast.directives, "\n") .. "\n" .. source;
+	end
+	return source;
 end
 
 -- Helper to join parts table (optimized string building)
@@ -383,7 +387,8 @@ function Unparser:unparseStatement(statement, tabbing)
 		end
 	end
 
-	return self:tabs(tabbing, false) .. joinParts(parts);
+	local attributes = statement.attributes and (table.concat(statement.attributes, " ") .. " ") or "";
+	return self:tabs(tabbing, false) .. attributes .. joinParts(parts);
 end
 
 function Unparser:unparseExpression(expression, tabbing)
@@ -407,6 +412,10 @@ function Unparser:unparseExpression(expression, tabbing)
 		return expression.value and "true" or "false";
 	end
 
+	if expression.kind == AstKind.IntegerExpression then
+		if self.luaVersion ~= LuaVersion.LuaU then logger:error("Integer literals require a recent Luau runtime") end
+		return expression.value;
+	end
 	if(expression.kind == AstKind.NumberExpression) then
 		local value = expression.value;
 		local str = tostring(value);
@@ -637,6 +646,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.FunctionLiteralExpression;
 	if(expression.kind == k) then
+		if expression.attributes then push(table.concat(expression.attributes, " "), " ") end
 		push("function", "(");
 		for i, arg in ipairs(expression.args) do
 			if i > 1 then

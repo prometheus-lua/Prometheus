@@ -208,6 +208,7 @@ function Pipeline:apply(code, filename)
 		end
 	end
 	local ast = parser:parse(code);
+	local directives = ast.directives;
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
@@ -224,6 +225,7 @@ function Pipeline:apply(code, filename)
 	end
 
 	-- Rename Variables Step
+	ast.directives = directives;
 	self:renameVariables(ast);
 
 	code = self:unparse(ast);

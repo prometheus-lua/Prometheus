@@ -228,6 +228,66 @@ for source in (
     add(f'floor division: {source}', source)
 
 
+# Attributes, explicit instantiations, and newer value syntax share runtime names.
+for attribute in (
+    '@native', '@checked', '@deprecated', '@[native]', '@[native, checked]',
+    '@[deprecated({use = "replacement", reason = "old"})]',
+    '@[native(1)]', '@[native("text", true, nil, {})]',
+    '@[deprecated({})]', '@[deprecated("text")]', '@[deprecated(1)]',
+    '@[deprecated({["use"] = "replacement"})]', '@[deprecated({bad = "x"})]',
+    '@[deprecated({use = 1})]', '@[native(1 + 2)]', '@[native(-1)]',
+    '@[native((1))]', '@[native(function() end)]', '@[native(value)]',
+    '@[native({field = value})]', '@[native(1i)]', '@[native(-1i)]',
+    '@[native, native]', '@native @native', '@[]', '@[native,]', '@unknown', '@ native',
+):
+    for template in ('%s local function f() end', '%s function f() end',
+                     'local f = %s function() end', 'local %s function f() end', '%s local x = 1'):
+        add(f'attribute: {attribute}: {template}', template % attribute)
+for args in ('number', 'number, string', '', 'number,', '...number', 'T...',
+             '(number, string)', 'number | string', 'typeof(1)', 'number = string', '|& T'):
+    for template in ('return f<<%s>>(1)', 'return object:method<<%s>>(1)',
+                     'return f<<%s>>', 'return f<<%s>>.field', 'return f<<%s>>[1]',
+                     'return f<<%s>><<number>>(1)'):
+        add(f'explicit instantiation: {template % args}', template % args)
+
+for literal in ('0i', '01i', '1_000i', '9223372036854775807i', '9223372036854775808i',
+                '-9223372036854775808i', '0xffffffffffffffffi', '0x10000000000000000i',
+                '0b' + '1' * 64 + 'i', '0b' + '1' * 65 + 'i', '0x0001i',
+                '0bi', '0xi', '1.0i', '1e2i', '.1i', '1ii', '0b2i'):
+    add(f'integer literal: {literal}', 'return ' + literal)
+for declaration in ('export local x = 1', 'export const x = 1', 'export function f() end',
+                    'export local x', 'export local x, y = 1, 2',
+                    'export local function f() end', 'export const function f() end'):
+    for template in ('%s', 'do %s end', 'local function f() %s end',
+                     '%s; return 1', 'do return 1 end; %s', '@native %s'):
+        add(f'value exports: {template % declaration}', template % declaration)
+for source in (
+    'export local x = 1; export local x = 2',
+    'export const x = 1; x = 2', 'export function f() end; f = 1',
+    'export local x = 1; function x() end',
+    'const x = 1; type T = typeof(function() x = 2 end)',
+    'local x = 1; type function f() return x end',
+    'type function f(x) return function() return x end end',
+    'local x = 1; return x :: number :: number',
+    'local x = 1; return (x :: number) :: number',
+    'local x = 1; (x) = 2', 'local t = {}; (t.x) = 2',
+    'local t = {}; (t).x = 2', 'local x, y = 1, 2; x, (y) = 3, 4',
+):
+    add(f'scope or lvalue validation: {source}', source)
+for branch in ('if flag then continue end', 'if false then continue end',
+               'if true then continue end', 'do continue end',
+               'if false then continue elseif flag then continue end',
+               'if true then print(1) else continue end'):
+    for condition in ('value', '(function() return value end)()', 'true'):
+        add(f'repeat continue: {branch}: {condition}', f'repeat {branch} local value = true until {condition}')
+for ending in ('\n', '\r', '\r\n', '\n\r'):
+    add(f'raw newline {ending!r}', 'return "a' + ending + 'b"')
+    add(f'escaped newline {ending!r}', 'return "a\\' + ending + 'b"')
+    add(f'comment newline {ending!r}', '-- comment' + ending + 'return 1')
+for escape in (r'\u{}', r'\u{110000}', r'\u{D800}', r'\u{10FFFF}', r'\255', r'\256', r'\xFG', r'\q'):
+    add('string escape ' + escape, 'return "' + escape + '"')
+
+
 def official(path):
     result = subprocess.run([compiler, '--binary', str(path)], cwd=root,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,

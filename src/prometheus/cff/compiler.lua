@@ -23,7 +23,7 @@ local Compiler = {};
 
 function Compiler:new(settings)
     local compiler = {
-        luaVersion = settings and settings.LuaVersion or "Lua51";
+        luaVersion = settings and settings.LuaVersion;
         blocks = {};
         registers = {};
         activeBlock = nil;
@@ -85,6 +85,7 @@ function Compiler:popRegisterUsageInfo()
 end
 
 function Compiler:compile(ast)
+    self.luaVersion = self.luaVersion or ast.luaVersion or "Lua51";
     self.blocks = {};
     self.registers = {};
     self.activeBlock = nil;

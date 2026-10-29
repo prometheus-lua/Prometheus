@@ -56,8 +56,13 @@ return function(self, node)
 				end
 			end
 		else
-			local key = self:expression(entry.key, 1)[1]
+			local key
+			local keyNode = entry.key
+			local deferRead = self.luaVersion == 'LuaU' and keyNode.kind == Kind.VariableExpression
+				and not keyNode.scope.isGlobal and self.analysis.owners[keyNode.scope] == self.owner
+			if not deferRead then key = self:expression(keyNode, 1)[1] end
 			local value = self:expression(entry.value, 1)[1]
+			if deferRead then key = self:expression(keyNode, 1)[1] end
 			self:emit("SETTABLE", tableReg, key, value)
 			self:free(value)
 			self:free(key)

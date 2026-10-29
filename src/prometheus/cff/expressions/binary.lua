@@ -14,7 +14,7 @@ return function(self, expression, funcDepth, numReturns)
         if i == 1 then
             local lhsReg, rhsReg;
             local lhs = expression.lhs;
-            local deferRead = expression.kind == Ast.AstKind.FloorDivExpression
+            local deferRead = self.luaVersion == "LuaU" and expression.kind ~= Ast.AstKind.StrCatExpression
                 and lhs.kind == Ast.AstKind.VariableExpression and not lhs.scope.isGlobal
                 and self.scopeFunctionDepths[lhs.scope] == funcDepth;
             if not deferRead then lhsReg = self:compileExpression(lhs, funcDepth, 1)[1] end

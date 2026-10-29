@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y \
     lua5.1 \
+    luajit \
     python3 \
     patch \
     git \
@@ -28,6 +29,12 @@ RUN lua5.1 tests/harness/metadata.lua \
     && timeout 60s lua5.1 tests/harness/luau-parser.lua \
     && python3 tests/harness/luau-syntax.py \
     && python3 tests/harness/luau.py \
+    && python3 tests/harness/luau-recent.py \
+    && lua5.1 tests/harness/luau-strings.lua \
+    && LUA51=luajit python3 tests/harness/luau-syntax.py \
+    && LUA51=luajit python3 tests/harness/luau.py \
+    && LUA51=luajit python3 tests/harness/luau-recent.py \
+    && luajit tests/harness/luau-strings.lua \
     && python3 tests/harness/cli.py \
     && timeout 60s lua5.1 tests/harness/numbers-to-expressions.lua \
     && timeout 60s lua5.1 tests/harness/cff-arity.lua \

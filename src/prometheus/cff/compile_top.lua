@@ -13,6 +13,13 @@ local AstKind = Ast.AstKind;
 
 return function(Compiler)
     function Compiler:compileTopNode(node)
+        visitast(node, function(expression)
+            if expression.isNativeLuau then
+                self.nativeExpressions = self.nativeExpressions or {};
+                self.nativeExpressions[expression] = true;
+                return nil, true;
+            end
+        end);
         if self.nativeExpressions then self:prepareNativeExpressions(node); end
         local startBlock = self:createBlock();
         local scope = startBlock.scope;

@@ -149,7 +149,7 @@ return function(Parser, token, is, consume, expect, peek, get)
 				expect(self, S, '(')
 				-- Parse the real expression grammar in a detached scope. It is never
 				-- evaluated or added to the runtime AST and its reference graph.
-				self:expression(Scope:new(Scope:newGlobal()))
+				self:expression(Scope:new(self.lexicalScope or Scope:newGlobal()))
 				expect(self, S, ')')
 				return TYPE
 			end
@@ -277,6 +277,14 @@ return function(Parser, token, is, consume, expect, peek, get)
 		return false
 	end
 
+	function Parser:parseLuauInstantiation()
+		if self.luaVersion ~= 'LuaU' or not is(self, S, '<') or not is(self, S, '<', 1) then return false end
+		get(self)
+		parseTypeArguments(self)
+		expect(self, S, '>')
+		return true
+	end
+
 	function Parser:parseLuauDeclaration()
 		if self.luaVersion ~= 'LuaU' then return false end
 		local offset = is(self, I, 'export') and 1 or 0
@@ -288,12 +296,15 @@ return function(Parser, token, is, consume, expect, peek, get)
 			expect(self, I)
 			parseGenerics(self, false)
 			expect(self, S, '(')
-			local scope = Scope:new(Scope:newGlobal())
+			local scope = Scope:new(self.lexicalScope or Scope:newGlobal())
+			local savedRoot = self.typeFunctionRoot
+			self.typeFunctionRoot = scope
 			local args = self:functionArgList(scope)
 			expect(self, S, ')')
 			self:parseLuauReturnAnnotation()
 			self:functionBody(scope, args)
 			expect(self, K, 'end')
+			self.typeFunctionRoot = savedRoot
 		else
 			expect(self, I)
 			parseGenerics(self, true)

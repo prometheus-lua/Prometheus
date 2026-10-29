@@ -45,6 +45,7 @@ local AstKind = {
 	-- Expression Nodes
 	BooleanExpression = "BooleanExpression";
 	NumberExpression = "NumberExpression";
+	IntegerExpression = "IntegerExpression";
 	StringExpression = "StringExpression";
 	NilExpression = "NilExpression";
 	VarargExpression = "VarargExpression";
@@ -87,6 +88,7 @@ local AstKind = {
 local astKindExpressionLookup = {
 	[AstKind.BooleanExpression] = 0;
 	[AstKind.NumberExpression] = 0;
+	[AstKind.IntegerExpression] = 0;
 	[AstKind.StringExpression] = 0;
 	[AstKind.NilExpression] = 0;
 	[AstKind.VarargExpression] = 0;
@@ -420,6 +422,10 @@ function Ast.LocalVariableDeclaration(scope, ids, expressions)
 	}
 end
 
+function Ast.IntegerExpression(source)
+	return {kind = AstKind.IntegerExpression, value = source, isConstant = false};
+end
+
 function Ast.VarargExpression()
 	return {
 		kind = AstKind.VarargExpression;
@@ -712,6 +718,28 @@ function Ast.NotExpression(rhs, simplify)
 end
 
 function Ast.NegateExpression(rhs, simplify)
+	if simplify and rhs.kind == AstKind.IntegerExpression then
+		local source = rhs.value;
+		if source:sub(1, 1) == "-" then return Ast.IntegerExpression(source:sub(2)) end
+		local prefix = source:sub(1, 2):lower();
+		if prefix ~= "0x" and prefix ~= "0b" then return Ast.IntegerExpression("-" .. source) end
+		local digits = source:sub(3, -2):lower();
+		if prefix == "0b" then
+			digits = string.rep("0", (4 - #digits % 4) % 4) .. digits;
+			local hex = {};
+			for i = 1, #digits, 4 do hex[#hex + 1] = string.format("%x", tonumber(digits:sub(i, i + 3), 2)) end
+			digits = table.concat(hex);
+		end
+		digits = digits:gsub("^0+", "");
+		digits = string.rep("0", 16 - #digits) .. digits;
+		local hex, carry = {}, 1;
+		for i = 16, 1, -1 do
+			local value = 15 - tonumber(digits:sub(i, i), 16) + carry;
+			hex[i] = string.format("%x", value % 16);
+			carry = math.floor(value / 16);
+		end
+		return Ast.IntegerExpression("0x" .. table.concat(hex) .. "i");
+	end
 	if(simplify and rhs.isConstant) then
 		local success, val = pcall(function() return -rhs.value end);
 		if success then

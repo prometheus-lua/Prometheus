@@ -120,6 +120,7 @@ return function(Compiler)
             .. names.result .. '=' .. source .. ';' .. finish .. 'return ' .. names.result .. ' end')
         local factory = parsed.body.statements[1].args[1]
         self.nativeResults[expression] = factory.body.statements[1].expressions[1]
+        self.nativeResults[expression].isNativeLuau = expression.isNativeLuau
         factory.body.scope:setParent(scope)
         require('prometheus.visitast')(parsed, nil, function(node, data)
             if node.kind == Kind.VariableExpression and node.scope.isGlobal then

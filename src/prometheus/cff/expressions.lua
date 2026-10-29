@@ -14,6 +14,7 @@ local function requireExpression(name)
 end
 handlers[AstKind.StringExpression] = requireExpression("string");
 handlers[AstKind.NumberExpression] = requireExpression("number");
+handlers[AstKind.IntegerExpression] = requireExpression("number");
 handlers[AstKind.BooleanExpression] = requireExpression("boolean");
 handlers[AstKind.NilExpression] = requireExpression("nil");
 handlers[AstKind.VariableExpression] = requireExpression("variable");

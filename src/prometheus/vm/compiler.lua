@@ -5,9 +5,10 @@ local optimize = require('prometheus.vm.optimize')
 local Compiler = {}
 Compiler.__index = Compiler
 
-function Compiler:new(analysis, node, parent)
+function Compiler:new(analysis, node, parent, luaVersion)
     local compiler = setmetatable({
         analysis = analysis, owner = node.body.scope, parent = parent,
+        luaVersion = parent and parent.luaVersion or luaVersion or node.luaVersion or 'Lua51',
         proto = {code = {}, constants = {}, children = {}, captures = {},
             params = {}, vararg = node.kind == 'TopNode', maxRegister = 0},
         locals = {}, upvalues = {}, constantIds = {}, registers = {}, freeRegisters = {},
@@ -161,8 +162,8 @@ function Compiler:functionLiteral(node)
     return register
 end
 
-function Compiler:compile(ast)
-    local compiler = Compiler:new(analyze(ast), ast)
+function Compiler:compile(ast, luaVersion)
+    local compiler = Compiler:new(analyze(ast), ast, nil, luaVersion)
     return optimize(compiler:finish(ast))
 end
 

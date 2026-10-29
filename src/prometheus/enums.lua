@@ -66,7 +66,7 @@ Enums.Conventions = {
 		},
 		HybridKeywords = {"continue", "type", "export", "const", "typeof", "read", "write"},
 
-		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,.?|&"),
+		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,.?|&@"),
 		MaxSymbolLength = 3,
 		Symbols = {
 			"+", "-", "*", "/", "//", "%", "^", "#",
@@ -74,7 +74,7 @@ Enums.Conventions = {
 			"+=", "-=", "/=", "//=", "%=", "^=", "..=", "*=",
 			"(", ")", "{", "}", "[", "]",
 			";", ":", ",", ".", "..", "...",
-			"::", "->", "?", "|", "&",
+			"::", "->", "?", "|", "&", "@",
 		},
 
 		IdentChars = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"),

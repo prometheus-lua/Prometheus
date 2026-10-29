@@ -80,6 +80,8 @@ local function install(Compiler)
 			local reg = self:alloc(); self:emit("NIL", reg); return reg
 		elseif kind == Kind.NumberExpression then
 			return load(self, numberValue(node.value))
+		elseif kind == Kind.IntegerExpression then
+			return load(self, node)
 		elseif kind == Kind.BooleanExpression or kind == Kind.StringExpression then
 			return load(self, node.value)
 		elseif kind == Kind.VariableExpression then
@@ -89,14 +91,18 @@ local function install(Compiler)
 			local reg = self:alloc(); self:emit("TAKE", reg, tuple, 1)
 			self:free(tuple); return reg
 		elseif kind == Kind.IndexExpression then
-			local base = self:expression(node.base, 1)[1]
+			local base
+			local currentLocal = self.luaVersion == 'LuaU' and node.base.kind == Kind.VariableExpression
+				and not node.base.scope.isGlobal and self.analysis.owners[node.base.scope] == self.owner
+			if not currentLocal then base = self:expression(node.base, 1)[1] end
 			local key = self:expression(node.index, 1)[1]
+			if currentLocal then base = self:expression(node.base, 1)[1] end
 			local result = self:alloc(); self:emit("GETTABLE", result, base, key)
 			self:free(key); self:free(base); return result
 		elseif binary[kind] then
 			local left
 			local lhs = node.lhs
-			local deferRead = kind == Kind.FloorDivExpression and lhs.kind == Kind.VariableExpression
+			local deferRead = self.luaVersion == 'LuaU' and kind ~= Kind.StrCatExpression and lhs.kind == Kind.VariableExpression
 				and not lhs.scope.isGlobal and self.analysis.owners[lhs.scope] == self.owner
 			if not deferRead then left = self:expression(lhs, 1)[1] end
 			local right = self:expression(node.rhs, 1)[1]
@@ -148,6 +154,7 @@ local function install(Compiler)
 			for _, jump in ipairs(endJumps) do self:patch(jump, 1, finish) end
 			return result
 		elseif kind == Kind.FunctionLiteralExpression then
+			if node.isNativeLuau then return load(self, node) end
 			return self:functionLiteral(node)
 		elseif kind == Kind.TableConstructorExpression then
 			return compileTable(self, node)

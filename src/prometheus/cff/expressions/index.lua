@@ -12,11 +12,13 @@ return function(self, expression, funcDepth, numReturns)
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i == 1 then
-            local baseReg = self:compileExpression(expression.base, funcDepth, 1)[1];
+            local baseReg;
+            local base = expression.base;
+            local deferRead = self.luaVersion == "LuaU" and base.kind == Ast.AstKind.VariableExpression
+                and not base.scope.isGlobal and self.scopeFunctionDepths[base.scope] == funcDepth;
+            if not deferRead then baseReg = self:compileExpression(base, funcDepth, 1)[1] end
             local indexReg = self:compileExpression(expression.index, funcDepth, 1)[1];
-
-
-
+            if deferRead then baseReg = self:compileExpression(base, funcDepth, 1)[1] end
             self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg}, true);
 
             self:freeRegister(baseReg, false);

@@ -33,6 +33,7 @@ Tokenizer.TokenKind = {
 	Symbol = "Symbol",
 	Ident = "Identifier",
 	Number = "Number",
+	Integer = "Integer",
 	String = "String",
 	InterpolatedString = "InterpolatedString",
 }
@@ -46,6 +47,7 @@ Tokenizer.EOF_TOKEN = {
 }
 
 local function token(self, startPos, kind, value)
+	if kind ~= Tokenizer.TokenKind.Eof then self.hasTokens = true end
 	local line, linePos = self:getPosition(self.index);
 	local annotations = self.annotations
 	self.annotations = {};
@@ -71,35 +73,29 @@ local function generateWarning(token, message)
 end
 
 function Tokenizer:getPosition(i)
-	if i <= 0 or self.length == 0 then return 1, 1 end
-	local column = self.columnMap[i]
-
-	if not column then --// `i` is bigger than self.length, this shouldn't happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
-		column = self.columnMap[#self.columnMap]
+	i = math.max(1, i);
+	local starts = self.lineStarts or {1};
+	local first, last = 1, #starts;
+	while first < last do
+		local middle = math.floor((first + last + 1) / 2);
+		if starts[middle] <= i then first = middle else last = middle - 1 end
 	end
-
-	return column.id, column.charMap[i] or column.length + 1
+	return first, i - starts[first] + 1;
 end
 
 --// Prepare columnMap for getPosition
 function Tokenizer:prepareGetPosition()
-	local columnMap, column = {}, { charMap = {}, id = 1, length = 0 }
-
-	for index = 1, self.length do
-		local character = string.sub(self.source, index, index) -- NOTE_1: this could use table.clone to reduce amount of NEWTABLE (if that causes any performance issues)
-
-		local columnLength = column.length + 1
-		column.length = columnLength
-		column.charMap[index] = columnLength
-
-		if character == "\n" then
-			column = { charMap = {}, id = column.id + 1, length = 0 } -- NOTE_1
+	local starts, index = {1}, 1;
+	while index <= self.length do
+		local char = self.source:sub(index, index);
+		if char == "\n" or char == "\r" then
+			local nextChar = self.source:sub(index + 1, index + 1);
+			if (char == "\n" and nextChar == "\r") or (char == "\r" and nextChar == "\n") then index = index + 1 end
+			starts[#starts + 1] = index + 1;
 		end
-
-		columnMap[index] = column
+		index = index + 1;
 	end
-
-	self.columnMap = columnMap
+	self.lineStarts = starts;
 end
 
 -- Constructor for Tokenizer
@@ -163,7 +159,9 @@ function Tokenizer:reset()
 	self.length = 0;
 	self.source = "";
 	self.annotations = {};
-	self.columnMap = {};
+	self.lineStarts = {1};
+	self.hasTokens = false;
+	self.directives = {};
 end
 
 -- Append String to this Tokenizer
@@ -241,6 +239,7 @@ end
 -- skip one or 0 Comments and return wether one was found
 function Tokenizer:skipComment()
 	if(is(self, "-", 0) and is(self, "-", 1)) then
+		local commentStart = self.index;
 		self.index = self.index + 2;
 		if(is(self, "[")) then
 			self.index = self.index + 1;
@@ -271,7 +270,14 @@ function Tokenizer:skipComment()
 		end
 		-- Single Line Comment
 		-- Get all Chars to next Newline
-		while(self.index < self.length and self:parseAnnotation() ~= "\n") do end
+		while self.index < self.length and not is(self, "\n") and not is(self, "\r") do self:parseAnnotation() end
+		if not self.hasTokens then
+			local comment = self.source:sub(commentStart + 1, self.index);
+			if comment:match("^%-%-!native%s*$") or comment:match("^%-%-!optimize%s+[012]%s*$") then
+				self.directives = self.directives or {};
+				self.directives[#self.directives + 1] = comment;
+			end
+		end
 		return true;
 	end
 	return false;
@@ -330,6 +336,23 @@ function Tokenizer:luauNumber()
 
 	local source = self.source:sub(startPos + 1, self.index):gsub("_", "");
 	local prefix = source:sub(1, 2):lower();
+	if source:sub(-1) == "i" then
+		local digits = source:sub(1, -2);
+		-- Radix integer literals are unsigned bit patterns; decimals are signed.
+		local valid;
+		if prefix == "0x" then
+			digits = source:sub(3, -2);
+			valid = digits:match("^[0-9a-fA-F]+$") and #digits:gsub("^0+", "") <= 16;
+		elseif prefix == "0b" then
+			digits = source:sub(3, -2);
+			valid = digits:match("^[01]+$") and #digits:gsub("^0+", "") <= 64;
+		else
+			local significant = digits:gsub("^0+", "");
+			valid = digits:match("^%d+$") and (#significant < 19 or (#significant == 19 and significant <= "9223372036854775807"));
+		end
+		if not valid then logger:error(generateError(self, "Malformed or overflowing integer '" .. source .. "'")) end
+		return token(self, startPos, Tokenizer.TokenKind.Integer, source);
+	end
 	local value;
 	if prefix == "0x" or prefix == "0b" then
 		local digits = source:sub(3);
@@ -433,7 +456,7 @@ function Tokenizer:singleLineString()
 		local char = get(self);
 
 		-- Single Line String may not contain Linebreaks except when they are escaped by \
-		if(char == '\n') then
+		if(char == '\n' or char == '\r') then
 			self.index = self.index - 1;
 			logger:error(generateError(self, "Unterminated String"));
 		end
@@ -459,7 +482,9 @@ function Tokenizer:singleLineString()
 					numstr = numstr .. char;
 				end
 
-				char = string.char(tonumber(numstr));
+				local value = tonumber(numstr);
+				if value > 255 then logger:error(generateError(self, "Decimal escape exceeds 255")) end
+				char = string.char(value);
 
 			elseif(self.UnicodeEscapes and char == "u") then
 				expect(self, "{");
@@ -468,7 +493,9 @@ function Tokenizer:singleLineString()
 					num = num .. get(self);
 				end
 				expect(self, "}");
-				char = util.utf8char(tonumber(num, 16));
+				local value = tonumber(num, 16);
+				if not value or value > 0x10ffff then logger:error(generateError(self, "Invalid Unicode escape")) end
+				char = util.utf8char(value);
 			elseif(self.HexEscapes and char == "x") then
 				local hex = expect(self, self.HexNumberCharsLookup) .. expect(self, self.HexNumberCharsLookup);
 				char = string.char(tonumber(hex, 16));
@@ -477,6 +504,12 @@ function Tokenizer:singleLineString()
 				while(is(self, Tokenizer.WHITESPACE_CHARS)) do
 					self.index = self.index + 1;
 				end
+			elseif char == "\n" or char == "\r" then
+				local nextChar = peek(self);
+				if (char == "\r" and nextChar == "\n") or (self.luaVersion == LuaVersion.Lua51 and char == "\n" and nextChar == "\r") then
+					self.index = self.index + 1;
+				end
+				char = "\n";
 			end
 		end
 
@@ -534,7 +567,7 @@ function Tokenizer:interpolatedString()
 		end
 		if char == "\n" or char == "\r" then
 			local nextChar = peek(self);
-			if (char == "\n" and nextChar == "\r") or (char == "\r" and nextChar == "\n") then
+			if char == "\r" and nextChar == "\n" then
 				self.index = self.index + 1;
 			end
 			return "\n";

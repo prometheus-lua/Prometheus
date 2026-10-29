@@ -18,7 +18,7 @@ return function(self, expression, funcDepth, numReturns)
                 self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(0)), {regs[i]}, {}, false);
                 self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, regs[i]))), {regs[i]}, {regs[i]}, false);
             else
-                self:addStatement(self:setRegister(scope, regs[i], Ast.NumberExpression(expression.value)), {regs[i]}, {}, false);
+                self:addStatement(self:setRegister(scope, regs[i], Ast[expression.kind](expression.value)), {regs[i]}, {}, false);
             end
         else
             self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);

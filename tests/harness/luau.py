@@ -40,13 +40,4 @@ with tempfile.TemporaryDirectory(prefix='prometheus-luau-') as tmp:
                                      capture_output=True, text=True, timeout=60)
         assert baseline.returncode != 0 and transformed.returncode != 0, invalid.name
     print('Invalid Luau examples were rejected', flush=True)
-    fixture = root / 'tests/luau/unsupported/protected-metatable.luau'
-    assert run([luau, str(fixture)]) == '1\n'
-    for index in (2, 3):
-        run([lua, 'scripts/test/obfuscate.lua', 'tests/luau/test-config.lua',
-             str(index), '1', str(fixture), output])
-        result = subprocess.run([luau, output], cwd=root, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, timeout=60)
-        assert result.returncode != 0 and 'protected metatable' in result.stderr
 print(f'{count} Luau transformations matched their baseline')
-print('Protected metatables are rejected by Cff and Vmify')

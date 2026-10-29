@@ -130,9 +130,11 @@ paths. Strings in the `vmData` shards remain encrypted by the normal
 Medium then applies `AntiTamper`, `ConstantArray`, and `WrapInFunction`,
 followed by `Cff` with `ExcludeVm = true`. The interpreter and shard literal
 stay native while Cff protects startup reconstruction, surrounding code, and
-generated helpers. `NumbersToExpressions` runs after Cff: it adds no helper functions,
-and this ordering prevents Cff from virtualizing arithmetic constant
-expressions.
+generated helpers. After generating its helpers, Cff puts repeated string
+literals in a shared outer table, including any new diagnostics and counted-value
+keys. Each value is embedded only once in Medium output. `NumbersToExpressions`
+runs after Cff: it adds no helper functions, and this ordering prevents Cff
+from virtualizing arithmetic constant expressions.
 
 `Strong` applies one `Vmify` pass followed by `EncryptStrings`, `AntiTamper`,
 and one default `Cff` pass over the generated VM interpreter. It retains the

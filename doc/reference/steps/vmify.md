@@ -10,6 +10,16 @@ slot 1 always stores the opcode. The same layout applies to the root function
 and its child prototypes. For the same input, configuration, and Lua runtime,
 a fixed pipeline seed reproduces the layout.
 
+Prototype fields and packed-value counts use per-emission numeric keys;
+Vmify introduces no fixed string keys for these internal tables. The complete
+prototype graph, including instructions and constants, is scattered across
+three to five tables with shuffled records and table IDs. A generated helper
+reconstructs ordinary tables once at chunk startup and releases the shards,
+leaving direct lookups during VM execution. This adds output size and startup
+work. In Medium, Cff protects the reconstruction helper and its invocation;
+only the interpreter and large shard literal remain excluded from flattening.
+Source-program strings and keys retain their normal semantics.
+
 ## Settings
 
 None.

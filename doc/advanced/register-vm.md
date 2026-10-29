@@ -16,28 +16,38 @@ compiler, or `loadstring` to execute the original source.
 - `vm/optimize.lua`: recursive, conservative basic-block optimizations and
   cleanup batching before emission.
 - `vm/opcodes.lua`: semantic instruction IDs.
-- `vm/layout.lua`: a per-emission opcode and operand layout.
+- `vm/layout.lua`: per-emission opcode, operand, and numeric metadata keys.
 - `vm/runtime.lua` and `vm/runtime_dispatch.lua`: runtime templates and the
   generated dispatcher, configured for the selected opcode IDs and operand
   positions.
 - `vm/runtime_calls.lua`: fixed-arity and packed call, return, and register
   cleanup handlers used by the generated runtime.
-- `vm/emit.lua`: instruction encoding, native prototype table literals, and the
-  runtime function IIFE.
+- `vm/data.lua`: scattered table graph encoding and startup reconstruction.
+- `vm/emit.lua`: shard literals, the reconstruction helper, and the runtime
+  function IIFE.
 - `vm/strings.lua`: optional hoisting of generated interpreter string literals
   into an outer initializer.
 - `vm/flatten.lua`: the Cff integration for generated VM interpreters.
 
 A prototype contains instructions, constants, child prototypes, parameter
-metadata, and capture descriptors. The emitter passes the native prototype
-tables as an argument to a runtime function IIFE. The generated interpreter
-then uses that table data; the prototypes are not encoded as strings.
+metadata, and capture descriptors. Prototype fields use unique randomized
+numeric keys instead of fixed string keys. The emitter scatters assignments
+for the complete table graph across three to five native shard tables,
+including individual instruction operands and constant entries. Table IDs and
+record order are shuffled. A startup helper allocates all destination tables,
+resolves references, and passes the reconstructed root to the runtime function
+IIFE. It releases the consumed shards. Reconstruction happens once per chunk
+execution; the interpreter uses ordinary direct table lookups afterward.
+Scattering increases output size and startup work without adding shard lookups
+to the VM loop. The prototypes are not encoded as strings.
 
 Each invocation owns its register table; vararg functions also carry a counted
 vararg tuple. Closures retain only
 their referenced upvalue cells; leaving a scope detaches its cells without
-destroying values shared by live closures. Value lists carry an explicit `n`
-so trailing nils survive calls, varargs, table constructors, and returns.
+destroying values shared by live closures. Value lists carry an explicit count
+under a per-emission negative numeric key, keeping it separate from positive
+array indices so trailing nils survive calls, varargs, table constructors, and
+returns.
 The compiler keeps ordinary scalar values in individual registers. Small calls
 and returns pass those registers directly to native Lua instead of first making
 a value-list table. Temporary registers are cleared after consumption, and
@@ -66,22 +76,24 @@ initialization path, which also builds the vararg tuple when needed.
 `Cff` normally flattens control flow throughout its input AST. When it receives
 the AST emitted by `Vmify`, a private `vmRuntime` annotation selects a special
 path: by default, `vm/flatten.lua` flattens the interpreter function only. The
-large native prototype table initialization remains outside the flattened
-function, keeping it out of the Cff control structure and jump limits used by
-Lua and LuaJIT.
+large native shard initialization and startup reconstruction remain outside
+the flattened function, keeping them out of the Cff control structure and jump
+limits used by Lua and LuaJIT.
 
 Set `Cff`'s `ExcludeVm` setting to `true` to leave both the generated
-interpreter and the native prototype table literal out of flattening. Cff then
-flattens the surrounding code, including helpers introduced by intervening
-steps such as string decoders or tamper checks. The interpreter remains native
-Lua, so its lexical captures continue to share variables with surrounding
+interpreter and the native shard literal out of flattening. Cff then flattens
+the startup reconstruction helper and its call along with surrounding code,
+including helpers introduced by intervening steps such as string decoders or
+tamper checks. The interpreter remains native Lua, so its lexical captures
+continue to share variables with surrounding
 closures according to ordinary Lua upvalue semantics.
 
 `cff/native.lua` emits the excluded expressions directly and bridges their
 external locals through Cff's shared upvalue cells. Garbage-collected capture
 proxies keep those cells alive for native closures; captures are not value
-snapshots. The `vmData` annotation identifies the entire prototype initializer,
-including its child prototypes.
+snapshots. The `vmData` annotation identifies only the shard literal containing
+the complete prototype graph. It does not exclude the reconstruction helper
+or its invocation from Cff.
 
 With the default `ExcludeVm = false` behavior, the special path passes
 read-only external lexical helpers through function arguments. This supports
@@ -94,8 +106,9 @@ arity and cleanup instructions use the same ID scheme. At emission,
 `layout.lua` chooses a permutation of the opcode IDs and a permutation of
 operand slots 2 through 5; slot 1 always contains the opcode. The emitter
 encodes each instruction with that layout without changing the compiler
-prototypes. One layout is shared by the root prototype and all child
-prototypes in the emitted chunk.
+prototypes. The layout also selects numeric prototype field keys and the
+packed-value count key. One layout is shared by the root prototype and all
+child prototypes in the emitted chunk.
 
 Before emission, `optimize.lua` visits the root prototype and its children and
 applies conservative basic-block-local rewrites. At emission,
@@ -111,13 +124,13 @@ the generated interpreter's literal strings into an outer initializer, where
 normal string encryption and later `ConstantArray` processing apply. The
 initializer decodes them once at startup and binds them to native lexical
 locals used by the interpreter, avoiding decoder or wrapper calls on hot
-paths. Strings in `vmData` prototype tables remain encrypted by the normal
+paths. Strings in the `vmData` shards remain encrypted by the normal
 `EncryptStrings` behavior. `vm/strings.lua` implements this transformation.
 
 Medium then applies `AntiTamper`, `ConstantArray`, and `WrapInFunction`,
-followed by `Cff` with `ExcludeVm = true`. The interpreter and prototype table
-initializers stay native while Cff flattens the surrounding code and generated
-helpers. `NumbersToExpressions` runs after Cff: it adds no helper functions,
+followed by `Cff` with `ExcludeVm = true`. The interpreter and shard literal
+stay native while Cff protects startup reconstruction, surrounding code, and
+generated helpers. `NumbersToExpressions` runs after Cff: it adds no helper functions,
 and this ordering prevents Cff from virtualizing arithmetic constant
 expressions.
 

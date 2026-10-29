@@ -1,6 +1,7 @@
--- Choose one instruction encoding for each generated VM. Compiler IR stays semantic.
+-- Choose instruction encoding and metadata keys per VM. Compiler IR stays semantic.
 local opcodes = require('prometheus.vm.opcodes')
 local shuffle = require('prometheus.util').shuffle
+local fields = {'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister', 'children'}
 local Layout = {}
 Layout.__index = Layout
 
@@ -18,6 +19,16 @@ function Layout.new()
         layout.opcodes[entry.name] = ids[i]
         layout.ids[entry.id] = ids[i]
     end
+    layout.fields = {}
+    local used = {}
+    for _, name in ipairs(fields) do
+        local key
+        repeat key = math.random(1024, 16777215) until not used[key]
+        used[key] = true
+        layout.fields[name] = key
+    end
+    -- Counted tuples also contain positive array indices, so keep metadata negative.
+    layout.countKey = -math.random(1024, 16777215)
     return layout
 end
 

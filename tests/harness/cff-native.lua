@@ -38,6 +38,12 @@ local function applyCff(step, ast, pipeline)
     local originalNew, compiler = CffCompiler.new
     CffCompiler.new = function(class, ...)
         local instance = originalNew(class, ...)
+        instance.compiledFunctions = {}
+        local originalCompileFunction = instance.compileFunction
+        instance.compileFunction = function(self, node, ...)
+            self.compiledFunctions[node] = true
+            return originalCompileFunction(self, node, ...)
+        end
         local originalCompile = instance.compile
         instance.compile = function(self, input)
             local output = originalCompile(self, input)
@@ -173,7 +179,7 @@ local structurePipeline = Prometheus.Pipeline:fromConfig({
     LuaVersion = 'Lua51', Seed = 4, Steps = mediumSteps,
 })
 local structureAst = structurePipeline.parser:parse(mediumSource)
-local cffAstAfterStep, beforeRuntimeCounts, mediumCompiler
+local cffAstAfterStep, beforeRuntimeCounts, mediumCompiler, rebuildHelper
 for _, step in ipairs(structurePipeline.steps) do
     if step.Name == 'Cff' then
         beforeRuntimeCounts = controlFlowCounts(structureAst.vmRuntime)
@@ -181,8 +187,13 @@ for _, step in ipairs(structurePipeline.steps) do
         structureAst = cffAstAfterStep
     else
         structureAst = step:apply(structureAst, structurePipeline) or structureAst
+        if step.Name == 'Vmify' then rebuildHelper = structureAst.body.statements[1] end
     end
 end
+assert(rebuildHelper and mediumCompiler.compiledFunctions[rebuildHelper],
+    'Medium did not compile the startup reconstruction helper through Cff')
+assert(not mediumCompiler.nativeExpressions[rebuildHelper],
+    'Medium incorrectly excluded the startup reconstruction helper')
 assert(cffAstAfterStep.vmRuntime and cffAstAfterStep.vmData,
     'full Medium pipeline lost native VM runtime/data annotations')
 assert(countKind(cffAstAfterStep, Ast.AstKind.WhileStatement) > 0

@@ -1,5 +1,5 @@
 -- Builds the Lua 5.1 runtime used by the bytecode emitter. The emitter replaces
--- __PROTOTYPES__ with its native Lua table literal before parsing the source.
+-- __PROTOTYPES__ with the startup reconstruction call before parsing the source.
 local dispatch = require("prometheus.vm.runtime_dispatch")
 local Layout = require("prometheus.vm.layout")
 
@@ -15,13 +15,13 @@ local nativeTonumber, nativeError = tonumber, error
 local nativeSelect, nativeIpairs = select, ipairs
 
 local function pack(...)
-    return { n = nativeSelect("#", ...), ... }
+    return { [__COUNT_KEY__] = nativeSelect("#", ...), ... }
 end
 
 local make
 
 local function loop(P, U, Env, R, V)
-    local code, K = P.code, P.constants
+    local code, K = P[__FIELD_code__], P[__FIELD_constants__]
     local pc = 1
     local I, opcode, a, b, c, d, x, y, z
     while true do
@@ -36,9 +36,9 @@ end
 
 local function start(P, U, Env, ...)
     local R
-    local params = P.params
+    local params = P[__FIELD_params__]
     local V
-    if not P.vararg and #params <= 3 then
+    if not P[__FIELD_vararg__] and #params <= 3 then
         R = {}
         local argc = nativeSelect("#", ...)
         for i = 1, #params do
@@ -63,13 +63,13 @@ local function start(P, U, Env, ...)
                 R[param[1]] = value
             end
         end
-        V = { n = 0 }
-        if P.vararg then
+        V = { [__COUNT_KEY__] = 0 }
+        if P[__FIELD_vararg__] then
             local first = #params + 1
-            if incoming.n > #params then
-                V.n = incoming.n - #params
+            if incoming[__COUNT_KEY__] > #params then
+                V[__COUNT_KEY__] = incoming[__COUNT_KEY__] - #params
             end
-            for i = 1, V.n do
+            for i = 1, V[__COUNT_KEY__] do
                 V[i] = incoming[first + i - 1]
             end
         end
@@ -110,6 +110,9 @@ function Runtime.build(layout)
     end):gsub("__DISPATCH__", function()
         return dispatch.build(layout.opcodes)
     end)
+    source = source:gsub('__FIELD_(%w+)__', function(name)
+        return tostring(assert(layout.fields[name], 'Missing VM prototype key'))
+    end):gsub('__COUNT_KEY__', function() return tostring(layout.countKey) end)
     return source
 end
 

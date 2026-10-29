@@ -21,6 +21,10 @@ local function signature(layout)
     end
     for id = 1, #names do parts[#parts + 1] = tostring(layout.ids[id]) end
     for i = 1, 4 do parts[#parts + 1] = tostring(layout.operands[i]) end
+    for _, name in ipairs({'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister', 'children'}) do
+        parts[#parts + 1] = tostring(layout.fields[name])
+    end
+    parts[#parts + 1] = tostring(layout.countKey)
     return table.concat(parts, ',')
 end
 
@@ -39,7 +43,7 @@ end
 
 local first = seeded(87123)
 assert(signature(first) == signature(seeded(87123)), 'layout must repeat for the same seed')
-local opcodeLayouts, operandLayouts = {}, {}
+local opcodeLayouts, operandLayouts, keyLayouts = {}, {}, {}
 for _, seed in ipairs({1, 4, 17, 99, 87123, 234567}) do
     local layout = seeded(seed)
     local seen = {}
@@ -58,12 +62,27 @@ for _, seed in ipairs({1, 4, 17, 99, 87123, 234567}) do
     for i = 1, 4 do slots[layout.operands[i]] = true end
     assert(slots[2] and slots[3] and slots[4] and slots[5])
     operandLayouts[table.concat(layout.operands, ',')] = true
+    local fieldKeys, fieldSignature = {}, {}
+    for _, name in ipairs({'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister', 'children'}) do
+        local key = layout.fields[name]
+        assert(type(key) == 'number' and key > 0 and key % 1 == 0)
+        assert(not fieldKeys[key], 'prototype keys must be unique')
+        fieldKeys[key] = true
+        fieldSignature[#fieldSignature + 1] = tostring(key)
+    end
+    assert(layout.countKey < 0 and layout.countKey % 1 == 0,
+        'packed count key must not collide with positive array indices')
+    fieldSignature[#fieldSignature + 1] = tostring(layout.countKey)
+    keyLayouts[table.concat(fieldSignature, ',')] = true
 end
 local distinctOpcodes, distinctOperands = 0, 0
 for _ in pairs(opcodeLayouts) do distinctOpcodes = distinctOpcodes + 1 end
 for _ in pairs(operandLayouts) do distinctOperands = distinctOperands + 1 end
 assert(distinctOpcodes > 1, 'different seeds must change opcode assignments')
 assert(distinctOperands > 1, 'different seeds must change operand layouts')
+local distinctKeys = 0
+for _ in pairs(keyLayouts) do distinctKeys = distinctKeys + 1 end
+assert(distinctKeys > 1, 'different seeds must change VM data keys')
 
 local source = [[
     local function pack(...) return {n = select('#', ...), ...} end

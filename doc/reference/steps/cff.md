@@ -8,6 +8,15 @@ When `Cff` receives `Vmify` output, it recognizes the private VM runtime annotat
 
 Set `ExcludeVm` to `true` to leave the generated interpreter and native prototype table literal out of Cff flattening. Cff then flattens the surrounding code, including helpers such as decoders and tamper checks, and the outer string initializer emitted by `EncryptStrings` when `HoistVmStrings` is enabled. The interpreter keeps its native Lua lexical captures, preserving shared variable behavior between the interpreter and surrounding closures.
 
+After generating its runtime and helpers, Cff shares repeated string literals
+through one outer table with shuffled slots. Each repeated value is embedded
+once and reused through indexed references, including diagnostics and counted
+argument/result keys introduced by Cff itself. Unique literals stay in place.
+This also applies to literals inside preserved native VM expressions; their
+control flow stays native. Sharing does not encrypt the remaining literal.
+Later steps may introduce new strings. Medium only runs `NumbersToExpressions`
+after Cff, so its final output retains one literal per distinct string value.
+
 ## Settings
 
 | Setting | Type | Default | Description |

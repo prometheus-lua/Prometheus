@@ -19,21 +19,21 @@ local bodies = {
     TABLE = [==[R[a] = {}]==],
     EXPAND = [==[
         x = R[c]
-        for y = 1, x.n do
+        for y = 1, x[__COUNT_KEY__] do
             R[a][b + y - 1] = x[y]
         end
     ]==],
     ARGS = [==[
-        x = { n = 0 }
+        x = { [__COUNT_KEY__] = 0 }
         for _, y in nativeIpairs(b) do
-            x.n = x.n + 1
-            x[x.n] = R[y]
+            x[__COUNT_KEY__] = x[__COUNT_KEY__] + 1
+            x[x[__COUNT_KEY__]] = R[y]
         end
         if c ~= 0 then
             y = R[c]
-            for d = 1, y.n do
-                x.n = x.n + 1
-                x[x.n] = y[d]
+            for d = 1, y[__COUNT_KEY__] do
+                x[__COUNT_KEY__] = x[__COUNT_KEY__] + 1
+                x[x[__COUNT_KEY__]] = y[d]
             end
         end
         R[a] = x
@@ -42,13 +42,13 @@ local bodies = {
     VARARG = [==[R[a] = V]==],
     RETURN = [==[
         x = R[a]
-        return nativeUnpack(x, 1, x.n)
+        return nativeUnpack(x, 1, x[__COUNT_KEY__])
     ]==],
     CLOSURE = [==[
-        x = P.children[b]
+        x = P[__FIELD_children__][b]
         y = {}
-        for d = 1, #x.captures do
-            local capture = x.captures[d]
+        for d = 1, #x[__FIELD_captures__] do
+            local capture = x[__FIELD_captures__][d]
             if capture[1] == 0 then
                 y[d] = R[capture[2]]
             else

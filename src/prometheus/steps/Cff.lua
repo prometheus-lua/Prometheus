@@ -7,6 +7,7 @@
 local Step = require("prometheus.step");
 local Compiler = require("prometheus.cff.compiler");
 local flattenVm = require("prometheus.vm.flatten");
+local shareStrings = require("prometheus.cff.strings");
 
 local Cff = Step:extend();
 Cff.Description = "Flattens control flow into Lua statements executed by a randomized block dispatcher.";
@@ -26,15 +27,15 @@ function Cff:apply(ast)
         local flattened = compiler:compile(ast);
         flattened.vmRuntime = compiler.nativeResults[ast.vmRuntime];
         flattened.vmData = compiler.nativeResults[ast.vmData];
-        return flattened;
+        return shareStrings(flattened);
     end
     if ast.vmRuntime then
         local flattened = flattenVm(ast);
-        if flattened then return flattened; end
+        if flattened then return shareStrings(flattened); end
     end
 	local compiler = Compiler:new();
 
-    return compiler:compile(ast);
+    return shareStrings(compiler:compile(ast));
 end
 
 return Cff;

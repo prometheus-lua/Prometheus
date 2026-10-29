@@ -5,26 +5,26 @@ local M = {}
 local bodies = {
     CALL = [==[
         x, y = R[b], R[c]
-        if nativeGetfenv and x == nativeGetfenv and (y.n == 0 or y[1] == nil or y[1] == 1) then
+        if nativeGetfenv and x == nativeGetfenv and (y[__COUNT_KEY__] == 0 or y[1] == nil or y[1] == 1) then
             if d == -1 then
-                R[a] = { n = 1, Env }
+                R[a] = { [__COUNT_KEY__] = 1, Env }
             elseif d == 1 then
                 R[a] = Env
             end
         elseif d == -1 then
-            R[a] = pack(x(nativeUnpack(y, 1, y.n)))
+            R[a] = pack(x(nativeUnpack(y, 1, y[__COUNT_KEY__])))
         elseif d == 1 then
-            R[a] = x(nativeUnpack(y, 1, y.n))
+            R[a] = x(nativeUnpack(y, 1, y[__COUNT_KEY__]))
         else
-            x(nativeUnpack(y, 1, y.n))
+            x(nativeUnpack(y, 1, y[__COUNT_KEY__]))
         end
     ]==],
     TAILCALL = [==[
         x, y = R[a], R[b]
-        if nativeGetfenv and x == nativeGetfenv and (y.n == 0 or y[1] == nil or y[1] == 1) then
+        if nativeGetfenv and x == nativeGetfenv and (y[__COUNT_KEY__] == 0 or y[1] == nil or y[1] == 1) then
             return Env
         end
-        return x(nativeUnpack(y, 1, y.n))
+        return x(nativeUnpack(y, 1, y[__COUNT_KEY__]))
     ]==],
     CLEARS = [==[
         for x = 1, #a do
@@ -49,7 +49,7 @@ local function callBody(arity)
     return "x = R[b]\n"
         .. "if " .. intercept .. " then\n"
         .. "    if d == -1 then\n"
-        .. "        R[a] = { n = 1, Env }\n"
+        .. "        R[a] = { [__COUNT_KEY__] = 1, Env }\n"
         .. "    elseif d == 1 then\n"
         .. "        R[a] = Env\n"
         .. "    end\n"

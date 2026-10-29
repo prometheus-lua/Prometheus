@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare type syntax acceptance and erasure against the official Luau compiler."""
+"""Compare Luau syntax acceptance and emitted code against the official compiler."""
 import os
 from pathlib import Path
 import subprocess
@@ -113,6 +113,119 @@ for seed in seeds:
 for index, form in enumerate(sorted(mutations)):
     add(f'mutation local {index}', 'local x: ' + form + ' = nil')
     add(f'mutation alias {index}', 'type Alias = ' + form)
+
+
+# Contextual words must remain usable in every identifier position.
+for word in ('continue', 'type', 'export', 'const', 'typeof', 'read', 'write', 'declare'):
+    for template in (
+        'local %s = 1; return %s',
+        'local function %s() end; %s()',
+        'function %s() end; %s()',
+        'local function f(%s) return %s end',
+        'local t = {%s = 1}; return t.%s',
+        'local t = {}; function t:%s() end; t:%s()',
+        'for %s = 1, 2 do print(%s) end',
+        'for %s in pairs({}) do print(%s) end',
+        'type %s = number; local x: %s = 1',
+    ):
+        expected = not (word == 'typeof' and template.startswith('type '))
+        add(f'contextual identifier {word}: {template}', template % (word, word), expected)
+for source in (
+    'continue', 'continue = 1', 'continue, x = 1, 2', 'continue += 1',
+    'continue //= 2', 'continue()', 'continue {}', 'continue "text"',
+    'continue.field = 1', 'continue[1] = 1', 'continue:method()',
+    'while true do continue end', 'while true do (continue) end',
+    'while true do continue; end', 'while true do continue;; end',
+    'while true do continue; print(1) end',
+    'while true do continue() print(1) end',
+    'local continue = 1; while true do continue end',
+    'const continue = 1; while true do continue end',
+    'while true do local function f() continue end end',
+    'repeat continue until true', 'while true do do continue end end',
+    'type = 1; export = 2; const = 3',
+    'type(number); export(); const()',
+):
+    add(f'contextual statement: {source}', source)
+
+# Luau accepts a single trailing semicolon, never an empty statement.
+for statement in (
+    'local x = 1', 'x = 1', 'print()', 'do end', 'while true do break end',
+    'for i = 1, 2 do end', 'repeat until true', 'function f() end',
+    'local function f() end', 'type T = number', 'type function f() end',
+    'const x = 1', 'export type T = number',
+):
+    for before in ('', ';', ';;'):
+        for after in ('', ';', ';;'):
+            for context in ('%s', 'do %s end', 'local function f() %s end'):
+                source = context % (before + statement + after)
+                add(f'semicolons: {source}', source, not before and len(after) <= 1)
+for source in (
+    '', ';', ';;', 'do ; end', 'return;', 'return;;',
+    'repeat return until true', 'repeat return; until true',
+    'while true do break; end', 'while true do break;; end',
+    'type A = number; type B = A;', 'type A = number;; type B = A',
+    'return {1; 2; x = 3;}', 'type T = {x: number; y: string;}',
+    'print(); (function() end)()', 'print()\n(function() end)()',
+    'local x = f\n(1)', 'local x = f(\n1\n)', 'f -- comment\n(1)',
+    'object:method\n()', 'f\n{}', 'f\n"text"',
+    'while true do continue\n(1) end',
+):
+    add(f'statement boundary: {source}', source)
+
+# Variadic state belongs to the nearest function, including erased type syntax.
+for signature in ('()', '(x)', '(...)', '(x, ...)'):
+    for body in (
+        'return ...', 'print(...)', 'do local x = ... end',
+        'local f = function() return ... end',
+        'local function f(...) return ... end; return ...',
+        'local function f() return 1 end; return ...',
+        'local x = `value={...}`', 'type T = typeof(...)',
+        'local x: typeof(...)', 'type function f() return ... end',
+        'type function f(...) return ... end; return ...',
+        'local function f(x: typeof(...)): typeof(...) return x end',
+    ):
+        for declaration in ('local function f%s %s end', 'function t:f%s %s end',
+                            'local f = function%s %s end'):
+            source = declaration % (signature, body)
+            add(f'vararg context: {source}', source)
+for source in (
+    'return ...', 'return (...)', 'local x: typeof(...) = ...',
+    'local function f(): typeof(...) end',
+    'local function f(...): typeof(...) return ... end',
+    'local function f(x: typeof(...)) end',
+    'local function f() end; return ...',
+    'local function f(...) return function(...) return ... end end',
+    'local function f(..., x) end', 'local function f(..., ...) end',
+    'local function f() type T = typeof(function(...) return ... end) end',
+):
+    add(f'vararg boundary: {source}', source)
+
+# Number-like tokens must be validated as a whole, including discarded types.
+numerals = [
+    '0', '01', '1.', '.5', '1_000', '1__2_', '1_.2_5', '1_e+_2_',
+    '0xFF', '0Xff', '0_x_F_F_', '0b101', '0B101', '0_b_1_0_',
+    '0b__1__0_', '1e999', '1e-999', '0x', '0b', '0x_', '0b_',
+    '0b102', '0xFG', '0b0b1', '1e', '1e+', '1e_+2', '1..2',
+    '1print()', '0x1.2', '0x1p2', '0x1p-2', '0x1e+2', '1e2.3',
+]
+for literal in ('1', '.5', '1.', '1e2', '0b1', '0xF', '0X1e'):
+    for suffix in ('_', '__', 'e', 'e+', 'e-', 'e+_2', 'e_+2', '.', '..', 'a', 'p2', 'f'):
+        numerals.append(literal + suffix)
+for prefix, digit in (('0x', 'f'), ('0b', '1')):
+    for length in (1, 8, 16, 17, 53, 64, 65, 128):
+        numerals.append(prefix + digit * length)
+for literal in sorted(set(numerals)):
+    for template in ('return %s', 'local value = %s; print(value)', 'type T = typeof(%s)'):
+        add(f'numeral: {template % literal}', template % literal)
+
+for source in (
+    'local a, b, c = 1, 2, 3; return a // b * c % 2 / 3',
+    'local a, b = 1, 2; a //= b; return a',
+    'local t = {x = 1}; t.x //= 2',
+    'return -2 ^ 2 // 3', 'return 2 ^ -3 // 2',
+    'return 1 /// 2', 'local a = 1; a //== 2',
+):
+    add(f'floor division: {source}', source)
 
 
 def official(path):

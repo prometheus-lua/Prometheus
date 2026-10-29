@@ -35,6 +35,7 @@ handlers[AstKind.CompoundAddStatement] = compoundHandler;
 handlers[AstKind.CompoundSubStatement] = compoundHandler;
 handlers[AstKind.CompoundMulStatement] = compoundHandler;
 handlers[AstKind.CompoundDivStatement] = compoundHandler;
+handlers[AstKind.CompoundFloorDivStatement] = compoundHandler;
 handlers[AstKind.CompoundModStatement] = compoundHandler;
 handlers[AstKind.CompoundPowStatement] = compoundHandler;
 handlers[AstKind.CompoundConcatStatement] = compoundHandler;

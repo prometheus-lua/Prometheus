@@ -71,13 +71,14 @@ local function generateWarning(token, message)
 end
 
 function Tokenizer:getPosition(i)
+	if i <= 0 or self.length == 0 then return 1, 1 end
 	local column = self.columnMap[i]
 
 	if not column then --// `i` is bigger than self.length, this shouldn't happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
 		column = self.columnMap[#self.columnMap]
 	end
 
-	return column.id, column.charMap[i]
+	return column.id, column.charMap[i] or column.length + 1
 end
 
 --// Prepare columnMap for getPosition
@@ -122,6 +123,7 @@ function Tokenizer:new(settings)
 		NumberCharsLookup = lookupify(conventions.NumberChars),
 		Keywords = conventions.Keywords,
 		KeywordsLookup = lookupify(conventions.Keywords),
+		HybridKeywordsLookup = lookupify(conventions.HybridKeywords or {}),
 		BinaryNumberChars = conventions.BinaryNumberChars,
 		BinaryNumberCharsLookup = lookupify(conventions.BinaryNumberChars);
 		BinaryNums = conventions.BinaryNums,
@@ -298,8 +300,59 @@ local function int(self, chars, seperators)
 	return table.concat(buffer);
 end
 
+-- Parse radix integers without depending on the host's integer width or rounding
+-- at every digit. Luau saturates overflowing radix literals at UINT64_MAX.
+local function radixNumber(source, base)
+	local high, low = 0, 0;
+	for i = 1, #source do
+		local digit = tonumber(source:sub(i, i), base);
+		local nextLow = low * base + digit;
+		high = high * base + math.floor(nextLow / 4294967296);
+		low = nextLow % 4294967296;
+		if high >= 4294967296 then return 18446744073709551616 end
+	end
+	return high * 4294967296.0 + low;
+end
+
+function Tokenizer:luauNumber()
+	local startPos = self.index;
+	if is(self, ".") then self.index = self.index + 1 end
+	-- Match Luau's entire number-like token before validating its value. In
+	-- particular, 1foo and 1..2 must not split into otherwise valid tokens.
+	repeat
+		self.index = self.index + 1;
+	until not (is(self, self.NumberCharsLookup) or is(self, ".") or is(self, "_"))
+	if is(self, "e") or is(self, "E") then
+		self.index = self.index + 1;
+		if is(self, "+") or is(self, "-") then self.index = self.index + 1 end
+	end
+	while is(self, self.IdentCharsLookup) do self.index = self.index + 1 end
+
+	local source = self.source:sub(startPos + 1, self.index):gsub("_", "");
+	local prefix = source:sub(1, 2):lower();
+	local value;
+	if prefix == "0x" or prefix == "0b" then
+		local digits = source:sub(3);
+		local pattern = prefix == "0x" and "^[0-9a-fA-F]+$" or "^[01]+$";
+		if digits:match(pattern) then value = radixNumber(digits, prefix == "0x" and 16 or 2) end
+	else
+		local mantissa = source;
+		if source:find("[eE]") then
+			mantissa = source:match("^(.-)[eE][+-]?%d+$");
+		end
+		if mantissa and (mantissa:match("^%d+%.?%d*$") or mantissa:match("^%.%d+$")) then
+			value = tonumber(source);
+		end
+	end
+	if value == nil then
+		logger:error(generateError(self, "Malformed number '" .. self.source:sub(startPos + 1, self.index) .. "'"));
+	end
+	return token(self, startPos, Tokenizer.TokenKind.Number, value);
+end
+
 -- Lex the next token as a Number
 function Tokenizer:number()
+	if self.luaVersion == LuaVersion.LuaU then return self:luauNumber() end
 	local startPos = self.index;
 	local source = expect(self, setmetatable({["."] = true}, {__index = self.NumberCharsLookup}));
 
@@ -359,6 +412,9 @@ function Tokenizer:ident()
 	end
 
 	local tk = token(self, startPos, Tokenizer.TokenKind.Ident, source);
+	-- Contextual keywords remain identifiers until the parser sees a declaration
+	-- or a bare continue statement; they are legal names everywhere else.
+	tk.isHybridKeyword = self.HybridKeywordsLookup[source] == true;
 
 	if(not self.allowInternalIdentifiers
 		and string.sub(source, 1, string.len(config.IdentPrefix)) == config.IdentPrefix) then

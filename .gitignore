@@ -23,9 +23,9 @@ web/playwright-report
 .vite
 
 # Ignore Local Test Files
-test.lua
-test.obfuscated.lua
-config.lua
+/test.lua
+/test.obfuscated.lua
+/config.lua
 
 # Lua test logs and reproduction artifacts
 /test-results/
@@ -33,3 +33,21 @@ __pycache__/
 
 # Local reference implementation, not part of Prometheus
 /.reference-obfuscator/
+
+# Local runtimes, uploaded archives, and generated debugging output
+/.tools/
+/scratch/
+/Prometheus*.zip
+/src.zip
+/lune
+/lune-*.zip
+/luau
+/luau-compile
+/luau-*.zip
+*.obfuscated.lua
+*.obfuscated.luau
+*.out.luau
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

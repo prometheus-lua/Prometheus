@@ -45,6 +45,7 @@ local compundStats = lookupify{
 	AstKind.CompoundSubStatement,
 	AstKind.CompoundMulStatement,
 	AstKind.CompoundDivStatement,
+	AstKind.CompoundFloorDivStatement,
 	AstKind.CompoundModStatement,
 	AstKind.CompoundPowStatement,
 	AstKind.CompoundConcatStatement,
@@ -183,6 +184,7 @@ local binaryExpressions = lookupify{
 	AstKind.SubExpression,
 	AstKind.MulExpression,
 	AstKind.DivExpression,
+	AstKind.FloorDivExpression,
 	AstKind.ModExpression,
 	AstKind.PowExpression,
 }

@@ -5,7 +5,7 @@
 -- This Script provides a class for lua code generation from an ast
 -- This UnParser is Capable of generating LuaU and Lua5.1
 --
--- Note that a LuaU ast can only be unparsed as LuaU if it contains any continue statements
+-- Luau-only nodes require Luau output unless a compiler has lowered them.
 --
 -- Settings Object:
 -- luaVersion : The LuaVersion of the Script
@@ -368,6 +368,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			[AstKind.CompoundSubStatement] = "-=",
 			[AstKind.CompoundMulStatement] = "*=",
 			[AstKind.CompoundDivStatement] = "/=",
+			[AstKind.CompoundFloorDivStatement] = "//=",
 			[AstKind.CompoundModStatement] = "%=",
 			[AstKind.CompoundPowStatement] = "^=",
 			[AstKind.CompoundConcatStatement] = "..=",
@@ -518,12 +519,16 @@ function Unparser:unparseExpression(expression, tabbing)
 		[AstKind.SubExpression] = "-",
 		[AstKind.MulExpression] = "*",
 		[AstKind.DivExpression] = "/",
+		[AstKind.FloorDivExpression] = "//",
 		[AstKind.ModExpression] = "%",
 		[AstKind.PowExpression] = "^",
 	}
 
 	op = arithmeticOps[expression.kind]
 	if op then
+		if op == "//" and self.luaVersion ~= LuaVersion.LuaU then
+			logger:error("Floor division requires Luau output");
+		end
 		k = expression.kind
 		local lhs = self:unparseExpression(expression.lhs, tabbing);
 		if(Ast.astKindExpressionToNumber(expression.lhs.kind) >= Ast.astKindExpressionToNumber(k)) then

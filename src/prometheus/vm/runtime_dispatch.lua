@@ -64,6 +64,7 @@ local bodies = {
     SUB = [==[R[a] = R[b] - R[c]]==],
     MUL = [==[R[a] = R[b] * R[c]]==],
     DIV = [==[R[a] = R[b] / R[c]]==],
+    IDIV = [==[R[a] = R[b] // R[c]]==],
     MOD = [==[R[a] = R[b] % R[c]]==],
     POW = [==[R[a] = R[b] ^ R[c]]==],
     CONCAT = [==[R[a] = R[b] .. R[c]]==],
@@ -100,12 +101,15 @@ local bodies = {
 
 callBodies.merge(bodies)
 
-function M.build(opcodes)
+function M.build(opcodes, floorDivision)
     local entries = {}
     for name, id in pairs(opcodes) do
-        local body = bodies[name]
-        assert(body and type(id) == "number", "Missing VM handler for opcode " .. tostring(name))
-        entries[#entries + 1] = { id = id, name = name, body = body }
+        -- Keep Lua 5.1 runtimes portable when no prototype uses floor division.
+        if name ~= "IDIV" or floorDivision then
+            local body = bodies[name]
+            assert(body and type(id) == "number", "Missing VM handler for opcode " .. tostring(name))
+            entries[#entries + 1] = { id = id, name = name, body = body }
+        end
     end
     table.sort(entries, function(left, right) return left.id < right.id end)
     for i = 2, #entries do

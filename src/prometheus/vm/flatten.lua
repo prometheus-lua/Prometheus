@@ -38,12 +38,13 @@ local function externalVariables(ast, runtime)
     return variables, writes
 end
 
-return function(ast)
+return function(ast, luaVersion)
+    luaVersion = luaVersion or Enums.LuaVersion.Lua51
     local runtime = ast.vmRuntime
     local variables, writes = externalVariables(ast, runtime)
     if writes then return nil end
-    local parser = Parser:new({LuaVersion = Enums.LuaVersion.Lua51, AllowInternalIdentifiers = true})
-    local unparser = Unparser:new({LuaVersion = Enums.LuaVersion.Lua51})
+    local parser = Parser:new({LuaVersion = luaVersion, AllowInternalIdentifiers = true})
+    local unparser = Unparser:new({LuaVersion = luaVersion})
     local runtimeSource = unparser:unparseExpression(runtime, 0)
     local prefix = ''
     local arguments = '...'
@@ -52,7 +53,7 @@ return function(ast)
         arguments = 'select(' .. (#variables + 1) .. ',...)'
     end
     local standalone = parser:parse(prefix .. 'return (' .. runtimeSource .. ')(' .. arguments .. ')')
-    local flattened = unparser:unparse(CffCompiler:new():compile(standalone))
+    local flattened = unparser:unparse(CffCompiler:new({LuaVersion = luaVersion}):compile(standalone))
     local forwarded = #variables > 0 and table.concat(variables, ',') .. ',...' or '...'
     local replacementSource = 'return function(...) return (function(...) '
         .. flattened .. ' end)(' .. forwarded .. ') end'

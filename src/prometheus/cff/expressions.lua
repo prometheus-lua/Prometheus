@@ -43,6 +43,7 @@ handlers[AstKind.AddExpression] = binaryHandler;
 handlers[AstKind.SubExpression] = binaryHandler;
 handlers[AstKind.MulExpression] = binaryHandler;
 handlers[AstKind.DivExpression] = binaryHandler;
+handlers[AstKind.FloorDivExpression] = binaryHandler;
 handlers[AstKind.ModExpression] = binaryHandler;
 handlers[AstKind.PowExpression] = binaryHandler;
 

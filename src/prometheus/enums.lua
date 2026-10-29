@@ -59,18 +59,19 @@ Enums.Conventions = {
 	},
 	[Enums.LuaVersion.LuaU] = {
 		Keywords = {
-			"and", "break", "do", "else", "elseif", "continue",
+			"and", "break", "do", "else", "elseif",
 			"end", "false", "for", "function", "if",
 			"in", "local", "nil", "not", "or",
 			"repeat", "return", "then", "true", "until", "while"
 		},
+		HybridKeywords = {"continue", "type", "export", "const", "typeof", "read", "write"},
 
 		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,.?|&"),
 		MaxSymbolLength = 3,
 		Symbols = {
-			"+", "-", "*", "/", "%", "^", "#",
+			"+", "-", "*", "/", "//", "%", "^", "#",
 			"==", "~=", "<=", ">=", "<", ">", "=",
-			"+=", "-=", "/=", "%=", "^=", "..=", "*=",
+			"+=", "-=", "/=", "//=", "%=", "^=", "..=", "*=",
 			"(", ")", "{", "}", "[", "]",
 			";", ":", ",", ".", "..", "...",
 			"::", "->", "?", "|", "&",

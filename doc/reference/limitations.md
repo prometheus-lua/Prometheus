@@ -39,9 +39,18 @@ from ordinary Lua code. Use an explicit iterator function, for example
 is rejected; a table used as `__metatable` cannot be distinguished from a
 real metatable and may cause different behavior.
 
-Luau's floor division (`//` and `//=`) and the use of
-`continue` as an identifier are not supported. Type function bodies must use
-syntax that the parser supports even though those declarations are erased.
+Floor division (`//` and `//=`) is supported in every preset and preserves
+Luau's native `__idiv` metamethod. Contextual keywords such as `continue`,
+`type`, `export`, and `const` remain valid identifiers outside their statement
+contexts. Decimal, hexadecimal, and binary numerals support Luau's underscore
+separators; malformed number tokens are rejected.
+
+Luau accepts one optional semicolon after a statement, including a type
+declaration. Leading or repeated empty semicolons are rejected. Varargs are
+valid at chunk level and inside functions that declare `...`; an inner function
+does not inherit its enclosing function's varargs. These checks also apply to
+erased type syntax. Type function bodies must use syntax that the parser
+supports even though those declarations are erased.
 
 ## Replacing a running function's environment
 

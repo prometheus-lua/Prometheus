@@ -4,7 +4,7 @@ local names = {
     'GETUP', 'SETUP', 'GLOBAL', 'SETGLOBAL', 'GETTABLE', 'SETTABLE',
     'TABLE', 'EXPAND', 'ARGS', 'TAKE', 'VARARG', 'CALL', 'RETURN',
     'TAILCALL', 'CLOSURE', 'JMP', 'JFALSE', 'JTRUE',
-    'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'POW', 'CONCAT',
+    'ADD', 'SUB', 'MUL', 'DIV', 'IDIV', 'MOD', 'POW', 'CONCAT',
     'LT', 'LE', 'GT', 'GE', 'EQ', 'NE', 'NOT', 'NEG', 'LEN',
     'FORPREP', 'FORCHECK',
     'CLEARS', 'CALL0', 'CALL1', 'CALL2', 'CALL3',

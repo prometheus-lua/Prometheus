@@ -33,6 +33,7 @@ local AstKind = {
 	CompoundSubStatement = "CompoundSubStatement";
 	CompoundMulStatement = "CompoundMulStatement";
 	CompoundDivStatement = "CompoundDivStatement";
+	CompoundFloorDivStatement = "CompoundFloorDivStatement";
 	CompoundModStatement = "CompoundModStatement";
 	CompoundPowStatement = "CompoundPowStatement";
 	CompoundConcatStatement = "CompoundConcatStatement";
@@ -60,6 +61,7 @@ local AstKind = {
 	SubExpression = "SubExpression";
 	MulExpression = "MulExpression";
 	DivExpression = "DivExpression";
+	FloorDivExpression = "FloorDivExpression";
 	ModExpression = "ModExpression";
 	NotExpression = "NotExpression";
 	LenExpression = "LenExpression";
@@ -101,6 +103,7 @@ local astKindExpressionLookup = {
 	[AstKind.SubExpression] = 8;
 	[AstKind.MulExpression] = 7;
 	[AstKind.DivExpression] = 7;
+	[AstKind.FloorDivExpression] = 7;
 	[AstKind.ModExpression] = 7;
 	[AstKind.NotExpression] = 5;
 	[AstKind.LenExpression] = 5;
@@ -267,6 +270,14 @@ end
 function Ast.CompoundDivStatement(lhs, rhs)
 	return {
 		kind = AstKind.CompoundDivStatement,
+		lhs = lhs,
+		rhs = rhs,
+	}
+end
+
+function Ast.CompoundFloorDivStatement(lhs, rhs)
+	return {
+		kind = AstKind.CompoundFloorDivStatement,
 		lhs = lhs,
 		rhs = rhs,
 	}
@@ -650,6 +661,19 @@ function Ast.DivExpression(lhs, rhs, simplify)
 
 	return {
 		kind = AstKind.DivExpression,
+		lhs = lhs,
+		rhs = rhs,
+		isConstant = false,
+	}
+end
+
+function Ast.FloorDivExpression(lhs, rhs, simplify)
+	if simplify and lhs.isConstant and rhs.isConstant
+		and type(lhs.value) == "number" and type(rhs.value) == "number" and rhs.value ~= 0 then
+		return Ast.NumberExpression(math.floor(lhs.value / rhs.value));
+	end
+	return {
+		kind = AstKind.FloorDivExpression,
 		lhs = lhs,
 		rhs = rhs,
 		isConstant = false,

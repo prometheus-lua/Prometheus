@@ -51,6 +51,25 @@ local reusable = Parser:new({LuaVersion = 'LuaU'})
 assert(not pcall(function() reusable:parse('local x: |& Broken = 1') end))
 assert(reusable:parse('local x: number = 1').body.statements[1])
 
+for _, version in ipairs({'Lua51', 'LuaU'}) do
+    for _, source in ipairs({
+        'local function f() return ... end',
+        'function object:f() print(...) end',
+        'local function outer(...) return function() return ... end end',
+        'local function f() do local args = {...} end end',
+    }) do fails(source, version) end
+    local parser = Parser:new({LuaVersion = version})
+    assert(not pcall(function() parser:parse('local f = function() return ... end') end))
+    assert(parser:parse('local function f() return 1 end; return ...'))
+    assert(parser:parse('local function f(...) return function(...) return ... end end'))
+end
+local validCall, varargError = pcall(function()
+    reusable:parse('local function f()\n print(...)\nend')
+end)
+assert(not validCall and tostring(varargError):find("Cannot use '...'", 1, true)
+    and tostring(varargError):find('Position 2:', 1, true),
+    'invalid varargs inside calls must retain their original diagnostic')
+
 local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1})
 assert(pipeline:getLuaVersion() == 'Lua51')
 pipeline:setLuaVersion('LuaU')

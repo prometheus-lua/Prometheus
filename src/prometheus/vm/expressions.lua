@@ -5,6 +5,7 @@ local compileTable = require("prometheus.vm.expressions_tables")
 local binary = {
 	[Kind.AddExpression] = "ADD", [Kind.SubExpression] = "SUB",
 	[Kind.MulExpression] = "MUL", [Kind.DivExpression] = "DIV",
+	[Kind.FloorDivExpression] = "IDIV",
 	[Kind.ModExpression] = "MOD", [Kind.PowExpression] = "POW",
 	[Kind.StrCatExpression] = "CONCAT", [Kind.LessThanExpression] = "LT",
 	[Kind.LessThanOrEqualsExpression] = "LE", [Kind.GreaterThanExpression] = "GT",
@@ -93,8 +94,13 @@ local function install(Compiler)
 			local result = self:alloc(); self:emit("GETTABLE", result, base, key)
 			self:free(key); self:free(base); return result
 		elseif binary[kind] then
-			local left = self:expression(node.lhs, 1)[1]
+			local left
+			local lhs = node.lhs
+			local deferRead = kind == Kind.FloorDivExpression and lhs.kind == Kind.VariableExpression
+				and not lhs.scope.isGlobal and self.analysis.owners[lhs.scope] == self.owner
+			if not deferRead then left = self:expression(lhs, 1)[1] end
 			local right = self:expression(node.rhs, 1)[1]
+			if deferRead then left = self:expression(lhs, 1)[1] end
 			local result = self:alloc(); self:emit(binary[kind], result, left, right)
 			self:free(right); self:free(left); return result
 		elseif unary[kind] then

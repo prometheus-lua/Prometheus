@@ -5,8 +5,6 @@
 -- This Script provides a class for parsing of lua code.
 -- This Parser is Capable of parsing LuaU and Lua5.1
 --
--- Note that when parsing LuaU "continue" is treated as a Keyword, so no variable may be named "continue" even though this would be valid in LuaU
---
 -- Settings Object:
 -- luaVersion : The LuaVersion of the Script - Currently Supported : Lua51 and LuaU
 -- AllowInternalIdentifiers : Skip reserved-prefix warnings for generated code (default false)
@@ -174,6 +172,7 @@ function Parser:parse(code)
 	self.tokenizer:reset();
 	self.tokens, self.index, self.length = {}, 0, 0;
 	self.disableLog = false;
+	self.varargAllowed = true;
 	self.luauIteratorName = nil;
 	self.tokenizer:append(code);
 	self.tokens = self.tokenizer:scanAll();
@@ -234,22 +233,25 @@ function Parser:block(parentScope, currentLoop, scope)
 	scope = scope or Scope:new(parentScope);
 	local statements = {};
 
-	repeat
-		local statement, isTerminatingStatement = self:statement(scope, currentLoop);
-		table.insert(statements, statement);
-	until isTerminatingStatement or not statement
-
-	-- Consume Eventual Semicolon after terminating return, break or continue
-	consume(self, TokenKind.Symbol, ";");
+	while true do
+		-- Erased type declarations still count as statements for semicolon syntax.
+		local declaration = self:parseLuauDeclaration();
+		local statement, isTerminatingStatement;
+		if not declaration then statement, isTerminatingStatement = self:statement(scope, currentLoop) end
+		if not declaration and not statement then break end
+		if statement then table.insert(statements, statement) end
+		consume(self, TokenKind.Symbol, ";");
+		if isTerminatingStatement then break end
+	end
 
 	return Ast.Block(statements, scope);
 end
 
 function Parser:statement(scope, currentLoop)
-	-- Skip all semicolons before next real statement
-	-- NOP statements are therefore ignored
-	while true do
-		if not consume(self, TokenKind.Symbol, ";") and not self:parseLuauDeclaration() then break end
+	-- Preserve the legacy Lua 5.1 empty-statement behavior. Luau permits only
+	-- one optional semicolon after an actual statement, consumed by block().
+	if self.luaVersion == LuaVersion.Lua51 then
+		while consume(self, TokenKind.Symbol, ";") do end
 	end
 
 	-- Break Statement - only valid inside of Loops
@@ -260,16 +262,6 @@ function Parser:statement(scope, currentLoop)
 		end
 		-- Return true as Second value because break must be the last Statement in a block
 		return Ast.BreakStatement(currentLoop, scope), true;
-	end
-
-	-- Continue Statement - only valid inside of Loops - only valid in LuaU
-	if(self.luaVersion == LuaVersion.LuaU and consume(self, TokenKind.Keyword, "continue")) then
-		if(not currentLoop) then
-			if self.disableLog then error() end;
-			logger:error(generateError(self, "the continue Statement is only valid inside of loops"));
-		end
-		-- Return true as Second value because continue must be the last Statement in a block
-		return Ast.ContinueStatement(currentLoop, scope), true;
 	end
 
 	-- do ... end Statement
@@ -302,7 +294,7 @@ function Parser:statement(scope, currentLoop)
 	-- Return Statement
 	if(consume(self, TokenKind.Keyword, "return")) then
 		local args = {};
-		if(not is(self, TokenKind.Keyword, "end") and not is(self, TokenKind.Keyword, "elseif") and not is(self, TokenKind.Keyword, "else") and not is(self, TokenKind.Symbol, ";") and not is(self, TokenKind.Eof)) then
+		if(not is(self, TokenKind.Keyword, "end") and not is(self, TokenKind.Keyword, "elseif") and not is(self, TokenKind.Keyword, "else") and not is(self, TokenKind.Keyword, "until") and not is(self, TokenKind.Symbol, ";") and not is(self, TokenKind.Eof)) then
 			args = self:exprList(scope);
 		end
 		-- Return true as Second value because return must be the last Statement in a block
@@ -361,7 +353,7 @@ function Parser:statement(scope, currentLoop)
 			table.insert(args, 1, Ast.VariableExpression(funcScope, id));
 		end
 
-		local body = self:block(nil, false, funcScope);
+		local body = self:functionBody(funcScope, args);
 		expect(self, TokenKind.Keyword, "end");
 
 		return Ast.FunctionDeclaration(baseScope, baseId, indices, args, body);
@@ -386,7 +378,7 @@ function Parser:statement(scope, currentLoop)
 			expect(self, TokenKind.Symbol, ")");
 			self:parseLuauReturnAnnotation();
 
-			local body = self:block(nil, false, funcScope);
+			local body = self:functionBody(funcScope, args);
 			expect(self, TokenKind.Keyword, "end");
 
 			return Ast.LocalFunctionDeclaration(scope, id, args, body);
@@ -504,6 +496,19 @@ function Parser:statement(scope, currentLoop)
 
 		-- Variable Assignment
 		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+			-- A call or assignment using this name takes precedence over continue.
+			local nextToken = peek(self);
+			local assignmentFollows = nextToken.kind == TokenKind.Symbol
+				and (nextToken.source == "=" or nextToken.source == "," or nextToken.source:match("^[+%-%*/%%%^%.]+=$"));
+			if self.luaVersion == LuaVersion.LuaU and expr.kind == AstKind.VariableExpression
+				and not expr.isParenthesizedExpression and expr.scope:getVariableName(expr.id) == "continue"
+				and not assignmentFollows then
+				if not currentLoop then
+					if self.disableLog then error() end
+					logger:error(generateError(self, "the continue Statement is only valid inside of loops"));
+				end
+				return Ast.ContinueStatement(currentLoop, scope), true;
+			end
 			if(expr.kind == AstKind.IndexExpression) then
 				expr.kind = AstKind.AssignmentIndexing
 			end
@@ -532,6 +537,11 @@ function Parser:statement(scope, currentLoop)
 				if(consume(self, TokenKind.Symbol, "/=")) then
 					local rhs = self:expression(scope);
 					return Ast.CompoundDivStatement(expr, rhs);
+				end
+
+				if(consume(self, TokenKind.Symbol, "//=")) then
+					local rhs = self:expression(scope);
+					return Ast.CompoundFloorDivStatement(expr, rhs);
 				end
 
 				if(consume(self, TokenKind.Symbol, "%=")) then
@@ -592,17 +602,13 @@ function Parser:statement(scope, currentLoop)
 end
 
 function Parser:primaryExpression(scope)
-	local i = self.index;
-	local s = self;
-	self.disableLog = true;
-	local status, val = pcall(self.expressionFunctionCall, self, scope);
-	self.disableLog = false;
-	if(status) then
-		return val;
-	else
-		self.index = i;
+	local tk = peek(self);
+	if tk.kind == TokenKind.Eof or (tk.kind == TokenKind.Keyword
+		and (tk.source == "end" or tk.source == "else" or tk.source == "elseif" or tk.source == "until")) then
 		return nil;
 	end
+	-- Invalid calls must keep their diagnostics, including vararg and type errors.
+	return self:expressionFunctionCall(scope);
 end
 
 -- List of expressions Seperated by a comma
@@ -790,6 +796,12 @@ function Parser:expressionMulDivMod(scope)
 			found = true;
 		end
 
+		if(consume(self, TokenKind.Symbol, "//")) then
+			local rhs = self:expressionUnary(scope);
+			curr = Ast.FloorDivExpression(curr, rhs, true);
+			found = true;
+		end
+
 		if(consume(self, TokenKind.Symbol, "%")) then
 			local rhs = self:expressionUnary(scope);
 			curr = Ast.ModExpression(curr, rhs, true);
@@ -862,10 +874,20 @@ function Parser:expressionFunctionLiteral(parentScope)
 	expect(self, TokenKind.Symbol, ")");
 	self:parseLuauReturnAnnotation();
 
-	local body = self:block(nil, false, scope);
+	local body = self:functionBody(scope, args);
 	expect(self, TokenKind.Keyword, "end");
 
 	return Ast.FunctionLiteralExpression(args, body);
+end
+
+-- An inner function never inherits its enclosing function's vararg parameter.
+-- Signature annotations are parsed before entering the new function context.
+function Parser:functionBody(scope, args)
+	local savedVararg = self.varargAllowed;
+	self.varargAllowed = #args > 0 and args[#args].kind == AstKind.VarargExpression;
+	local body = self:block(nil, false, scope);
+	self.varargAllowed = savedVararg;
+	return body;
 end
 
 function Parser:functionArgList(scope)
@@ -903,6 +925,15 @@ function Parser:functionArgList(scope)
 	return args;
 end
 
+local function checkCallLine(self)
+	if self.luaVersion == LuaVersion.LuaU and is(self, TokenKind.Symbol, "(")
+		and peek(self, -1).line ~= peek(self).line then
+		local message = generateError(self, "Ambiguous function call; use ';' to separate statements");
+		if self.disableLog then error(message, 0) end
+		logger:error(message);
+	end
+end
+
 function Parser:expressionFunctionCall(scope, base)
 	base = base or self:expressionIndex(scope);
 
@@ -910,6 +941,7 @@ function Parser:expressionFunctionCall(scope, base)
 		return base;
 	end
 
+	checkCallLine(self);
 	-- Normal Function Call
 	local args = {};
 	if(is(self, TokenKind.String)) then
@@ -970,6 +1002,7 @@ function Parser:expressionIndex(scope, base)
 	if(consume(self, TokenKind.Symbol, ":")) then
 		local passSelfFunctionName = expect(self, TokenKind.Ident).value;
 		local args = {};
+		checkCallLine(self);
 		if(is(self, TokenKind.String)) then
 			args = {
 				Ast.StringExpression(get(self).value),
@@ -1087,6 +1120,11 @@ function Parser:expressionLiteral(scope)
 
 	-- Vararg Literal
 	if(consume(self, TokenKind.Symbol, "...")) then
+		if not self.varargAllowed then
+			local message = generateError(self, "Cannot use '...' outside a vararg function");
+			if self.disableLog then error(message, 0) end
+			logger:error(message);
+		end
 		return Ast.VarargExpression();
 	end
 

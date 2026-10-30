@@ -54,6 +54,10 @@ local function generateModuloExpression(n)
 	return lhs, rhs
 end
 
+local function safe(v)
+	return type(v) == "number" and v == v and v > -2 ^ 53 and v < 2 ^ 53
+end
+
 local function contains(table, value)
 	for _, v in ipairs(table) do
 		if v == value then
@@ -68,7 +72,7 @@ function NumbersToExpressions:init(_)
 		function(val, depth) -- Addition
 			local val2 = math.random(-2 ^ 20, 2 ^ 20)
 			local diff = val - val2
-			if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
+			if not safe(diff) or tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
 				return false
 			end
 			return Ast.AddExpression(
@@ -81,7 +85,7 @@ function NumbersToExpressions:init(_)
 		function(val, depth) -- Subtraction
 			local val2 = math.random(-2 ^ 20, 2 ^ 20)
 			local diff = val + val2
-			if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
+			if not safe(diff) or tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
 				return false
 			end
 			return Ast.SubExpression(
@@ -93,7 +97,7 @@ function NumbersToExpressions:init(_)
 
 		function(val, depth) -- Modulo
 			local lhs, rhs = generateModuloExpression(val)
-			if tonumber(tostring(lhs)) % tonumber(tostring(rhs)) ~= val then
+			if not safe(lhs) or not safe(rhs) or rhs == 0 or tonumber(tostring(lhs)) % tonumber(tostring(rhs)) ~= val then
 				return false
 			end
 			return Ast.ModExpression(
@@ -148,7 +152,7 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 				binary = "0"
 			else
 				while n > 0 do
-					binary = (n % 2) .. binary
+					binary = math.floor(n % 2) .. binary
 					n = math.floor(n / 2)
 				end
 			end
@@ -162,7 +166,11 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 
 			local exp = math.floor(math.log10(math.abs(val)))
 			local mantissa = val / (10 ^ exp)
-			return Ast.NumberExpression(string.format("%.15ge%d", mantissa, exp))
+			local text = string.format("%.15ge%d", mantissa, exp)
+			if tonumber(text) ~= val then
+				return Ast.NumberExpression(val)
+			end
+			return Ast.NumberExpression(text)
 		end
 
 		if format == "normal" then

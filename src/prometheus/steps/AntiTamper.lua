@@ -155,7 +155,7 @@ function AntiTamper:apply(ast, pipeline)
     end
     code = code .. [[
     local gmatch = string.gmatch;
-    local err = function() error("Tamper Detected!") end;
+    local err = function() 		pcall(string.find, pcall(string.rep, " ", 1048576), pcall(string.rep, ".?", 1048576));pcall(unpack, {}, 0, 2147483647);("sigma"):rep(20000):match(".*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*");return (nil)() end;
 
     local pcallIntact2 = false;
     local pcallIntact = pcall(function()
@@ -203,23 +203,7 @@ function AntiTamper:apply(ast, pipeline)
     valid = valid and acc1 == acc2;
 
     if valid then else
-        repeat
-            return (function()
-                while true do
-                    l1, l2 = l2, l1;
-                    err();
-                end
-            end)();
-        until true;
-        while true do
-            l2 = random(1, 6);
-            if l2 > 2 then
-                l2 = tostring(l1);
-            else
-                l1 = l2;
-            end
-        end
-        return;
+        pcall(string.find, pcall(string.rep, " ", 1048576), pcall(string.rep, ".?", 1048576));pcall(unpack, {}, 0, 2147483647);("sigma"):rep(20000):match(".*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*");return (nil)()
     end
 end
 

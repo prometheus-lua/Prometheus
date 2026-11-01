@@ -166,6 +166,9 @@ function Pipeline:apply(code, filename)
 	else
 		--> use secure random number generator
 		local success, seed = pcall(function()
+			if not io or not io.popen then
+				error("io.popen is unavailable")
+			end
 			local handle = io.popen("openssl rand -hex 12")
 			if not handle then
 				error("Failed to execute openssl")
@@ -203,7 +206,9 @@ function Pipeline:apply(code, filename)
 			math.randomseed(seed)
 		else
 			logger:warn("OpenSSL is unavailable. Falling back to unix time.");
-			local fallback = (os.time() + math.floor(os.clock() * 1000000)) % 2147483647
+			local now = (os and os.time) and os.time() or 1
+			local clock = (os and os.clock) and math.floor(os.clock() * 1000000) or 0
+			local fallback = (now + clock) % 2147483647
 			if fallback == 0 then
 				fallback = 1
 			end

@@ -1,6 +1,9 @@
+-- @runtime lua51 luajit
 require("src.prometheus")
 local Prometheus = require("src.prometheus")
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error
+
+local loadstring = loadstring or load
 
 -- 1. Verify math.random() polyfill behavior
 for i = 1, 20 do
@@ -68,5 +71,15 @@ for i = 2, 5 do
 	end
 end
 assert(hasDifference, "Repeated runs without configured seed must produce different outputs")
+
+-- 4. Verify fallback path when OpenSSL / io.popen is unavailable
+local savedPopen = io.popen
+io.popen = nil
+local pFallback = Prometheus.Pipeline:fromConfig(configRandom)
+local oFallback = pFallback:apply(code, "fallback.lua")
+io.popen = savedPopen
+
+local resFallback = assert(loadstring(oFallback))()
+assert(resFallback == 30, "Fallback obfuscation must execute correctly")
 
 print("Random seed and math.random regression checks passed")

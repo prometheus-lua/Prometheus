@@ -166,19 +166,34 @@ function Pipeline:apply(code, filename)
 	else
 		--> use secure random number generator
 		local success, seed = pcall(function()
-			local seedStr =  io.popen("openssl rand -hex 12"):read("*a"):gsub("\n", "")..""
+			local handle = io.popen("openssl rand -hex 12")
+			if not handle then
+				error("Failed to execute openssl")
+			end
+			local seedStr = handle:read("*a")
+			local ok = handle:close()
+			if ok == false or ok == nil then
+				error("openssl command failed")
+			end
+			if not seedStr then
+				error("Failed to read from openssl")
+			end
+			seedStr = seedStr:gsub("%s+", "")
+			if #seedStr ~= 24 or not seedStr:match("^%x+$") then
+				error("Invalid openssl output")
+			end
+
 			local seedNum = 0;
 
-			--> NOTE: tonumber caps at 1.844674407371e+19. So we use this instead.
+			--> NOTE: accumulate modulo 2147483647 so it fits in signed 32-bit integer without double overflow
 			for i = 1, #seedStr do
 				local char = seedStr:sub(i, i):lower()
 				local digit = char:match("%d") and (char:byte() - 48) or (char:byte() - 87)
-				seedNum = seedNum * 16 + digit
+				seedNum = (seedNum * 16 + digit) % 2147483647
 			end
 
-			--> Random Number Generator in Lua 5.1 is limited to 9.007199254741e+15.
-			if _VERSION == "Lua 5.1" and not jit then
-				seedNum = seedNum % 9.007199254741e+15
+			if seedNum == 0 then
+				seedNum = 1
 			end
 
 			return seedNum
@@ -188,7 +203,11 @@ function Pipeline:apply(code, filename)
 			math.randomseed(seed)
 		else
 			logger:warn("OpenSSL is unavailable. Falling back to unix time.");
-			math.randomseed(os.time())
+			local fallback = (os.time() + math.floor(os.clock() * 1000000)) % 2147483647
+			if fallback == 0 then
+				fallback = 1
+			end
+			math.randomseed(fallback)
 		end
 	end
 

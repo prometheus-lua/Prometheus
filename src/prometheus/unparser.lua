@@ -12,6 +12,7 @@
 
 local config = require("config");
 local Ast = require("prometheus.ast");
+local analyzeBindings = require("prometheus.bindinganalysis");
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local logger = require("logger");
@@ -106,6 +107,19 @@ function Unparser:unparse(ast)
 	if(ast.kind ~= AstKind.TopNode) then
 		logger:error("Unparser:unparse expects a TopNode as first argument")
 	end
+	analyzeBindings(ast);
+	-- Preserve symbol identity even for generated trees whose preferred names
+	-- collide. Keep existing names whenever lexical lookup would be unambiguous.
+	local attempts = {};
+	ast.globalScope:renameVariables({
+		Keywords = self.conventions.Keywords,
+		generateName = function(_, scope, originalName)
+			attempts[scope] = attempts[scope] or {};
+			local count = attempts[scope][originalName] or 0;
+			attempts[scope][originalName] = count + 1;
+			return count == 0 and originalName or originalName .. "_" .. count;
+		end,
+	});
 
 	return self:unparseBlock(ast.body);
 end
@@ -305,7 +319,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Function Call Statement
 	elseif(statement.kind == AstKind.FunctionCallStatement) then
-		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression) then
+		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression or statement.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(statement.base, tabbing), ")");
 		else
 			push(self:unparseExpression(statement.base, tabbing));
@@ -321,7 +335,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Pass Self Function Call Statement
 	elseif(statement.kind == AstKind.PassSelfFunctionCallStatement) then
-		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression) then
+		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression or statement.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(statement.base, tabbing), ")");
 		else
 			push(self:unparseExpression(statement.base, tabbing));
@@ -429,6 +443,10 @@ function Unparser:unparseExpression(expression, tabbing)
 			str = str:sub(2);
 		end
 		return str;
+	end
+
+	if(expression.kind == AstKind.GlobalVariableExpression or expression.kind == AstKind.AssignmentGlobalVariable) then
+		return expression.name;
 	end
 
 	if(expression.kind == AstKind.VariableExpression or expression.kind == AstKind.AssignmentVariable) then
@@ -596,7 +614,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.FunctionCallExpression;
 	if(expression.kind == k) then
-		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression) then
+		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression or expression.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(expression.base, tabbing), ")");
 		else
 			push(self:unparseExpression(expression.base, tabbing));
@@ -614,7 +632,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.PassSelfFunctionCallExpression;
 	if(expression.kind == k) then
-		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression) then
+		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression or expression.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(expression.base, tabbing), ")");
 		else
 			push(self:unparseExpression(expression.base, tabbing));

@@ -30,7 +30,6 @@ function WrapInFunction:apply(ast)
 		local body = ast.body;
 
 		local scope = Scope:new(ast.globalScope);
-		body.scope:setParent(scope);
 
 		ast.body = Ast.Block({
 			Ast.ReturnStatement({

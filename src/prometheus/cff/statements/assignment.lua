@@ -71,7 +71,7 @@ return function(self, statement, funcDepth)
 
     for i = #statement.lhs, 1, -1 do
         local primaryExpr = statement.lhs[i];
-        if primaryExpr.kind == AstKind.AssignmentVariable then
+        if primaryExpr.kind == AstKind.AssignmentVariable or primaryExpr.kind == AstKind.AssignmentGlobalVariable then
             if primaryExpr.scope.isGlobal then
                 local tmpReg = self:allocRegister(false);
                 self:addStatement(self:setRegister(scope, tmpReg, Ast.StringExpression(primaryExpr.scope:getVariableName(primaryExpr.id))), {tmpReg}, {}, false);
@@ -91,7 +91,6 @@ return function(self, statement, funcDepth)
                     end
                 else
                     local upvalId = self:getUpvalueId(primaryExpr.scope, primaryExpr.id);
-                    scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
                     self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, exprregs[i])), {}, {exprregs[i]}, true);
                 end
             end

@@ -2,7 +2,8 @@
 --
 -- scope.lua
 --
--- This Script provides a class for the Scope of a Lua Script
+-- Construction-time name resolution and derived lexical metadata.
+-- Binding analysis owns scope ancestry, reference counts, and capture metadata.
 
 local logger = require("logger");
 local config = require("config");
@@ -25,18 +26,18 @@ function Scope:new(parentScope, name)
 		isGlobal = false,
 		parentScope = parentScope,
 		variables = {},
+		symbols = {},
 		referenceCounts = {};
 		variablesLookup = {},
 		variablesFromHigherScopes = {},
 		skipIdLookup = {};
 		name = name or nextName(),
 		children = {},
-		level = parentScope.level and (parentScope.level + 1) or 1;
+		level = parentScope and parentScope.level and (parentScope.level + 1) or 1;
 	}
 
 	setmetatable(scope, self);
 	self.__index = self;
-	parentScope:addChild(scope);
 	return scope;
 end
 
@@ -46,6 +47,7 @@ function Scope:newGlobal()
 		isGlobal = true,
 		parentScope = nil,
 		variables = {},
+		symbols = {},
 		variablesLookup = {};
 		referenceCounts = {};
 		skipIdLookup = {};
@@ -63,13 +65,6 @@ end
 -- Returns the Parent Scope
 function Scope:getParent(parentScope)
 	return self.parentScope;
-end
-
-function Scope:setParent(parentScope)
-	self.parentScope:removeChild(self);
-	parentScope:addChild(self);
-	self.parentScope = parentScope;
-	self.level = parentScope.level + 1;
 end
 
 local next_name_i = 1;
@@ -148,20 +143,8 @@ function Scope:getVariables()
 	return self.variables;
 end
 
-function Scope:resetReferences(id)
-	self.referenceCounts[id] = 0;
-end
-
 function Scope:getReferences(id)
 	return self.referenceCounts[id] or 0;
-end
-
-function Scope:removeReference(id)
-	self.referenceCounts[id] = (self.referenceCounts[id] or 0) - 1;
-end
-
-function Scope:addReference(id)
-	self.referenceCounts[id] = (self.referenceCounts[id] or 0) + 1;
 end
 
 -- Resolve the scope of a variable by name
@@ -171,7 +154,6 @@ function Scope:resolve(name)
 	end
 	assert(self.parentScope, "No Global Variable Scope was Created! This should not be Possible!");
 	local scope, id = self.parentScope:resolve(name);
-	self:addReferenceToHigherScope(scope, id, nil, true);
 	return scope, id;
 end
 
@@ -181,8 +163,18 @@ function Scope:resolveGlobal(name)
 	end
 	assert(self.parentScope, "No Global Variable Scope was Created! This should not be Possible!");
 	local scope, id = self.parentScope:resolveGlobal(name);
-	self:addReferenceToHigherScope(scope, id, nil, true);
 	return scope, id;
+end
+
+-- Construction adapter: stable identities survive scope reconstruction.
+function Scope:getSymbol(id)
+	assert(not self.isGlobal, "Globals do not have local symbols");
+	assert(self.variables[id], "Unknown local variable id: " .. tostring(id));
+	if not self.symbols[id] then
+		self.symbols[id] = require("prometheus.ast").LocalSymbol(self.variables[id]);
+		self.symbols[id].scope, self.symbols[id].id = self, id;
+	end
+	return self.symbols[id];
 end
 
 -- Returns the name of an Variable by id - this is used for unparsing
@@ -198,91 +190,8 @@ function Scope:removeVariable(id)
 	self.skipIdLookup[id] = true;
 end
 
--- Add a Children Scope
-function Scope:addChild(scope)
-	-- This will add all References from that Scope to higher Scopes. Note that the higher scopes may only be global
-	for scope, ids in pairs(scope.variablesFromHigherScopes) do
-		for id, count in pairs(ids) do
-			if count and count > 0 then
-				self:addReferenceToHigherScope(scope, id, count);
-			end
-		end
-	end
-	table.insert(self.children, scope);
-end
-
-function Scope:clearReferences()
-	self.referenceCounts = {};
-	self.variablesFromHigherScopes = {};
-end
-
-function Scope:removeChild(child)
-	for i, v in ipairs(self.children) do
-		if(v == child) then
-			-- This will add all References from that Scope to higher Scopes. Note that the higher scopes may only be global
-			for scope, ids in pairs(v.variablesFromHigherScopes) do
-				for id, count in pairs(ids) do
-					if count and count > 0 then
-						self:removeReferenceToHigherScope(scope, id, count);
-					end
-				end
-			end
-			return table.remove(self.children, i);
-		end
-	end
-end
-
 function Scope:getMaxId()
 	return #self.variables;
-end
-
-function Scope:addReferenceToHigherScope(scope, id, n, b)
-	n = n or 1;
-	if self.isGlobal then
-		if not scope.isGlobal then
-			logger:error(string.format("Could not resolve Scope \"%s\"", scope.name))
-		end
-		return
-	end
-	if scope == self then
-		self.referenceCounts[id] = (self.referenceCounts[id] or 0) + n;
-		return
-	end
-	if not self.variablesFromHigherScopes[scope] then
-		self.variablesFromHigherScopes[scope] = {};
-	end
-	local scopeReferences = self.variablesFromHigherScopes[scope];
-	if scopeReferences[id] then
-		scopeReferences[id] = scopeReferences[id] + n;
-	else
-		scopeReferences[id] = n;
-	end
-	if not b then
-		self.parentScope:addReferenceToHigherScope(scope, id, n);
-	end
-end
-
-function Scope:removeReferenceToHigherScope(scope, id, n, b)
-	n = n or 1;
-	if self.isGlobal then
-		return
-	end
-	if scope == self then
-		self.referenceCounts[id] = (self.referenceCounts[id] or 0) - n;
-		return
-	end
-	if not self.variablesFromHigherScopes[scope] then
-		self.variablesFromHigherScopes[scope] = {};
-	end
-	local scopeReferences = self.variablesFromHigherScopes[scope];
-	if scopeReferences[id] then
-		scopeReferences[id] = scopeReferences[id] - n;
-	else
-		scopeReferences[id] = 0;
-	end
-	if not b then
-		self.parentScope:removeReferenceToHigherScope(scope, id, n);
-	end
 end
 
 -- Rename Variables from that scope downwards
@@ -321,6 +230,8 @@ function Scope:renameVariables(settings)
 				until not forbiddenNamesLookup[name];
 
 				self.variables[id] = name;
+				if self.symbols[id] then self.symbols[id].name = name; end
+				forbiddenNamesLookup[name] = true;
 				self.variablesLookup[name] = id;
 			end
 		end

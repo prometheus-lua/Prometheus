@@ -201,31 +201,28 @@ function EncryptStrings:apply(ast, _)
 	local decryptVar = scope:addVariable();
 	local stringsVar = scope:addVariable();
 
-	doStat.body.scope:setParent(ast.body.scope);
 
 	visitast(newAst, nil, function(node, data)
 		if(node.kind == AstKind.FunctionDeclaration) then
 			if(node.scope:getVariableName(node.id) == "DECRYPT") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(scope, decryptVar);
 				node.scope = scope;
 				node.id = decryptVar;
+				node.symbol = scope:getSymbol(decryptVar);
+				node.name = nil;
 			end
 		end
-		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression) then
+		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression or node.kind == AstKind.AssignmentGlobalVariable or node.kind == AstKind.GlobalVariableExpression) then
 			if(node.scope:getVariableName(node.id) == "STRINGS") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(scope, stringsVar);
-				node.scope = scope;
-				node.id = stringsVar;
+				if node.kind == AstKind.AssignmentVariable or node.kind == AstKind.AssignmentGlobalVariable then
+					return Ast.AssignmentVariable(scope, stringsVar);
+				end
+				return Ast.VariableExpression(scope, stringsVar);
 			end
 		end
 	end)
 
 	visitast(ast, nil, function(node, data)
 		if(node.kind == AstKind.StringExpression) then
-			data.scope:addReferenceToHigherScope(scope, stringsVar);
-			data.scope:addReferenceToHigherScope(scope, decryptVar);
 			local encrypted, seed = Encryptor.encrypt(node.value);
 			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
 				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),

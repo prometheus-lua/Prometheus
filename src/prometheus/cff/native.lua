@@ -18,7 +18,8 @@ local function captures(expression, ast)
         end
     end)
     walk(expression, ast, function(node)
-        if (node.kind == Kind.VariableExpression or node.kind == Kind.AssignmentVariable
+        if (node.kind == Kind.VariableExpression or node.kind == Kind.GlobalVariableExpression
+            or node.kind == Kind.AssignmentVariable or node.kind == Kind.AssignmentGlobalVariable
             or node.kind == Kind.FunctionDeclaration) and not node.scope.isGlobal
             and not owned[node.scope] then
             seen[node.scope] = seen[node.scope] or {}
@@ -55,7 +56,6 @@ return function(Compiler)
                 reads[#reads + 1] = register
             else
                 local index = self:getUpvalueId(variable.scope, variable.id)
-                scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar)
                 id = Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope,
                     self.currentUpvaluesVar), Ast.NumberExpression(index))
             end
@@ -95,8 +95,8 @@ return function(Compiler)
             return Ast.IndexExpression(base, index)
         end
         walk(expression, ast, nil, function(node)
-            if node.kind == Kind.VariableExpression then return access(node, false) end
-            if node.kind == Kind.AssignmentVariable then return access(node, true) end
+            if node.kind == Kind.VariableExpression or node.kind == Kind.GlobalVariableExpression then return access(node, false) end
+            if node.kind == Kind.AssignmentVariable or node.kind == Kind.AssignmentGlobalVariable then return access(node, true) end
             if node.kind == Kind.FunctionDeclaration and not owned[node.scope] then
                 local target = access(node, false)
                 if target then
@@ -120,22 +120,17 @@ return function(Compiler)
             .. names.result .. '=' .. source .. ';' .. finish .. 'return ' .. names.result .. ' end')
         local factory = parsed.body.statements[1].args[1]
         self.nativeResults[expression] = factory.body.statements[1].expressions[1]
-        factory.body.scope:setParent(scope)
         require('prometheus.visitast')(parsed, nil, function(node, data)
-            if node.kind == Kind.VariableExpression and node.scope.isGlobal then
+            if (node.kind == Kind.VariableExpression or node.kind == Kind.GlobalVariableExpression) and node.scope.isGlobal then
                 assert(node.scope:getVariableName(node.id) == names.setenv, 'Unexpected native global')
-                data.scope:removeReferenceToHigherScope(node.scope, node.id)
-                data.scope:addReferenceToHigherScope(self.scope, self.setfenvVar)
                 return Ast.VariableExpression(self.scope, self.setfenvVar)
             end
         end)
         local proxy = Ast.NilExpression()
         if #entries > 0 then
-            scope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
             proxy = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope,
                 self.upvaluesProxyFunctionVar), {Ast.TableConstructorExpression(entries)})
         end
-        scope:addReferenceToHigherScope(self.scope, self.upvaluesTable)
         local value = Ast.FunctionCallExpression(factory, {proxy, self:env(scope),
             Ast.VariableExpression(self.scope, self.upvaluesTable)})
         local result = self:allocRegister(false)

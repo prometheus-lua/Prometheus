@@ -30,7 +30,6 @@ return function(self, expression, funcDepth, numReturns)
                 else
                     local reg = self:allocRegister(false);
                     local upvalId = self:getUpvalueId(expression.scope, expression.id);
-                    scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
                     self:addStatement(self:setRegister(scope, reg, self:getUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)))), {reg}, {}, true);
                     regs[i] = reg;
                 end

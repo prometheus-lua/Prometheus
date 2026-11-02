@@ -166,7 +166,7 @@ return function(Compiler)
 	end
 
 	local function assignmentTarget(self, target)
-		if target.kind == K.AssignmentVariable then return {scope = target.scope, id = target.id} end
+		if target.kind == K.AssignmentVariable or target.kind == K.AssignmentGlobalVariable then return {scope = target.scope, id = target.id} end
 		if target.kind == K.AssignmentIndexing then
 			local base = self:expression(target.base, 1)[1]
 			local key = self:expression(target.index, 1)[1]

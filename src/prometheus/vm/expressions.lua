@@ -81,7 +81,7 @@ local function install(Compiler)
 			return load(self, numberValue(node.value))
 		elseif kind == Kind.BooleanExpression or kind == Kind.StringExpression then
 			return load(self, node.value)
-		elseif kind == Kind.VariableExpression then
+		elseif kind == Kind.VariableExpression or kind == Kind.GlobalVariableExpression then
 			return self:readVariable(node.scope, node.id)
 		elseif kind == Kind.VarargExpression then
 			local tuple = self:alloc(); self:emit("VARARG", tuple)

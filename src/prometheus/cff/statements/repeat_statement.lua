@@ -28,7 +28,6 @@ return function(self, statement, funcDepth)
     for id, _ in ipairs(statement.body.scope.variables) do
         local varReg = self:getVarRegister(statement.body.scope, id, funcDepth, nil);
         if self:isUpvalue(statement.body.scope, id) then
-            scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
             self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), { self:register(scope, varReg) })), { varReg }, { varReg }, false);
         else
             self:addStatement(self:setRegister(scope, varReg, Ast.NilExpression()), { varReg }, {}, false);

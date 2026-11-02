@@ -5,6 +5,7 @@
 -- This Script is the main compiler module.
 
 local Ast = require("prometheus.ast");
+local analyzeBindings = require("prometheus.bindinganalysis");
 local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
 
@@ -83,6 +84,7 @@ function Compiler:popRegisterUsageInfo()
 end
 
 function Compiler:compile(ast)
+    analyzeBindings(ast);
     self.blocks = {};
     self.registers = {};
     self.activeBlock = nil;
@@ -113,17 +115,6 @@ function Compiler:compile(ast)
     local _, tonumberVar = newGlobalScope:resolve("tonumber");
     local _, errorVar = newGlobalScope:resolve("error");
 
-    psc:addReferenceToHigherScope(newGlobalScope, getfenvVar, 3);
-    psc:addReferenceToHigherScope(newGlobalScope, setfenvVar);
-    psc:addReferenceToHigherScope(newGlobalScope, tableVar);
-    psc:addReferenceToHigherScope(newGlobalScope, unpackVar);
-    psc:addReferenceToHigherScope(newGlobalScope, envVar);
-    psc:addReferenceToHigherScope(newGlobalScope, newproxyVar);
-    psc:addReferenceToHigherScope(newGlobalScope, setmetatableVar);
-    psc:addReferenceToHigherScope(newGlobalScope, getmetatableVar);
-    psc:addReferenceToHigherScope(newGlobalScope, selectVar);
-    psc:addReferenceToHigherScope(newGlobalScope, tonumberVar);
-    psc:addReferenceToHigherScope(newGlobalScope, errorVar);
 
     self.scope = Scope:new(psc);
     self.envVar = self.scope:addVariable();
@@ -192,31 +183,22 @@ function Compiler:compile(ast)
         return uid;
     end
 
-    createClosureSubScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
-    createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosurePosArg)
-    createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureUpvalsArg, 1)
-    createClosureScope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
-    createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureProxyObject);
 
     self:compileTopNode(ast);
 
     -- VM value lists carry an explicit count: table length loses trailing nils.
     local packScope = Scope:new(self.scope);
-    packScope:addReferenceToHigherScope(self.scope, self.selectVar);
     local unpackScope = Scope:new(self.scope);
     local unpackValuesVar = unpackScope:addVariable();
-    unpackScope:addReferenceToHigherScope(self.scope, self.unpackVar);
 
     -- Keep query handling shared: a per-call closure would capture the frame's
     -- environment and delay its collection when another Cff pass wraps it.
     -- Ordinary functions receive exactly their original arguments via a tail call.
     local callScope = Scope:new(self.scope);
     local callFuncVar, callEnvVar = callScope:addVariable(), callScope:addVariable();
-    callScope:addReferenceToHigherScope(self.scope, self.getfenvVar, 2);
     local getterScope = Scope:new(callScope);
     local levelVar = getterScope:addVariable();
     local currentScope = Scope:new(getterScope);
-    currentScope:addReferenceToHigherScope(callScope, callEnvVar);
 
     local functionNodeAssignments = {
         {
@@ -418,8 +400,6 @@ end
 -- Each wrapper reads its own environment at entry, before tail-calling the VM.
 -- The VM keeps this table in its call frame so recursion and yields are isolated.
 function Compiler:closureEnvironment(scope, inheritedScope, inheritedVar)
-    scope:addReferenceToHigherScope(self.scope, self.getfenvVar, 2);
-    scope:addReferenceToHigherScope(inheritedScope, inheritedVar);
     return Ast.OrExpression(Ast.AndExpression(
         Ast.VariableExpression(self.scope, self.getfenvVar),
         Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.getfenvVar), {Ast.NumberExpression(1)})
@@ -427,11 +407,7 @@ function Compiler:closureEnvironment(scope, inheritedScope, inheritedVar)
 end
 
 function Compiler:inheritClosureEnvironment(scope, funcVar, envVar)
-    scope:addReferenceToHigherScope(self.scope, self.setfenvVar);
     local bodyScope = Scope:new(scope);
-    bodyScope:addReferenceToHigherScope(self.scope, self.setfenvVar);
-    bodyScope:addReferenceToHigherScope(scope, funcVar);
-    bodyScope:addReferenceToHigherScope(scope, envVar);
     return Ast.IfStatement(Ast.VariableExpression(self.scope, self.setfenvVar), Ast.Block({
         Ast.FunctionCallStatement(Ast.VariableExpression(self.scope, self.setfenvVar), {
             Ast.VariableExpression(scope, funcVar),
@@ -452,11 +428,6 @@ function Compiler:getCreateClosureVar(argCount)
         local createClosureProxyObject = createClosureScope:addVariable();
         local createClosureFuncVar = createClosureScope:addVariable();
 
-        createClosureSubScope:addReferenceToHigherScope(self.scope, self.containerFuncVar);
-        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosurePosArg)
-        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureUpvalsArg, 1)
-        createClosureScope:addReferenceToHigherScope(self.scope, self.upvaluesProxyFunctionVar)
-        createClosureSubScope:addReferenceToHigherScope(createClosureScope, createClosureProxyObject);
 
         local  argsTb, argsTb2 = {}, {};
         for i = 1, argCount do

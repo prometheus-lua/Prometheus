@@ -14,6 +14,7 @@ This documentation covers:
 - configuration and presets
 - all built-in obfuscation steps
 - embedding Prometheus as a library
+- [AST binding and transform guidance](advanced/ast-bindings.md)
 
 ## Who this is for
 

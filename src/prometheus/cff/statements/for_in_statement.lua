@@ -86,7 +86,6 @@ return function(self, statement, funcDepth)
         if(self:isUpvalue(statement.scope, id)) then
             local varreg = varRegs[i];
             local tmpReg = self:allocRegister(false);
-            scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
             self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {tmpReg}, {}, false);
             self:addStatement(self:setUpvalueMember(scope, self:register(scope, tmpReg), self:register(scope, varreg)), {}, {tmpReg, varreg}, true);
             self:addStatement(self:copyRegisters(scope, {varreg}, {tmpReg}), {varreg}, {tmpReg}, false);

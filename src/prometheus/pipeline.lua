@@ -8,6 +8,7 @@
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local Parser = require("prometheus.parser");
+local analyzeBindings = require("prometheus.bindinganalysis");
 local Unparser = require("prometheus.unparser");
 local logger = require("logger");
 
@@ -209,6 +210,7 @@ function Pipeline:apply(code, filename)
 		if type(newAst) == "table" then
 			ast = newAst;
 		end
+		analyzeBindings(ast);
 		logger:info(string.format("Step \"%s\" Done in %.2f seconds", step.Name or "Unnamed", gettime() - stepStartTime));
 	end
 
@@ -238,6 +240,7 @@ function Pipeline:unparse(ast)
 end
 
 function Pipeline:renameVariables(ast)
+	analyzeBindings(ast);
 	local startTime = gettime();
 	logger:info("Renaming Variables ...");
 

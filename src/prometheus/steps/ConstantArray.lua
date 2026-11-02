@@ -141,13 +141,11 @@ function ConstantArray:indexing(index, data)
 			end
 		end
 
-		data.scope:addReferenceToHigherScope(wrappers.scope, wrappers.id);
 		return Ast.FunctionCallExpression(Ast.IndexExpression(
 			Ast.VariableExpression(wrappers.scope, wrappers.id),
 			Ast.StringExpression(wrapper.index)
 		), args);
 	else
-		data.scope:addReferenceToHigherScope(self.rootScope, self.wrapperId);
 		return Ast.FunctionCallExpression(Ast.VariableExpression(self.rootScope, self.wrapperId), {
 			Ast.NumberExpression(index - self.wrapperOffset);
 		});
@@ -203,14 +201,10 @@ function ConstantArray:addRotateCode(ast, shift)
 
 	local newAst = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants)));
 	local forStat = newAst.body.statements[1];
-	forStat.body.scope:setParent(ast.body.scope);
 	visitast(newAst, nil, function(node, data)
-		if(node.kind == AstKind.VariableExpression) then
+		if(node.kind == AstKind.VariableExpression or node.kind == AstKind.GlobalVariableExpression) then
 			if(node.scope:getVariableName(node.id) == "ARR") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-				node.scope = self.rootScope;
-				node.id = self.arrId;
+				return Ast.VariableExpression(self.rootScope, self.arrId);
 			end
 		end
 	end)
@@ -275,19 +269,14 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(base64DecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
+			if(node.kind == AstKind.VariableExpression or node.kind == AstKind.GlobalVariableExpression) then
 				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+					return Ast.VariableExpression(self.rootScope, self.arrId);
 				end
 
 				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
 					return self:createBase64Lookup();
 				end
 			end
@@ -364,19 +353,14 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(base85DecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
+			if(node.kind == AstKind.VariableExpression or node.kind == AstKind.GlobalVariableExpression) then
 				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+					return Ast.VariableExpression(self.rootScope, self.arrId);
 				end
 
 				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
 					return self:createBase85Lookup();
 				end
 			end
@@ -489,24 +473,18 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(mixedDecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
+			if(node.kind == AstKind.VariableExpression or node.kind == AstKind.GlobalVariableExpression) then
 				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+					return Ast.VariableExpression(self.rootScope, self.arrId);
 				end
 
 				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_64") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
 					return self:createBase64Lookup();
 				end
 
 				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_85") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
 					return self:createBase85Lookup();
 				end
 			end
@@ -749,7 +727,6 @@ function ConstantArray:apply(ast, pipeline)
 					addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(offset));
 				end
 
-				funcScope:addReferenceToHigherScope(self.rootScope, self.wrapperId);
 				local callArg = Ast.FunctionCallExpression(Ast.VariableExpression(self.rootScope, self.wrapperId), {
 					addSubArg
 				});
@@ -782,8 +759,6 @@ function ConstantArray:apply(ast, pipeline)
 		-- Add Wrapper Function Code
 		function()
 			local funcScope = Scope:new(self.rootScope);
-			-- Add Reference to Array
-			funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
 
 			local arg = funcScope:addVariable();
 			local addSubArg;

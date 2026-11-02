@@ -40,6 +40,7 @@ local AstKind = {
 	-- Assignment Index
 	AssignmentIndexing = "AssignmentIndexing";
 	AssignmentVariable = "AssignmentVariable";
+	AssignmentGlobalVariable = "AssignmentGlobalVariable";
 
 	-- Expression Nodes
 	BooleanExpression = "BooleanExpression";
@@ -69,6 +70,7 @@ local AstKind = {
 	FunctionCallExpression = "FunctionCallExpression";
 	PassSelfFunctionCallExpression = "PassSelfFunctionCallExpression";
 	VariableExpression = "VariableExpression";
+	GlobalVariableExpression = "GlobalVariableExpression";
 	FunctionLiteralExpression = "FunctionLiteralExpression";
 	TableConstructorExpression = "TableConstructorExpression";
 
@@ -111,6 +113,8 @@ local astKindExpressionLookup = {
 	[AstKind.FunctionCallExpression] = 2;
 	[AstKind.PassSelfFunctionCallExpression] = 2;
 	[AstKind.VariableExpression] = 0;
+	[AstKind.GlobalVariableExpression] = 0;
+	[AstKind.AssignmentGlobalVariable] = 0;
 	[AstKind.AssignmentVariable] = 0;
 	[AstKind.FunctionLiteralExpression] = 3;
 	[AstKind.TableConstructorExpression] = 3;
@@ -194,6 +198,7 @@ end
 
 -- Create Statement Block
 function Ast.Block(statements, scope)
+	scope = scope or require("prometheus.scope"):new();
 	return {
 		kind = AstKind.Block,
 		statements = statements,
@@ -328,7 +333,15 @@ function Ast.WhileStatement(body, condition, parentScope)
 end
 
 function Ast.ForInStatement(scope, vars, expressions, body, parentScope)
+	local symbols = {};
+	if not scope.getSymbol then
+		symbols, expressions, body = scope, vars, expressions;
+		scope, vars = nil, {};
+	else
+		for i, id in ipairs(vars) do symbols[i] = scope:getSymbol(id); end
+	end
 	return {
+		symbols = symbols,
 		kind = AstKind.ForInStatement,
 		scope = scope,
 		ids = vars,
@@ -340,7 +353,13 @@ function Ast.ForInStatement(scope, vars, expressions, body, parentScope)
 end
 
 function Ast.ForStatement(scope, id, initialValue, finalValue, incrementBy, body, parentScope)
+	local symbol;
+	if scope.kind == "LocalSymbol" then
+		symbol, initialValue, finalValue, incrementBy, body = scope, id, initialValue, finalValue, incrementBy;
+		scope, id = nil, nil;
+	else symbol = scope:getSymbol(id); end
 	return {
+		symbol = symbol,
 		kind = AstKind.ForStatement,
 		scope = scope,
 		id = id,
@@ -372,7 +391,21 @@ function Ast.IfStatement(condition, body, elseifs, elsebody)
 end
 
 function Ast.FunctionDeclaration(scope, id, indices, args, body)
+	local symbol, name;
+	if not scope.getSymbol then
+		local target = scope;
+		indices, args, body = id, indices, args;
+		symbol, name, scope, id = target.symbol, target.name, target.scope, target.id;
+	else
+		symbol = not scope.isGlobal and scope:getSymbol(id) or nil;
+		name = scope.isGlobal and scope:getVariableName(id) or nil;
+	end
+	for i, arg in ipairs(args) do
+		if arg.kind == "LocalSymbol" then args[i] = Ast.VariableExpression(arg); end
+	end
 	return {
+		symbol = symbol,
+		name = name,
 		kind = AstKind.FunctionDeclaration,
 		scope = scope,
 		baseScope = scope,
@@ -382,26 +415,42 @@ function Ast.FunctionDeclaration(scope, id, indices, args, body)
 		args = args,
 		body = body,
 		getName = function(self)
-			return self.scope:getVariableName(self.id);
+			return self.symbol and self.symbol.name or self.name;
 		end,
 	}
 end
 
 function Ast.LocalFunctionDeclaration(scope, id, args, body)
+	local symbol;
+	if scope.kind == "LocalSymbol" then
+		symbol, args, body, scope, id = scope, id, args, nil, nil;
+	else symbol = scope:getSymbol(id); end
+	for i, arg in ipairs(args) do
+		if arg.kind == "LocalSymbol" then args[i] = Ast.VariableExpression(arg); end
+	end
 	return {
+		symbol = symbol,
 		kind = AstKind.LocalFunctionDeclaration,
 		scope = scope,
 		id = id,
 		args = args,
 		body = body,
 		getName = function(self)
-			return self.scope:getVariableName(self.id);
+			return self.symbol and self.symbol.name or self.name;
 		end,
 	}
 end
 
 function Ast.LocalVariableDeclaration(scope, ids, expressions)
+	local symbols = {};
+	if not scope.getSymbol then
+		symbols, expressions, scope = scope, ids, nil;
+		ids = {};
+	else
+		for i, id in ipairs(ids) do symbols[i] = scope:getSymbol(id); end
+	end
 	return {
+		symbols = symbols,
 		kind = AstKind.LocalVariableDeclaration,
 		scope = scope,
 		ids = ids,
@@ -769,31 +818,58 @@ function Ast.FunctionCallExpression(base, args)
 	}
 end
 
-function Ast.VariableExpression(scope, id)
-	scope:addReference(id);
+-- A symbol identifies a binding, independently of its name or lexical owner.
+function Ast.LocalSymbol(name)
+	return { kind = "LocalSymbol", name = name };
+end
+
+local function localReference(kind, scope, id)
+	local symbol;
+	if scope.kind == "LocalSymbol" then
+		symbol, scope, id = scope, scope.scope, scope.id;
+	else
+		symbol = scope:getSymbol(id);
+	end
 	return {
-		kind = AstKind.VariableExpression,
-		scope = scope,
-		id = id,
-		getName = function(self)
-			return self.scope.getVariableName(self.id);
-		end,
-	}
+		kind = kind, symbol = symbol, scope = scope, id = id,
+		getName = function(self) return self.symbol.name end,
+	};
+end
+
+function Ast.GlobalVariableExpression(name)
+	return {kind = AstKind.GlobalVariableExpression, name = name};
+end
+
+function Ast.AssignmentGlobalVariable(name)
+	return {kind = AstKind.AssignmentGlobalVariable, name = name};
+end
+
+-- The scope/id forms remain construction adapters for existing generators.
+function Ast.VariableExpression(scope, id)
+	if scope.isGlobal then
+		local node = Ast.GlobalVariableExpression(scope:getVariableName(id));
+		node.scope, node.id = scope, id;
+		return node;
+	end
+	return localReference(AstKind.VariableExpression, scope, id);
 end
 
 function Ast.AssignmentVariable(scope, id)
-	scope:addReference(id);
-	return {
-		kind = AstKind.AssignmentVariable,
-		scope = scope,
-		id = id,
-		getName = function(self)
-			return self.scope.getVariableName(self.id);
-		end,
-	}
+	if scope.isGlobal then
+		local node = Ast.AssignmentGlobalVariable(scope:getVariableName(id));
+		node.scope, node.id = scope, id;
+		return node;
+	end
+	return localReference(AstKind.AssignmentVariable, scope, id);
 end
 
+Ast.LocalVariableExpression = Ast.VariableExpression;
+Ast.AssignmentLocalVariable = Ast.AssignmentVariable;
+
 function Ast.FunctionLiteralExpression(args, body)
+	for i, arg in ipairs(args) do
+		if arg.kind == "LocalSymbol" then args[i] = Ast.VariableExpression(arg); end
+	end
 	return {
 		kind = AstKind.FunctionLiteralExpression,
 		args = args,

@@ -24,7 +24,6 @@ return function(self, statement, funcDepth)
         local varScope, id = var.scope, var.id;
         local varReg = self:getVarRegister(varScope, id, nil, nil);
         if self:isUpvalue(varScope, id) then
-            scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
             self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
                 self:register(scope, varReg)
             })), {varReg}, {varReg}, false);

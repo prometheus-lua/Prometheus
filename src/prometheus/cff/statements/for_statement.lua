@@ -36,8 +36,6 @@ return function(self, statement, funcDepth)
 
     -- Lua evaluates all three expressions before coercing and validating them.
     -- Use captured builtins so replacing globals cannot change loop semantics.
-    scope:addReferenceToHigherScope(self.scope, self.tonumberVar, 3);
-    scope:addReferenceToHigherScope(self.scope, self.errorVar, 3);
     for _, input in ipairs({
         {initialReg, "initial value"},
         {finalReg, "limit"},
@@ -111,7 +109,6 @@ return function(self, statement, funcDepth)
     local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, nil);
 
     if(self:isUpvalue(statement.scope, statement.id)) then
-        scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
         self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
         self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, currentReg)), {}, {varReg, currentReg}, true);
     else

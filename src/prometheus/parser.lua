@@ -16,6 +16,7 @@ local Tokenizer = require("prometheus.tokenizer");
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local Ast = require("prometheus.ast");
+local analyzeBindings = require("prometheus.bindinganalysis");
 local Scope = require("prometheus.scope");
 local logger = require("logger");
 
@@ -37,6 +38,7 @@ local ASSIGNMENT_NO_WARN_LOOKUP = lookupify{
 
 local CALLABLE_PREFIX_EXPRESSION_LOOKUP = lookupify{
 	AstKind.VariableExpression,
+	AstKind.GlobalVariableExpression,
 	AstKind.IndexExpression,
 	AstKind.FunctionCallExpression,
 	AstKind.PassSelfFunctionCallExpression
@@ -163,6 +165,8 @@ function Parser:parse(code)
 	self.length = 0;
 
 	logger:debug("Cleanup Done")
+	-- Keep direct Parser consumers on the same analyzed AST path as the pipeline.
+	analyzeBindings(ast);
 
 	return ast;
 end
@@ -402,12 +406,14 @@ function Parser:statement(scope, currentLoop)
 		end
 
 		-- Variable Assignment
-		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression or expr.kind == AstKind.GlobalVariableExpression) then
 			if(expr.kind == AstKind.IndexExpression) then
 				expr.kind = AstKind.AssignmentIndexing
 			end
 			if(expr.kind == AstKind.VariableExpression) then
 				expr.kind = AstKind.AssignmentVariable
+			elseif(expr.kind == AstKind.GlobalVariableExpression) then
+				expr.kind = AstKind.AssignmentGlobalVariable
 			end
 
 			if(self.luaVersion == LuaVersion.LuaU) then
@@ -460,12 +466,14 @@ function Parser:statement(scope, currentLoop)
 					logger:error(generateError(self, string.format("expected a valid assignment statement lhs part but got nil")));
 				end
 
-				if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+				if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression or expr.kind == AstKind.GlobalVariableExpression) then
 					if(expr.kind == AstKind.IndexExpression) then
 						expr.kind = AstKind.AssignmentIndexing
 					end
 					if(expr.kind == AstKind.VariableExpression) then
 						expr.kind = AstKind.AssignmentVariable
+					elseif(expr.kind == AstKind.GlobalVariableExpression) then
+						expr.kind = AstKind.AssignmentGlobalVariable
 					end
 					table.insert(lhs, expr);
 				else

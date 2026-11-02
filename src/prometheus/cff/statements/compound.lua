@@ -53,7 +53,6 @@ return function(self, statement, funcDepth)
                 end
             else
                 local upvalId = self:getUpvalueId(primaryExpr.scope, primaryExpr.id);
-                scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
                 self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, valueReg), compoundConstructor), {}, {valueReg}, true);
             end
             self:freeRegister(valueReg, false);

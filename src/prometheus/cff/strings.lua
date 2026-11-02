@@ -34,7 +34,6 @@ return function(ast)
         elseif node.kind == Kind.StringExpression then
             local index = indices[node.value]
             if index then
-                scopes[#scopes]:addReferenceToHigherScope(scope, pool)
                 return Ast.IndexExpression(Ast.VariableExpression(scope, pool), Ast.NumberExpression(index))
             end
         end

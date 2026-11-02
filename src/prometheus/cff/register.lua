@@ -105,12 +105,10 @@ return function(Compiler)
 
         if id < MAX_REGS then
             local vid = self:getRegisterVarId(id);
-            scope:addReferenceToHigherScope(self.containerFuncScope, vid);
             return Ast.VariableExpression(self.containerFuncScope, vid);
         end
 
         local vid = self:getRegisterVarId(MAX_REGS);
-        scope:addReferenceToHigherScope(self.containerFuncScope, vid);
         return Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression((id - MAX_REGS) + 1));
     end
 
@@ -132,12 +130,10 @@ return function(Compiler)
 
         if id < MAX_REGS then
             local vid = self:getRegisterVarId(id);
-            scope:addReferenceToHigherScope(self.containerFuncScope, vid);
             return Ast.AssignmentVariable(self.containerFuncScope, vid);
         end
 
         local vid = self:getRegisterVarId(MAX_REGS);
-        scope:addReferenceToHigherScope(self.containerFuncScope, vid);
         return Ast.AssignmentIndexing(Ast.VariableExpression(self.containerFuncScope, vid), Ast.NumberExpression((id - MAX_REGS) + 1));
     end
 
@@ -182,73 +178,59 @@ return function(Compiler)
     end
 
     function Compiler:pos(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.VariableExpression(self.containerFuncScope, self.posVar);
     end
 
     function Compiler:posAssignment(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.AssignmentVariable(self.containerFuncScope, self.posVar);
     end
 
     function Compiler:args(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
         return Ast.VariableExpression(self.containerFuncScope, self.argsVar);
     end
 
     function Compiler:unpack(scope)
-        scope:addReferenceToHigherScope(self.scope, self.unpackPackedVar);
         return Ast.VariableExpression(self.scope, self.unpackPackedVar);
     end
 
     function Compiler:pack(scope, values)
-        scope:addReferenceToHigherScope(self.scope, self.packVar);
         return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.packVar), values);
     end
 
     function Compiler:env(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.currentEnvVar);
         return Ast.VariableExpression(self.containerFuncScope, self.currentEnvVar);
     end
 
     function Compiler:functionCall(scope, reg, args)
-        scope:addReferenceToHigherScope(self.scope, self.callFunctionVar);
         local callArgs = {self:register(scope, reg), self:env(scope)};
         for _, arg in ipairs(args) do table.insert(callArgs, arg); end
         return Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.callFunctionVar), callArgs);
     end
 
     function Compiler:jmp(scope, to)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)},{to});
     end
 
     function Compiler:setPos(scope, val)
         if not val then
-            scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
             return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {Ast.NilExpression()});
         end
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
         return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.posVar)}, {Ast.NumberExpression(val) or Ast.NilExpression()});
     end
 
     function Compiler:setReturn(scope, val)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.returnVar);
         return Ast.AssignmentStatement({Ast.AssignmentVariable(self.containerFuncScope, self.returnVar)}, {val});
     end
 
     function Compiler:getReturn(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.returnVar);
         return Ast.VariableExpression(self.containerFuncScope, self.returnVar);
     end
 
     function Compiler:returnAssignment(scope)
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.returnVar);
         return Ast.AssignmentVariable(self.containerFuncScope, self.returnVar);
     end
 
     function Compiler:setUpvalueMember(scope, idExpr, valExpr, compoundConstructor)
-        scope:addReferenceToHigherScope(self.scope, self.upvaluesTable);
         if compoundConstructor then
             return compoundConstructor(Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr), valExpr);
         end
@@ -256,7 +238,6 @@ return function(Compiler)
     end
 
     function Compiler:getUpvalueMember(scope, idExpr)
-        scope:addReferenceToHigherScope(self.scope, self.upvaluesTable);
         return Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesTable), idExpr);
     end
 end

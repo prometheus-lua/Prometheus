@@ -17,6 +17,7 @@ handlers[AstKind.NumberExpression] = requireExpression("number");
 handlers[AstKind.BooleanExpression] = requireExpression("boolean");
 handlers[AstKind.NilExpression] = requireExpression("nil");
 handlers[AstKind.VariableExpression] = requireExpression("variable");
+handlers[AstKind.GlobalVariableExpression] = requireExpression("variable");
 handlers[AstKind.FunctionCallExpression] = requireExpression("function_call");
 handlers[AstKind.PassSelfFunctionCallExpression] = requireExpression("pass_self_function_call");
 handlers[AstKind.IndexExpression] = requireExpression("index");

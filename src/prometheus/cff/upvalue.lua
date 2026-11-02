@@ -19,13 +19,8 @@ return function(Compiler)
         local valueVar = scope:addVariable();
 
         local whileScope = Scope:new(scope);
-        whileScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 3);
-        whileScope:addReferenceToHigherScope(scope, valueVar, 3);
-        whileScope:addReferenceToHigherScope(scope, iteratorVar, 3);
 
         local ifScope = Scope:new(whileScope);
-        ifScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 1);
-        ifScope:addReferenceToHigherScope(self.scope, self.upvaluesTable, 1);
 
         return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, selfVar)}, Ast.Block({
             Ast.LocalVariableDeclaration(scope, {iteratorVar, valueVar}, {Ast.NumberExpression(1), Ast.IndexExpression(Ast.VariableExpression(scope, selfVar), Ast.NumberExpression(1))}),
@@ -59,8 +54,6 @@ return function(Compiler)
         local scope = Scope:new(self.scope);
         local argVar = scope:addVariable();
         local ifScope = Scope:new(scope);
-        ifScope:addReferenceToHigherScope(scope, argVar, 3);
-        scope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 2);
         return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, argVar)}, Ast.Block({
             Ast.AssignmentStatement({
                 Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar))
@@ -81,7 +74,6 @@ return function(Compiler)
 
     function Compiler:createUpvaluesProxyFunc()
         local scope = Scope:new(self.scope);
-        scope:addReferenceToHigherScope(self.scope, self.newproxyVar);
 
         local entriesVar = scope:addVariable();
 
@@ -89,18 +81,9 @@ return function(Compiler)
         local proxyVar = ifScope:addVariable();
         local metatableVar = ifScope:addVariable();
         local elseScope = Scope:new(scope);
-        ifScope:addReferenceToHigherScope(self.scope, self.newproxyVar);
-        ifScope:addReferenceToHigherScope(self.scope, self.getmetatableVar);
-        ifScope:addReferenceToHigherScope(self.scope, self.upvaluesGcFunctionVar);
-        ifScope:addReferenceToHigherScope(scope, entriesVar);
-        elseScope:addReferenceToHigherScope(self.scope, self.setmetatableVar);
-        elseScope:addReferenceToHigherScope(scope, entriesVar);
-        elseScope:addReferenceToHigherScope(self.scope, self.upvaluesGcFunctionVar);
 
         local forScope = Scope:new(scope);
         local forArg = forScope:addVariable();
-        forScope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 2);
-        forScope:addReferenceToHigherScope(scope, entriesVar, 2);
 
         return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, entriesVar)}, Ast.Block({
             Ast.ForStatement(forScope, forArg, Ast.NumberExpression(1), Ast.LenExpression(Ast.VariableExpression(scope, entriesVar)), Ast.NumberExpression(1), Ast.Block({
@@ -155,8 +138,6 @@ return function(Compiler)
 
     function Compiler:createAllocUpvalFunction()
         local scope = Scope:new(self.scope);
-        scope:addReferenceToHigherScope(self.scope, self.currentUpvalId, 4);
-        scope:addReferenceToHigherScope(self.scope, self.upvaluesReferenceCountsTable, 1);
 
         return Ast.FunctionLiteralExpression({}, Ast.Block({
             Ast.AssignmentStatement({

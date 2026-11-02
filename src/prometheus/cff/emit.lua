@@ -267,7 +267,6 @@ return function(Compiler)
 
             -- For single block
             if len == 1 then
-                tb[l].block.scope:setParent(pScope);
                 return tb[l].block;
             end
 
@@ -277,13 +276,11 @@ return function(Compiler)
                 local elseifs = {};
 
                 -- First block uses the first midpoint threshold
-                tb[l].block.scope:setParent(ifScope);
                 local firstCondition = buildBlockThresholdCondition(ifScope, tb[l].id, tb[l + 1].id, false);
                 local firstBlock = tb[l].block;
 
                 -- Middle blocks use their upper midpoint threshold
                 for i = l + 1, r - 1 do
-                    tb[i].block.scope:setParent(ifScope);
                     local condition = buildBlockThresholdCondition(ifScope, tb[i].id, tb[i + 1].id, false);
                     table.insert(elseifs, {
                         condition = condition,
@@ -292,7 +289,6 @@ return function(Compiler)
                 end
 
                 -- Last block becomes else
-                tb[r].block.scope:setParent(ifScope);
                 local elseBlock = tb[r].block;
 
                 return Ast.Block({
@@ -339,13 +335,9 @@ return function(Compiler)
         local whileBody = buildElseifChain(blocks, 1, #blocks, self.containerFuncScope);
         if self.whileScope then
             -- Ensure whileScope is properly connected
-            self.whileScope:setParent(self.containerFuncScope);
         end
 
-        self.whileScope:addReferenceToHigherScope(self.containerFuncScope, self.returnVar, 1);
-        self.whileScope:addReferenceToHigherScope(self.containerFuncScope, self.posVar);
 
-        self.containerFuncScope:addReferenceToHigherScope(self.scope, self.unpackVar);
 
         local declarations = {
             self.returnVar,

@@ -150,9 +150,10 @@ function ProxifyLocals:CreateAssignmentExpression(info, expr, parentScope)
     );
     table.insert(metatableVals, Ast.KeyedTableEntry(Ast.StringExpression(info.getValue.key), getvalueFunctionLiteral));
 
-    parentScope:addReferenceToHigherScope(self.setMetatableVarScope, self.setMetatableVarId);
+    local setMetatableVar = Ast.VariableExpression(self.setMetatableVarScope, self.setMetatableVarId);
+    setMetatableVar.__ignoreProxifyLocals = true;
     return Ast.FunctionCallExpression(
-        Ast.VariableExpression(self.setMetatableVarScope, self.setMetatableVarId),
+        setMetatableVar,
         {
             Ast.TableConstructorExpression({
                 Ast.KeyedTableEntry(Ast.StringExpression(info.valueName), expr)
@@ -205,6 +206,35 @@ function ProxifyLocals:apply(ast, pipeline)
 
 
     visitast(ast, function(node, data)
+        -- Expand proxified local functions into a declaration followed by an
+        -- assignment. The declaration must exist before its body is created so
+        -- recursive references resolve to the same local binding.
+        if(node.kind == AstKind.Block) then
+            local i = 1;
+            while i <= #node.statements do
+                local statement = node.statements[i];
+                if statement.kind == AstKind.LocalFunctionDeclaration then
+                    local info = getLocalMetatableInfo(statement.scope, statement.id);
+                    if info then
+                        local declaration = Ast.LocalVariableDeclaration(statement.scope, {statement.id}, {});
+                        declaration.__skipProxifyLocals = true;
+                        local literal = Ast.FunctionLiteralExpression(statement.args, statement.body);
+                        local assignmentTarget = Ast.AssignmentVariable(statement.scope, statement.id);
+                        assignmentTarget.__ignoreProxifyLocals = true;
+                        local assignment = Ast.AssignmentStatement(
+                            {assignmentTarget},
+                            {self:CreateAssignmentExpression(info, literal, statement.scope)}
+                        );
+                        assignment.__skipProxifyLocals = true;
+                        node.statements[i] = declaration;
+                        table.insert(node.statements, i + 1, assignment);
+                        i = i + 1;
+                    end
+                end
+                i = i + 1;
+            end
+        end
+
         -- Lock for loop variables
         if(node.kind == AstKind.ForStatement) then
             disableMetatableInfo(node.scope, node.id)
@@ -226,7 +256,7 @@ function ProxifyLocals:apply(ast, pipeline)
 
         -- Assignment Statements may be Obfuscated Differently
         if(node.kind == AstKind.AssignmentStatement) then
-            if(#node.lhs == 1 and node.lhs[1].kind == AstKind.AssignmentVariable) then
+            if not node.__skipProxifyLocals and #node.lhs == 1 and node.lhs[1].kind == AstKind.AssignmentVariable then
                 local variable = node.lhs[1];
                 local localMetatableInfo = getLocalMetatableInfo(variable.scope, variable.id);
                 if localMetatableInfo then
@@ -235,14 +265,13 @@ function ProxifyLocals:apply(ast, pipeline)
                     vexp.__ignoreProxifyLocals = true;
                     args[1] = localMetatableInfo.setValue.constructor(vexp, args[1]);
                     self.emptyFunctionUsed = true;
-                    data.scope:addReferenceToHigherScope(self.emptyFunctionScope, self.emptyFunctionId);
                     return Ast.FunctionCallStatement(Ast.VariableExpression(self.emptyFunctionScope, self.emptyFunctionId), args);
                 end
             end
         end
     end, function(node, data)
         -- Local Variable Declaration
-        if(node.kind == AstKind.LocalVariableDeclaration) then
+        if(node.kind == AstKind.LocalVariableDeclaration and not node.__skipProxifyLocals) then
             for i, id in ipairs(node.ids) do
                 local expr = node.expressions[i] or Ast.NilExpression();
                 local localMetatableInfo = getLocalMetatableInfo(node.scope, id);
@@ -274,22 +303,11 @@ function ProxifyLocals:apply(ast, pipeline)
         end
 
         -- Assignment Variable for Assignment Statement
-        if(node.kind == AstKind.AssignmentVariable) then
+        if(node.kind == AstKind.AssignmentVariable and not node.__ignoreProxifyLocals) then
             local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
             -- Apply Only to Some Variables if Threshold is non 1
             if localMetatableInfo then
                 return Ast.AssignmentIndexing(node, Ast.StringExpression(localMetatableInfo.valueName));
-            end
-        end
-
-        -- Local Function Declaration
-        if(node.kind == AstKind.LocalFunctionDeclaration) then
-            local localMetatableInfo = getLocalMetatableInfo(node.scope, node.id);
-            -- Apply Only to Some Variables if Threshold is non 1
-            if localMetatableInfo then
-                local funcLiteral = Ast.FunctionLiteralExpression(node.args, node.body);
-                local newExpr = self:CreateAssignmentExpression(localMetatableInfo, funcLiteral, node.scope);
-                return Ast.LocalVariableDeclaration(node.scope, {node.id}, {newExpr});
             end
         end
 

@@ -27,7 +27,6 @@ return function(self, statement, funcDepth)
             else
                 tblReg = self:allocRegister(false);
                 local upvalId = self:getUpvalueId(statement.scope, statement.id);
-                scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
                 self:addStatement(self:setRegister(scope, tblReg, self:getUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)))), {tblReg}, {}, true);
             end
         end
@@ -74,7 +73,6 @@ return function(self, statement, funcDepth)
             end
         else
             local upvalId = self:getUpvalueId(statement.scope, statement.id);
-            scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
             self:addStatement(self:setUpvalueMember(scope, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(upvalId)), self:register(scope, retReg)), {}, {retReg}, true);
         end
     end

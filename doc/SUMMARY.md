@@ -36,4 +36,5 @@
 ## Advanced
 
 * [How the Pipeline Works](advanced/how-the-pipeline-works.md)
+* [AST Bindings](advanced/ast-bindings.md)
 * [Register VM](advanced/register-vm.md)

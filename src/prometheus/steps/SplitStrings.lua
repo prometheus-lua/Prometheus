@@ -82,7 +82,6 @@ local function generateTableConcatNode(chunks, data)
 		table.insert(chunkNodes, Ast.TableEntry(Ast.StringExpression(chunk)));
 	end
 	local tb = Ast.TableConstructorExpression(chunkNodes);
-	data.scope:addReferenceToHigherScope(data.tableConcatScope, data.tableConcatId);
 	return Ast.FunctionCallExpression(Ast.VariableExpression(data.tableConcatScope, data.tableConcatId), {tb});
 end
 
@@ -175,7 +174,6 @@ local function generateCustomFunctionLiteral(parentScope, variant)
 		local funcDeclNode = parser:parse(custom1Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		funcBody.scope:setParent(parentScope);
 		return Ast.FunctionLiteralExpression(funcArgs, funcBody);
 
 		-- Custom Function Type 2
@@ -183,7 +181,6 @@ local function generateCustomFunctionLiteral(parentScope, variant)
 		local funcDeclNode = parser:parse(custom2Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		funcBody.scope:setParent(parentScope);
 		return Ast.FunctionLiteralExpression(funcArgs, funcBody);
 	end
 end
@@ -199,7 +196,6 @@ local function generateGlobalCustomFunctionDeclaration(ast, data)
 		local funcDeclNode = parser:parse(custom1Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		funcBody.scope:setParent(astScope);
 		return Ast.LocalVariableDeclaration(astScope, {data.customFuncId},
 		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
 	-- Custom Function Type 2
@@ -208,7 +204,6 @@ local function generateGlobalCustomFunctionDeclaration(ast, data)
 		local funcDeclNode = parser:parse(custom2Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		funcBody.scope:setParent(astScope);
 		return Ast.LocalVariableDeclaration(data.customFuncScope, {data.customFuncId},
 		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
 	end
@@ -297,8 +292,6 @@ function SplitStrings:apply(ast, pipeline)
 					elseif self.ConcatenationType == "custom" then
 						if self.CustomFunctionType == "global" then
 							local args = generateCustomNodeArgs(chunks, data, data.customFunctionVariant);
-							-- Add Reference for Variable Renaming
-							data.scope:addReferenceToHigherScope(data.customFuncScope, data.customFuncId);
 							node = Ast.FunctionCallExpression(Ast.VariableExpression(data.customFuncScope, data.customFuncId), args);
 						elseif self.CustomFunctionType == "local" then
 							local lfuncs = data.functionData.localFunctions;
@@ -306,8 +299,6 @@ function SplitStrings:apply(ast, pipeline)
 							local func = lfuncs[idx];
 							local args = generateCustomNodeArgs(chunks, data, func.variant);
 							func.used = true;
-							-- Add Reference for Variable Renaming
-							data.scope:addReferenceToHigherScope(func.scope, func.id);
 							node = Ast.FunctionCallExpression(Ast.VariableExpression(func.scope, func.id), args);
 						elseif self.CustomFunctionType == "inline" then
 							local variant = self:variant();
@@ -327,7 +318,6 @@ function SplitStrings:apply(ast, pipeline)
 	if(self.ConcatenationType == "table") then
 		local globalScope = data.globalScope;
 		local tableScope, tableId = globalScope:resolve("table")
-		ast.body.scope:addReferenceToHigherScope(globalScope, tableId);
 		table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(data.tableConcatScope, {data.tableConcatId},
 		{Ast.IndexExpression(Ast.VariableExpression(tableScope, tableId), Ast.StringExpression("concat"))}));
 	elseif(self.ConcatenationType == "custom" and self.CustomFunctionType == "global") then

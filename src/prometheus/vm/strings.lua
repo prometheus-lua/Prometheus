@@ -21,14 +21,11 @@ return function(ast)
                 variables[id] = cacheScope:addVariable()
                 values[id] = Ast.IndexExpression(Ast.VariableExpression(cacheScope, cache),
                     Ast.NumberExpression(id))
-                cacheScope:addReferenceToHigherScope(cacheScope, cache)
             end
-            context.scope:addReferenceToHigherScope(cacheScope, variables[id])
             return Ast.VariableExpression(cacheScope, variables[id])
         end
     end)
     if not data then return end
-    cacheScope:addReferenceToHigherScope(scope, data)
     table.insert(runtime.body.statements, 1,
         Ast.LocalVariableDeclaration(cacheScope, {cache}, {Ast.VariableExpression(scope, data)}))
     table.insert(runtime.body.statements, 2,

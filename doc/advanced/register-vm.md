@@ -6,7 +6,8 @@ compiler, or `loadstring` to execute the original source.
 
 ## Modules
 
-- `vm/analysis.lua`: lexical scope ownership and captured-local analysis.
+- `bindinganalysis.lua`: shared lexical ownership, visibility validation, and captured-local analysis.
+- `vm/analysis.lua`: adapts binding analysis to VM scope and slot lookups.
 - `vm/compiler.lua`: function prototypes, constants, registers, and captures.
 - `vm/expressions.lua` and `vm/expressions_tables.lua`: expression lowering,
   value lists, calls, branches, and table constructors.

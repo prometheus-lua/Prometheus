@@ -1,0 +1,57 @@
+name: Validate Lua suite
+description: Reuse verified CI results for the same files, or run the full suite.
+runs:
+  using: composite
+  steps:
+    - name: Check validation policy
+      shell: bash
+      run: node --test scripts/ci/reuse-validation.test.cjs
+    - name: Identify checked-out files
+      id: source
+      shell: bash
+      run: |
+        echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+        mkdir -p "$RUNNER_TEMP/lua-validation"
+        git rev-parse HEAD HEAD^{tree} > "$RUNNER_TEMP/lua-validation/source.txt"
+    # Record what this attempt tests, including failed attempts. Consumers must
+    # also verify the workflow's conclusion before treating this as a pass.
+    - name: Record validation source
+      uses: actions/upload-artifact@v4
+      # An artifact outage must not prevent testing. Later stages will test
+      # again if this run has no source record they can verify.
+      continue-on-error: true
+      with:
+        name: lua-validation-${{ steps.source.outputs.tree }}-attempt-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/lua-validation/source.txt
+        retention-days: 90
+        if-no-files-found: error
+    - name: Look for existing validation
+      id: validation
+      uses: actions/github-script@v7
+      env:
+        VALIDATION_COMMIT: ${{ steps.source.outputs.commit }}
+        VALIDATION_TREE: ${{ steps.source.outputs.tree }}
+      with:
+        script: |
+          const validate = require(`${process.env.GITHUB_WORKSPACE}/scripts/ci/reuse-validation.cjs`);
+          const result = await validate({ github, context, core });
+          core.info(result.reason);
+          core.setOutput('reuse', result.decision === 'reuse' ? 'true' : 'false');
+          core.setOutput('reason', result.reason);
+          const outcome = { reuse: 'Full Lua suite skipped', test: 'Full Lua suite required', block: 'Validation blocked' }[result.decision];
+          if (result.decision === 'reuse') core.notice(`${outcome}: ${result.reason}`);
+          await core.summary.addHeading(outcome).addRaw(result.reason).addEOL()
+            .addRaw(`Checked-out commit: ${process.env.VALIDATION_COMMIT}`).addEOL()
+            .addRaw(`Git tree: ${process.env.VALIDATION_TREE}`).addEOL().write();
+          if (result.decision === 'block') core.setFailed(result.reason);
+    - name: Full Lua suite skipped — reused passing validation
+      if: steps.validation.outputs.reuse == 'true'
+      shell: bash
+      env:
+        SKIP_REASON: ${{ steps.validation.outputs.reason }}
+      run: printf 'Full Lua suite skipped. %s\n' "$SKIP_REASON"
+    - name: Build and run tests
+      if: steps.validation.outputs.reuse != 'true'
+      shell: bash
+      run: bash scripts/run-tests.sh -b -n 10 --ci

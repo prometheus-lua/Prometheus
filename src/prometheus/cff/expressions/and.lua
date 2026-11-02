@@ -7,7 +7,6 @@
 local Ast = require("prometheus.ast");
 
 return function(self, expression, funcDepth, numReturns)
-    local scope = self.activeBlock.scope;
     local posState = self.registers[self.POS_REGISTER];
     self.registers[self.POS_REGISTER] = self.VAR_REGISTER;
 
@@ -15,7 +14,7 @@ return function(self, expression, funcDepth, numReturns)
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i ~= 1 then
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            self:addStatement(self:setRegister(regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end
     end
 
@@ -24,13 +23,13 @@ return function(self, expression, funcDepth, numReturns)
 
     if posState then
         tmpReg = self:allocRegister(false);
-        self:addStatement(self:copyRegisters(scope, {tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
+        self:addStatement(self:copyRegisters({tmpReg}, {self.POS_REGISTER}), {tmpReg}, {self.POS_REGISTER}, false);
     end
 
     local lhsReg = self:compileExpression(expression.lhs, funcDepth, 1)[1];
     if expression.rhs.isConstant then
         local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
-        self:addStatement(self:setRegister(scope, resReg, Ast.AndExpression(self:register(scope, lhsReg), self:register(scope, rhsReg))), {resReg}, {lhsReg, rhsReg}, false);
+        self:addStatement(self:setRegister(resReg, Ast.AndExpression(self:register(lhsReg), self:register(rhsReg))), {resReg}, {lhsReg, rhsReg}, false);
         if tmpReg then
             self:freeRegister(tmpReg, false);
         end
@@ -40,26 +39,23 @@ return function(self, expression, funcDepth, numReturns)
     end
 
     local block1, block2 = self:createBlock(), self:createBlock();
-    self:addStatement(self:copyRegisters(scope, {resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
-    self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(scope, lhsReg), Ast.NumberExpression(block1.id)), Ast.NumberExpression(block2.id))), {self.POS_REGISTER}, {lhsReg}, false);
+    self:addStatement(self:copyRegisters({resReg}, {lhsReg}), {resReg}, {lhsReg}, false);
+    self:addStatement(self:setRegister(self.POS_REGISTER, Ast.OrExpression(Ast.AndExpression(self:register(lhsReg), Ast.NumberExpression(block1.id)), Ast.NumberExpression(block2.id))), {self.POS_REGISTER}, {lhsReg}, false);
     self:freeRegister(lhsReg, false);
     do
         self:setActiveBlock(block1);
-        scope = block1.scope;
         local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
-        self:addStatement(self:copyRegisters(scope, {resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
+        self:addStatement(self:copyRegisters({resReg}, {rhsReg}), {resReg}, {rhsReg}, false);
         self:freeRegister(rhsReg, false);
 
-        self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
+        self:addStatement(self:setRegister(self.POS_REGISTER, Ast.NumberExpression(block2.id)), {self.POS_REGISTER}, {}, false);
     end
 
     self.registers[self.POS_REGISTER] = posState;
 
     self:setActiveBlock(block2);
-    scope = block2.scope;
-
     if tmpReg then
-        self:addStatement(self:copyRegisters(scope, {self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
+        self:addStatement(self:copyRegisters({self.POS_REGISTER}, {tmpReg}), {self.POS_REGISTER}, {tmpReg}, false);
         self:freeRegister(tmpReg, false);
     end
 

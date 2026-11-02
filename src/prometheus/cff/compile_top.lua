@@ -13,15 +13,16 @@ local AstKind = Ast.AstKind;
 
 return function(Compiler)
     function Compiler:compileTopNode(node)
-        if self.nativeExpressions then self:prepareNativeExpressions(node); end
+        if self.nativeExpressions then self:prepareNativeExpressions(); end
         local startBlock = self:createBlock();
-        local scope = startBlock.scope;
         self.startBlockId = startBlock.id;
         self:setActiveBlock(startBlock);
 
         local varAccessLookup = lookupify{
             AstKind.AssignmentVariable,
+            AstKind.AssignmentGlobalVariable,
             AstKind.VariableExpression,
+            AstKind.GlobalVariableExpression,
             AstKind.FunctionDeclaration,
             AstKind.LocalFunctionDeclaration,
         }
@@ -49,15 +50,12 @@ return function(Compiler)
         end, nil, nil)
 
         self.varargReg = self:allocRegister(true);
-        scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
-        scope:addReferenceToHigherScope(self.scope, self.selectVar);
-        scope:addReferenceToHigherScope(self.scope, self.unpackVar);
-        self:addStatement(self:setRegister(scope, self.varargReg, Ast.VariableExpression(self.containerFuncScope, self.argsVar)), {self.varargReg}, {}, false);
+        self:addStatement(self:setRegister(self.varargReg, Ast.VariableExpression(self.argsVar)), {self.varargReg}, {}, false);
 
         self:compileBlock(node.body, 0);
         if(self.activeBlock.advanceToNextBlock) then
-            self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-            self:addStatement(self:setReturn(self.activeBlock.scope, self:pack(self.activeBlock.scope, {})), {self.RETURN_REGISTER}, {}, false)
+            self:addStatement(self:setPos(nil), {self.POS_REGISTER}, {}, false);
+            self:addStatement(self:setReturn(self:pack({})), {self.RETURN_REGISTER}, {}, false)
             self.activeBlock.advanceToNextBlock = false;
         end
 
@@ -86,16 +84,14 @@ return function(Compiler)
             local scopeFuncDepth = self.scopeFunctionDepths[scope];
             local expression;
             if(scopeFuncDepth == funcDepth) then
-                oldActiveBlock.scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
-                expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {});
+                expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {});
             elseif(scopeFuncDepth == funcDepth - 1) then
                 local varReg = self:getVarRegister(scope, id, scopeFuncDepth, nil);
-                expression = self:register(oldActiveBlock.scope, varReg);
+                expression = self:register(varReg);
                 table.insert(usedRegs, varReg);
             else
                 local higherId = oldGetUpvalueId(self, scope, id);
-                oldActiveBlock.scope:addReferenceToHigherScope(self.containerFuncScope, self.currentUpvaluesVar);
-                expression = Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar), Ast.NumberExpression(higherId));
+                expression = Ast.IndexExpression(Ast.VariableExpression(self.currentUpvaluesVar), Ast.NumberExpression(higherId));
             end
             table.insert(upvalueExpressions, Ast.TableEntry(expression));
             local uid = #upvalueExpressions;
@@ -105,30 +101,24 @@ return function(Compiler)
 
         local block = self:createBlock();
         self:setActiveBlock(block);
-        local scope = self.activeBlock.scope;
         self:pushRegisterUsageInfo();
         for i, arg in ipairs(node.args) do
-            if(arg.kind == AstKind.VariableExpression) then
+            if(arg.kind == AstKind.VariableExpression or arg.kind == AstKind.GlobalVariableExpression) then
                 if(self:isUpvalue(arg.scope, arg.id)) then
-                    scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
                     local argReg = self:getVarRegister(arg.scope, arg.id, funcDepth, nil);
-                    self:addStatement(self:setRegister(scope, argReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {argReg}, {}, false);
-                    self:addStatement(self:setUpvalueMember(scope, self:register(scope, argReg), Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.argsVar), Ast.NumberExpression(i))), {}, {argReg}, true);
+                    self:addStatement(self:setRegister(argReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {})), {argReg}, {}, false);
+                    self:addStatement(self:setUpvalueMember(self:register(argReg), Ast.IndexExpression(Ast.VariableExpression(self.argsVar), Ast.NumberExpression(i))), {}, {argReg}, true);
                 else
                     local argReg = self:getVarRegister(arg.scope, arg.id, funcDepth, nil);
-                    scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
-                    self:addStatement(self:setRegister(scope, argReg, Ast.IndexExpression(Ast.VariableExpression(self.containerFuncScope, self.argsVar), Ast.NumberExpression(i))), {argReg}, {}, false);
+                    self:addStatement(self:setRegister(argReg, Ast.IndexExpression(Ast.VariableExpression(self.argsVar), Ast.NumberExpression(i))), {argReg}, {}, false);
                 end
             else
                 self.varargReg = self:allocRegister(true);
-                scope:addReferenceToHigherScope(self.containerFuncScope, self.argsVar);
-                scope:addReferenceToHigherScope(self.scope, self.selectVar);
-                scope:addReferenceToHigherScope(self.scope, self.unpackVar);
-                self:addStatement(self:setRegister(scope, self.varargReg, self:pack(scope, {
-                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.selectVar), {
+                self:addStatement(self:setRegister(self.varargReg, self:pack({
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.selectVar), {
                         Ast.NumberExpression(i);
-                        Ast.FunctionCallExpression(self:unpack(scope), {
-                            Ast.VariableExpression(self.containerFuncScope, self.argsVar),
+                        Ast.FunctionCallExpression(self:unpack(), {
+                            Ast.VariableExpression(self.argsVar),
                         });
                     }),
                 })), {self.varargReg}, {}, false);
@@ -137,8 +127,8 @@ return function(Compiler)
 
         self:compileBlock(node.body, funcDepth);
         if(self.activeBlock.advanceToNextBlock) then
-            self:addStatement(self:setPos(self.activeBlock.scope, nil), {self.POS_REGISTER}, {}, false);
-            self:addStatement(self:setReturn(self.activeBlock.scope, self:pack(self.activeBlock.scope, {})), {self.RETURN_REGISTER}, {}, false);
+            self:addStatement(self:setPos(nil), {self.POS_REGISTER}, {}, false);
+            self:addStatement(self:setReturn(self:pack({})), {self.RETURN_REGISTER}, {}, false);
             self.activeBlock.advanceToNextBlock = false;
         end
 
@@ -150,32 +140,27 @@ return function(Compiler)
 
         self:popRegisterUsageInfo();
         self:setActiveBlock(oldActiveBlock);
-
-        local scope = self.activeBlock.scope;
-
         local retReg = self:allocRegister(false);
 
         local isVarargFunction = #node.args > 0 and node.args[#node.args].kind == AstKind.VarargExpression;
 
         local retrieveExpression
         if isVarargFunction then
-            scope:addReferenceToHigherScope(self.scope, self.createVarargClosureVar);
-            retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
+            retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(self.createVarargClosureVar), {
                 Ast.NumberExpression(block.id),
                 Ast.TableConstructorExpression(upvalueExpressions),
-                self:env(scope)
+                self:env()
             });
         else
-            local varScope, var = self:getCreateClosureVar(#node.args + math.random(0, 5));
-            scope:addReferenceToHigherScope(varScope, var);
-            retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(varScope, var), {
+            local var = self:getCreateClosureVar(#node.args + math.random(0, 5));
+            retrieveExpression = Ast.FunctionCallExpression(Ast.VariableExpression(var), {
                 Ast.NumberExpression(block.id),
                 Ast.TableConstructorExpression(upvalueExpressions),
-                self:env(scope)
+                self:env()
             });
         end
 
-        self:addStatement(self:setRegister(scope, retReg, retrieveExpression), {retReg}, usedRegs, false);
+        self:addStatement(self:setRegister(retReg, retrieveExpression), {retReg}, usedRegs, false);
         return retReg;
     end
 
@@ -183,17 +168,14 @@ return function(Compiler)
         for i, stat in ipairs(block.statements) do
             self:compileStatement(stat, funcDepth);
         end
-
-        local scope = self.activeBlock.scope;
         for id, name in ipairs(block.scope.variables) do
             local varReg = self:getVarRegister(block.scope, id, funcDepth, nil);
             if self:isUpvalue(block.scope, id) then
-                scope:addReferenceToHigherScope(self.scope, self.freeUpvalueFunc);
-                self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.freeUpvalueFunc), {
-                    self:register(scope, varReg)
+                self:addStatement(self:setRegister(varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.freeUpvalueFunc), {
+                    self:register(varReg)
                 })), {varReg}, {varReg}, false);
             else
-                self:addStatement(self:setRegister(scope, varReg, Ast.NilExpression()), {varReg}, {}, false);
+                self:addStatement(self:setRegister(varReg, Ast.NilExpression()), {varReg}, {}, false);
             end
             self:freeRegister(varReg, true);
         end

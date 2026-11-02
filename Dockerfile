@@ -25,6 +25,7 @@ WORKDIR /app
 COPY . /app
 
 RUN lua5.1 tests/harness/metadata.lua \
+    && timeout 60s lua5.1 tests/harness/ast-bindings.lua \
     && timeout 60s lua5.1 tests/harness/numbers-to-expressions.lua \
     && timeout 60s lua5.1 tests/harness/cff-arity.lua \
     && timeout 60s lua5.1 tests/harness/cff-native.lua \

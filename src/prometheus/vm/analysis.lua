@@ -1,23 +1,13 @@
--- Identify each lexical scope's function and locals shared with nested closures.
-local visitast = require('prometheus.visitast')
+-- Adapt the shared lexical analysis to the VM's scope/slot lookup tables.
+local analyzeBindings = require('prometheus.bindinganalysis')
 
 return function(ast)
-    local analysis = {owners = {}, captured = {}}
-    visitast(ast, function(node, data)
-        if node.kind == 'Block' then
-            analysis.owners[node.scope] = data.functionData.scope
-        end
-    end)
-    visitast(ast, function(node, data)
-        local kind = node.kind
-        if kind == 'VariableExpression' or kind == 'AssignmentVariable'
-            or kind == 'FunctionDeclaration' then
-            local scope = node.scope
-            if not scope.isGlobal and analysis.owners[scope] ~= data.functionData.scope then
-                analysis.captured[scope] = analysis.captured[scope] or {}
-                analysis.captured[scope][node.id] = true
-            end
-        end
-    end)
+    local bindings = analyzeBindings(ast)
+    local analysis = {owners = bindings.owners, captured = {}}
+    for symbol in pairs(bindings.captured) do
+        local scope, id = symbol.scope, symbol.id
+        analysis.captured[scope] = analysis.captured[scope] or {}
+        analysis.captured[scope][id] = true
+    end
     return analysis
 end

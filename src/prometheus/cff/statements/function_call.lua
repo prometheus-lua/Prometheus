@@ -8,7 +8,6 @@ local Ast = require("prometheus.ast");
 local AstKind = Ast.AstKind;
 
 return function(self, statement, funcDepth)
-    local scope = self.activeBlock.scope;
     local baseReg = self:compileExpression(statement.base, funcDepth, 1)[1];
     local retReg = self:allocRegister(false);
     local regs = {};
@@ -18,18 +17,18 @@ return function(self, statement, funcDepth)
         if i == #statement.args and (expr.kind == AstKind.FunctionCallExpression or expr.kind == AstKind.PassSelfFunctionCallExpression or expr.kind == AstKind.VarargExpression) then
             local reg = self:compileExpression(expr, funcDepth, self.RETURN_ALL)[1];
             table.insert(args, Ast.FunctionCallExpression(
-                self:unpack(scope),
-                {self:register(scope, reg)}));
+                self:unpack(),
+                {self:register(reg)}));
             table.insert(regs, reg);
         else
             local reg = self:compileExpression(expr, funcDepth, 1)[1];
-            local argExpr = self:register(scope, reg);
+            local argExpr = self:register(reg);
             table.insert(args, argExpr);
             table.insert(regs, reg);
         end
     end
 
-    self:addStatement(self:setRegister(scope, retReg, self:functionCall(scope, baseReg, args)), {retReg}, {baseReg, unpack(regs)}, true);
+    self:addStatement(self:setRegister(retReg, self:functionCall(baseReg, args)), {retReg}, {baseReg, unpack(regs)}, true);
     self:freeRegister(baseReg, false);
     self:freeRegister(retReg, false);
     for _, reg in ipairs(regs) do

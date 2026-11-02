@@ -9,7 +9,6 @@
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 local visitast = require("prometheus.visitast");
 local util = require("prometheus.util")
 local Parser = require("prometheus.parser");
@@ -141,14 +140,12 @@ function ConstantArray:indexing(index, data)
 			end
 		end
 
-		data.scope:addReferenceToHigherScope(wrappers.scope, wrappers.id);
 		return Ast.FunctionCallExpression(Ast.IndexExpression(
-			Ast.VariableExpression(wrappers.scope, wrappers.id),
+			Ast.VariableExpression(wrappers.symbol),
 			Ast.StringExpression(wrapper.index)
 		), args);
 	else
-		data.scope:addReferenceToHigherScope(self.rootScope, self.wrapperId);
-		return Ast.FunctionCallExpression(Ast.VariableExpression(self.rootScope, self.wrapperId), {
+		return Ast.FunctionCallExpression(Ast.VariableExpression(self.wrapperSymbol), {
 			Ast.NumberExpression(index - self.wrapperOffset);
 		});
 	end
@@ -203,14 +200,12 @@ function ConstantArray:addRotateCode(ast, shift)
 
 	local newAst = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants)));
 	local forStat = newAst.body.statements[1];
-	forStat.body.scope:setParent(ast.body.scope);
 	visitast(newAst, nil, function(node, data)
-		if(node.kind == AstKind.VariableExpression) then
-			if(node.scope:getVariableName(node.id) == "ARR") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-				node.scope = self.rootScope;
-				node.id = self.arrId;
+		if node.name == "ARR" then
+			if node.kind == AstKind.AssignmentGlobalVariable then
+				return Ast.AssignmentVariable(self.arrSymbol);
+			elseif node.kind == AstKind.GlobalVariableExpression then
+				return Ast.VariableExpression(self.arrSymbol);
 			end
 		end
 	end)
@@ -275,19 +270,14 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(base64DecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
-				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
+				if(node.name == "ARR") then
+					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
 				end
 
-				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				if(node.name == "LOOKUP_TABLE") then
 					return self:createBase64Lookup();
 				end
 			end
@@ -364,19 +354,14 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(base85DecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
-				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
+				if(node.name == "ARR") then
+					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
 				end
 
-				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				if(node.name == "LOOKUP_TABLE") then
 					return self:createBase85Lookup();
 				end
 			end
@@ -489,24 +474,18 @@ function ConstantArray:addDecodeCode(ast)
 
 		local newAst = parser:parse(mixedDecodeCode);
 		local forStat = newAst.body.statements[1];
-		forStat.body.scope:setParent(ast.body.scope);
 
 		visitast(newAst, nil, function(node, data)
-			if(node.kind == AstKind.VariableExpression) then
-				if(node.scope:getVariableName(node.id) == "ARR") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
-					data.scope:addReferenceToHigherScope(self.rootScope, self.arrId);
-					node.scope = self.rootScope;
-					node.id = self.arrId;
+			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
+				if(node.name == "ARR") then
+					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
 				end
 
-				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_64") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				if(node.name == "LOOKUP_TABLE_64") then
 					return self:createBase64Lookup();
 				end
 
-				if(node.scope:getVariableName(node.id) == "LOOKUP_TABLE_85") then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				if(node.name == "LOOKUP_TABLE_85") then
 					return self:createBase85Lookup();
 				end
 			end
@@ -620,8 +599,7 @@ end
 
 function ConstantArray:apply(ast, pipeline)
 	initPrefixes();
-	self.rootScope = ast.body.scope;
-	self.arrId = self.rootScope:addVariable();
+	self.arrSymbol = Ast.LocalSymbol();
 
 	self.base64chars = table.concat(util.shuffle{
 		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -672,15 +650,14 @@ function ConstantArray:apply(ast, pipeline)
 
 	-- Set Wrapper Function Offset
 	self.wrapperOffset = math.random(-self.MaxWrapperOffset, self.MaxWrapperOffset);
-	self.wrapperId = self.rootScope:addVariable();
+	self.wrapperSymbol = Ast.LocalSymbol();
 
 	visitast(ast, function(node, data)
 		-- Add Local Wrapper Functions
 		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperThreshold then
-			local id = node.scope:addVariable()
+			local symbol = Ast.LocalSymbol()
 			data.functionData.local_wrappers = {
-				id = id;
-				scope = node.scope,
+				symbol = symbol;
 			};
 			local nameLookup = {};
 			for i = 1, self.LocalWrapperCount, 1 do
@@ -728,13 +705,11 @@ function ConstantArray:apply(ast, pipeline)
 				local offset = wrapper.offset;
 				local name = wrapper.index;
 
-				local funcScope = Scope:new(node.scope);
-
 				local arg = nil;
 				local args = {};
 
 				for i = 1, self.LocalWrapperArgCount, 1 do
-					args[i] = funcScope:addVariable();
+					args[i] = Ast.LocalSymbol();
 					if i == argPos then
 						arg = args[i];
 					end
@@ -744,32 +719,26 @@ function ConstantArray:apply(ast, pipeline)
 
 				-- Create add and Subtract code
 				if offset < 0 then
-					addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-offset));
+					addSubArg = Ast.SubExpression(Ast.VariableExpression(arg), Ast.NumberExpression(-offset));
 				else
-					addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(offset));
+					addSubArg = Ast.AddExpression(Ast.VariableExpression(arg), Ast.NumberExpression(offset));
 				end
 
-				funcScope:addReferenceToHigherScope(self.rootScope, self.wrapperId);
-				local callArg = Ast.FunctionCallExpression(Ast.VariableExpression(self.rootScope, self.wrapperId), {
+				local callArg = Ast.FunctionCallExpression(Ast.VariableExpression(self.wrapperSymbol), {
 					addSubArg
 				});
 
-				local fargs = {};
-				for i, v in ipairs(args) do
-					fargs[i] = Ast.VariableExpression(funcScope, v);
-				end
-
-				elems[i] = Ast.KeyedTableEntry(
+								elems[i] = Ast.KeyedTableEntry(
 					Ast.StringExpression(name),
-					Ast.FunctionLiteralExpression(fargs, Ast.Block({
+					Ast.FunctionLiteralExpression(args, Ast.Block({
 						Ast.ReturnStatement({
 							callArg
 						});
-					}, funcScope))
+					}))
 				)
 			end
-			table.insert(node.statements, 1, Ast.LocalVariableDeclaration(node.scope, {
-				wrappers.id
+			table.insert(node.statements, 1, Ast.LocalVariableDeclaration({
+				wrappers.symbol
 			}, {
 				Ast.TableConstructorExpression(elems)
 			}));
@@ -781,31 +750,27 @@ function ConstantArray:apply(ast, pipeline)
 	local steps = util.shuffle({
 		-- Add Wrapper Function Code
 		function()
-			local funcScope = Scope:new(self.rootScope);
-			-- Add Reference to Array
-			funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
-
-			local arg = funcScope:addVariable();
+			local arg = Ast.LocalSymbol();
 			local addSubArg;
 
 			-- Create add and Subtract code
 			if self.wrapperOffset < 0 then
-				addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-self.wrapperOffset));
+				addSubArg = Ast.SubExpression(Ast.VariableExpression(arg), Ast.NumberExpression(-self.wrapperOffset));
 			else
-				addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(self.wrapperOffset));
+				addSubArg = Ast.AddExpression(Ast.VariableExpression(arg), Ast.NumberExpression(self.wrapperOffset));
 			end
 
 			-- Create and Add the Function Declaration
-			table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.rootScope, self.wrapperId, {
-				Ast.VariableExpression(funcScope, arg)
+			table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.wrapperSymbol, {
+				arg
 			}, Ast.Block({
 				Ast.ReturnStatement({
 					Ast.IndexExpression(
-						Ast.VariableExpression(self.rootScope, self.arrId),
+						Ast.VariableExpression(self.arrSymbol),
 						addSubArg
 					)
 				});
-			}, funcScope)));
+			})));
 
 			-- Resulting Code:
 			-- function xy(a)
@@ -828,10 +793,10 @@ function ConstantArray:apply(ast, pipeline)
 	end
 
 	-- Add the Array Declaration
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(self.rootScope, {self.arrId}, {self:createArray()}));
+	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration({self.arrSymbol}, {self:createArray()}));
 
-	self.rootScope = nil;
-	self.arrId = nil;
+	self.arrSymbol = nil;
+	self.wrapperSymbol = nil;
 
 	self.constants = nil;
 	self.lookup = nil;

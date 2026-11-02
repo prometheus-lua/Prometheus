@@ -148,7 +148,7 @@ return function(Compiler)
 		self:emit("EQ", ended, first, nilreg)
 		local exit = self:emit("JTRUE", ended, 0)
 		self:emit("MOVE", control, first)
-		for i, id in ipairs(node.ids or node.vars) do
+		for i, id in ipairs(node.ids) do
 			local value = self:alloc()
 			self:emit("TAKE", value, results, i)
 			self:initVariable(node.scope, id, value)
@@ -166,7 +166,7 @@ return function(Compiler)
 	end
 
 	local function assignmentTarget(self, target)
-		if target.kind == K.AssignmentVariable then return {scope = target.scope, id = target.id} end
+		if target.kind == K.AssignmentVariable or target.kind == K.AssignmentGlobalVariable then return {scope = target.scope, id = target.id} end
 		if target.kind == K.AssignmentIndexing then
 			local base = self:expression(target.base, 1)[1]
 			local key = self:expression(target.index, 1)[1]

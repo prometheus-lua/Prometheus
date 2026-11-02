@@ -106,11 +106,10 @@ visitast(blankAst, function(node)
     end
 end)
 assert(blankAst.vmData.kind == 'TableConstructorExpression')
-local runtimeWrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({blankAst.vmRuntime})},
-    blankAst.body.scope), blankAst.globalScope)
+local runtimeWrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({blankAst.vmRuntime})}))
 visitast(runtimeWrapper, function(node)
-    if node.kind == 'VariableExpression' and not node.scope.isGlobal then
-        assert(node.scope:getVariableName(node.id) ~= 'rebuild', 'reconstruction leaked into runtime')
+    if node.kind == 'VariableExpression' then
+        assert((node.symbol and node.symbol.name or node.name) ~= 'rebuild', 'reconstruction leaked into runtime')
     end
 end)
 

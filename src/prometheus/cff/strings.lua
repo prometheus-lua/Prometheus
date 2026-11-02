@@ -17,7 +17,7 @@ return function(ast)
 
     shuffle(strings)
     local scope = ast.body.scope
-    local pool = scope:addVariable()
+    local pool = Ast.LocalSymbol()
     local indices, entries = {}, {}
     for i, value in ipairs(strings) do
         indices[value] = i
@@ -34,13 +34,12 @@ return function(ast)
         elseif node.kind == Kind.StringExpression then
             local index = indices[node.value]
             if index then
-                scopes[#scopes]:addReferenceToHigherScope(scope, pool)
-                return Ast.IndexExpression(Ast.VariableExpression(scope, pool), Ast.NumberExpression(index))
+                return Ast.IndexExpression(Ast.VariableExpression(pool), Ast.NumberExpression(index))
             end
         end
     end)
     -- Insert only after replacement so each pooled value remains embedded once.
     table.insert(ast.body.statements, 1,
-        Ast.LocalVariableDeclaration(scope, {pool}, {Ast.TableConstructorExpression(entries)}))
+        Ast.LocalVariableDeclaration({pool}, {Ast.TableConstructorExpression(entries)}))
     return ast
 end

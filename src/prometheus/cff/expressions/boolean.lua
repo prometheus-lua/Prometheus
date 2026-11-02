@@ -45,14 +45,13 @@ local function createRandomASTCFlowExpression(resultBool)
 end
 
 return function(self, expression, _, numReturns)
-    local scope = self.activeBlock.scope;
     local regs = {};
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i == 1 then
-            self:addStatement(self:setRegister(scope, regs[i], createRandomASTCFlowExpression(expression.value)), {regs[i]}, {}, false);
+            self:addStatement(self:setRegister(regs[i], createRandomASTCFlowExpression(expression.value)), {regs[i]}, {}, false);
         else
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            self:addStatement(self:setRegister(regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end
     end
     return regs;

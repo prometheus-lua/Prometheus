@@ -1,12 +1,24 @@
 # Register VM architecture
 
-`Vmify` compiles the scoped Prometheus AST directly into instructions executed
-by a generated Lua interpreter. It does not use `string.dump`, an external Lua
-compiler, or `loadstring` to execute the original source.
+`Vmify` compiles the symbol-bound Prometheus AST directly into instructions
+executed by a generated Lua interpreter. It does not use `string.dump`, an
+external Lua compiler, or `loadstring` to execute the original source.
+
+Local declarations and references in the input AST share stable `LocalSymbol`
+identities through their `symbols` and `symbol` fields. The VM's binding
+analysis derives lexical ownership, captures, and private register slots from
+those identities before lowering. Parser `Bindings` environments are temporary
+parse-time lookup state; scope and slot records used by lowering are derived
+metadata, not AST binding identities. VM lowering may keep its own private
+scope and slot metadata, while AST transformations must continue to use
+symbols. The former scope-plus-numeric-ID AST construction adapters are no
+longer supported.
 
 ## Modules
 
-- `vm/analysis.lua`: lexical scope ownership and captured-local analysis.
+- `bindinganalysis.lua`: fresh derived lexical ownership, visibility validation,
+  and captured-local analysis from AST symbols.
+- `vm/analysis.lua`: adapts binding analysis to VM scope and slot lookups.
 - `vm/compiler.lua`: function prototypes, constants, registers, and captures.
 - `vm/expressions.lua` and `vm/expressions_tables.lua`: expression lowering,
   value lists, calls, branches, and table constructors.

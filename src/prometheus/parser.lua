@@ -16,7 +16,7 @@ local Tokenizer = require("prometheus.tokenizer");
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
+local analyzeBindings = require("prometheus.bindinganalysis");
 local logger = require("logger");
 
 local AstKind = Ast.AstKind;
@@ -25,6 +25,33 @@ local LuaVersion = Enums.LuaVersion;
 local lookupify = util.lookupify;
 
 local TokenKind = Tokenizer.TokenKind;
+
+-- Transient parser name environments never become part of the AST.
+local Bindings = {};
+Bindings.__index = Bindings;
+function Bindings:new(parent)
+	return setmetatable({parent = parent, names = {}}, self);
+end
+function Bindings:create(name, token)
+	if self.names[name] and token then
+		logger:warn("Warning at Position " .. tostring(token.line) .. ":" .. tostring(token.linePos)
+			.. ', the variable "' .. name .. '" is already defined in that scope');
+	end
+	return Ast.LocalSymbol(name);
+end
+function Bindings:enable(symbol)
+	self.names[symbol.name] = symbol;
+end
+function Bindings:declare(name, token)
+	local symbol = self:create(name, token);
+	self:enable(symbol);
+	return symbol;
+end
+function Bindings:resolve(name)
+	local symbol = self.names[name];
+	if not symbol and self.parent then return self.parent:resolve(name); end
+	return symbol and Ast.VariableExpression(symbol) or Ast.GlobalVariableExpression(name);
+end
 
 local Parser = {};
 
@@ -37,6 +64,7 @@ local ASSIGNMENT_NO_WARN_LOOKUP = lookupify{
 
 local CALLABLE_PREFIX_EXPRESSION_LOOKUP = lookupify{
 	AstKind.VariableExpression,
+	AstKind.GlobalVariableExpression,
 	AstKind.IndexExpression,
 	AstKind.FunctionCallExpression,
 	AstKind.PassSelfFunctionCallExpression
@@ -148,10 +176,10 @@ function Parser:parse(code)
 	self.tokens = self.tokenizer:scanAll();
 	self.length = #self.tokens;
 
-	-- Create Global Variable Scope
-	local globalScope = Scope:newGlobal();
+	-- Begin transient name lookup at the chunk boundary
+	local globalScope = Bindings:new();
 
-	local ast = Ast.TopNode(self:block(globalScope, false), globalScope);
+	local ast = Ast.TopNode(self:block(globalScope, false));
 	-- File Must be Over when Top Node is Fully Parsed
 	expect(self, TokenKind.Eof);
 
@@ -163,13 +191,15 @@ function Parser:parse(code)
 	self.length = 0;
 
 	logger:debug("Cleanup Done")
+	-- Keep direct Parser consumers on the same analyzed AST path as the pipeline.
+	analyzeBindings(ast);
 
 	return ast;
 end
 
 -- Parse a Code Block
 function Parser:block(parentScope, currentLoop, scope)
-	scope = scope or Scope:new(parentScope);
+	scope = scope or Bindings:new(parentScope);
 	local statements = {};
 
 	repeat
@@ -180,7 +210,7 @@ function Parser:block(parentScope, currentLoop, scope)
 	-- Consume Eventual Semicolon after terminating return, break or continue
 	consume(self, TokenKind.Symbol, ";");
 
-	return Ast.Block(statements, scope);
+	return Ast.Block(statements);
 end
 
 function Parser:statement(scope, currentLoop)
@@ -197,7 +227,7 @@ function Parser:statement(scope, currentLoop)
 			logger:error(generateError(self, "the break Statement is only valid inside of loops"));
 		end
 		-- Return true as Second value because break must be the last Statement in a block
-		return Ast.BreakStatement(currentLoop, scope), true;
+		return Ast.BreakStatement(currentLoop), true;
 	end
 
 	-- Continue Statement - only valid inside of Loops - only valid in LuaU
@@ -207,7 +237,7 @@ function Parser:statement(scope, currentLoop)
 			logger:error(generateError(self, "the continue Statement is only valid inside of loops"));
 		end
 		-- Return true as Second value because continue must be the last Statement in a block
-		return Ast.ContinueStatement(currentLoop, scope), true;
+		return Ast.ContinueStatement(currentLoop), true;
 	end
 
 	-- do ... end Statement
@@ -221,7 +251,7 @@ function Parser:statement(scope, currentLoop)
 	if(consume(self, TokenKind.Keyword, "while")) then
 		local condition = self:expression(scope);
 		expect(self, TokenKind.Keyword, "do");
-		local stat = Ast.WhileStatement(nil, condition, scope);
+		local stat = Ast.WhileStatement(nil, condition);
 		stat.body = self:block(scope, stat);
 		expect(self, TokenKind.Keyword, "end");
 		return stat;
@@ -229,8 +259,8 @@ function Parser:statement(scope, currentLoop)
 
 	-- Repeat Statement
 	if(consume(self, TokenKind.Keyword, "repeat")) then
-		local repeatScope = Scope:new(scope);
-		local stat = Ast.RepeatStatement(nil, nil, scope);
+		local repeatScope = Bindings:new(scope);
+		local stat = Ast.RepeatStatement(nil, nil);
 		stat.body = self:block(nil, stat, repeatScope);
 		expect(self, TokenKind.Keyword, "until");
 		stat.condition = self:expression(repeatScope);
@@ -281,25 +311,23 @@ function Parser:statement(scope, currentLoop)
 	if(consume(self, TokenKind.Keyword, "function")) then
 		-- TODO: Parse Function Declaration Name
 		local obj = self:funcName(scope);
-		local baseScope = obj.scope;
-		local baseId = obj.id;
 		local indices = obj.indices;
 
-		local funcScope = Scope:new(scope);
+		local funcScope = Bindings:new(scope);
 
 		expect(self, TokenKind.Symbol, "(");
 		local args = self:functionArgList(funcScope);
 		expect(self, TokenKind.Symbol, ")");
 
 		if(obj.passSelf) then
-			local id = funcScope:addVariable("self", obj.token);
-			table.insert(args, 1, Ast.VariableExpression(funcScope, id));
+			local symbol = funcScope:declare("self", obj.token);
+			table.insert(args, 1, Ast.VariableExpression(symbol));
 		end
 
 		local body = self:block(nil, false, funcScope);
 		expect(self, TokenKind.Keyword, "end");
 
-		return Ast.FunctionDeclaration(baseScope, baseId, indices, args, body);
+		return Ast.FunctionDeclaration(obj.target, indices, args, body);
 	end
 
 	-- Local Function or Variable Declaration
@@ -309,8 +337,8 @@ function Parser:statement(scope, currentLoop)
 			local ident = expect(self, TokenKind.Ident);
 			local name = ident.value;
 
-			local id = scope:addVariable(name, ident);
-			local funcScope = Scope:new(scope);
+			local symbol = scope:declare(name, ident);
+			local funcScope = Bindings:new(scope);
 
 			expect(self, TokenKind.Symbol, "(");
 			local args = self:functionArgList(funcScope);
@@ -319,36 +347,36 @@ function Parser:statement(scope, currentLoop)
 			local body = self:block(nil, false, funcScope);
 			expect(self, TokenKind.Keyword, "end");
 
-			return Ast.LocalFunctionDeclaration(scope, id, args, body);
+			return Ast.LocalFunctionDeclaration(symbol, args, body);
 		end
 
 		-- Local Variable Declaration
-		local ids = self:nameList(scope);
+		local symbols = self:nameList(scope);
 		local expressions = {};
 		if(consume(self, TokenKind.Symbol, "=")) then
 			expressions = self:exprList(scope);
 		end
 
-		-- Variables can only be reffered to in the next statement, so the id's are enabled after the expressions have been parsed
-		self:enableNameList(scope, ids);
+		-- Variables can only be reffered to in the next statement, so the symbol's are enabled after the expressions have been parsed
+		self:enableNameList(scope, symbols);
 
-		if(#expressions > #ids) then
-			logger:warn(generateWarning(peek(self, -1), string.format("assigning %d values to %d variable" .. ((#ids > 1 and "s") or ""), #expressions, #ids)));
-		elseif(#ids > #expressions and #expressions > 0 and not ASSIGNMENT_NO_WARN_LOOKUP[expressions[#expressions].kind]) then
+		if(#expressions > #symbols) then
+			logger:warn(generateWarning(peek(self, -1), string.format("assigning %d values to %d variable" .. ((#symbols > 1 and "s") or ""), #expressions, #symbols)));
+		elseif(#symbols > #expressions and #expressions > 0 and not ASSIGNMENT_NO_WARN_LOOKUP[expressions[#expressions].kind]) then
 			logger:warn(generateWarning(peek(self, -1), string.format("assigning %d value" .. ((#expressions > 1 and "s") or "") ..
-				" to %d variables initializes extra variables with nil, add a nil value to silence", #expressions, #ids)));
+				" to %d variables initializes extra variables with nil, add a nil value to silence", #expressions, #symbols)));
 		end
-		return Ast.LocalVariableDeclaration(scope, ids, expressions);
+		return Ast.LocalVariableDeclaration(symbols, expressions);
 	end
 
 	-- For Statement
 	if(consume(self, TokenKind.Keyword, "for")) then
 		-- Normal for Statement
 		if(is(self, TokenKind.Symbol, "=", 1)) then
-			local forScope = Scope:new(scope);
+			local forScope = Bindings:new(scope);
 
 			local ident = expect(self, TokenKind.Ident);
-			local varId = forScope:addDisabledVariable(ident.value, ident);
+			local symbol = forScope:create(ident.value, ident);
 
 			expect(self, TokenKind.Symbol, "=");
 			local initialValue = self:expression(scope);
@@ -360,8 +388,8 @@ function Parser:statement(scope, currentLoop)
 				incrementBy = self:expression(scope);
 			end
 
-			local stat = Ast.ForStatement(forScope, varId, initialValue, finalValue, incrementBy, nil, scope);
-			forScope:enableVariable(varId);
+			local stat = Ast.ForStatement(symbol, initialValue, finalValue, incrementBy, nil);
+			forScope:enable(symbol);
 			expect(self, TokenKind.Keyword, "do");
 			stat.body = self:block(nil, stat, forScope);
 			expect(self, TokenKind.Keyword, "end");
@@ -369,9 +397,9 @@ function Parser:statement(scope, currentLoop)
 		end
 
 		-- For ... in ... statement
-		local forScope = Scope:new(scope);
+		local forScope = Bindings:new(scope);
 
-		local ids = self:nameList(forScope);
+		local symbols = self:nameList(forScope);
 		expect(self, TokenKind.Keyword, "in");
 		local expressions = self:exprList(scope);
 		-- Enable Ids after Expression Parsing so that code like this works:
@@ -379,9 +407,9 @@ function Parser:statement(scope, currentLoop)
 		--	for y,z in ipairs(z) do
 		--		print(y, z);
 		-- 	end
-		self:enableNameList(forScope, ids);
+		self:enableNameList(forScope, symbols);
 		expect(self, TokenKind.Keyword, "do");
-		local stat = Ast.ForInStatement(forScope, ids, expressions, nil, scope);
+		local stat = Ast.ForInStatement(symbols, expressions, nil);
 		stat.body = self:block(nil, stat, forScope);
 		expect(self, TokenKind.Keyword, "end");
 
@@ -402,12 +430,14 @@ function Parser:statement(scope, currentLoop)
 		end
 
 		-- Variable Assignment
-		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+		if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression or expr.kind == AstKind.GlobalVariableExpression) then
 			if(expr.kind == AstKind.IndexExpression) then
 				expr.kind = AstKind.AssignmentIndexing
 			end
 			if(expr.kind == AstKind.VariableExpression) then
 				expr.kind = AstKind.AssignmentVariable
+			elseif(expr.kind == AstKind.GlobalVariableExpression) then
+				expr.kind = AstKind.AssignmentGlobalVariable
 			end
 
 			if(self.luaVersion == LuaVersion.LuaU) then
@@ -460,12 +490,14 @@ function Parser:statement(scope, currentLoop)
 					logger:error(generateError(self, string.format("expected a valid assignment statement lhs part but got nil")));
 				end
 
-				if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression) then
+				if(expr.kind == AstKind.IndexExpression or expr.kind == AstKind.VariableExpression or expr.kind == AstKind.GlobalVariableExpression) then
 					if(expr.kind == AstKind.IndexExpression) then
 						expr.kind = AstKind.AssignmentIndexing
 					end
 					if(expr.kind == AstKind.VariableExpression) then
 						expr.kind = AstKind.AssignmentVariable
+					elseif(expr.kind == AstKind.GlobalVariableExpression) then
+						expr.kind = AstKind.AssignmentGlobalVariable
 					end
 					table.insert(lhs, expr);
 				else
@@ -515,24 +547,24 @@ end
 
 -- list of local variable names
 function Parser:nameList(scope)
-	local ids = {};
+	local symbols = {};
 
 	local ident = expect(self, TokenKind.Ident);
-	local id = scope:addDisabledVariable(ident.value, ident);
-	table.insert(ids, id);
+	local symbol = scope:create(ident.value, ident);
+	table.insert(symbols, symbol);
 
 	while(consume(self, TokenKind.Symbol, ",")) do
 		ident = expect(self, TokenKind.Ident);
-		id = scope:addDisabledVariable(ident.value, ident);
-		table.insert(ids, id);
+		symbol = scope:create(ident.value, ident);
+		table.insert(symbols, symbol);
 	end
 
-	return ids;
+	return symbols;
 end
 
 function Parser:enableNameList(scope, list)
-	for i, id in ipairs(list) do
-		scope:enableVariable(id);
+	for i, symbol in ipairs(list) do
+		scope:enable(symbol);
 	end
 end
 
@@ -542,7 +574,7 @@ function Parser:funcName(scope)
 	local ident = expect(self, TokenKind.Ident);
 	local baseName = ident.value;
 
-	local baseScope, baseId = scope:resolve(baseName);
+	local target = scope:resolve(baseName);
 
 	local indices = {};
 	local passSelf = false;
@@ -556,8 +588,7 @@ function Parser:funcName(scope)
 	end
 
 	return {
-		scope = baseScope,
-		id = baseId,
+		target = target,
 		indices = indices,
 		passSelf = passSelf,
 		token = ident,
@@ -741,7 +772,7 @@ function Parser:tableOrFunctionLiteral(scope)
 end
 
 function Parser:expressionFunctionLiteral(parentScope)
-	local scope = Scope:new(parentScope);
+	local scope = Bindings:new(parentScope);
 
 	expect(self, TokenKind.Keyword, "function");
 
@@ -766,8 +797,8 @@ function Parser:functionArgList(scope)
 		local ident = get(self);
 		local name = ident.value;
 
-		local id = scope:addVariable(name, ident);
-		table.insert(args, Ast.VariableExpression(scope, id));
+		local symbol = scope:declare(name, ident);
+		table.insert(args, Ast.VariableExpression(symbol));
 
 		while(consume(self, TokenKind.Symbol, ",")) do
 			if(consume(self, TokenKind.Symbol, "...")) then
@@ -778,8 +809,8 @@ function Parser:functionArgList(scope)
 			ident = get(self);
 			name = ident.value;
 
-			id = scope:addVariable(name, ident);
-			table.insert(args, Ast.VariableExpression(scope, id));
+			symbol = scope:declare(name, ident);
+			table.insert(args, Ast.VariableExpression(symbol));
 		end
 	end
 
@@ -938,8 +969,7 @@ function Parser:expressionLiteral(scope)
 		local ident = get(self);
 		local name = ident.value;
 
-		local scope, id = scope:resolve(name);
-		return Ast.VariableExpression(scope, id);
+		return scope:resolve(name);
 	end
 
 	-- IfElse

@@ -6,7 +6,6 @@
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 local Watermark = require("prometheus.steps.Watermark");
 
 local WatermarkCheck = Step:extend();
@@ -37,10 +36,9 @@ function WatermarkCheck:apply(ast, pipeline)
 
   local body = ast.body;
   local watermarkExpression = Ast.StringExpression(self.Content);
-  local scope, variable = ast.globalScope:resolve(self.CustomVariable);
-  local watermark = Ast.VariableExpression(ast.globalScope, variable);
+  local watermark = Ast.GlobalVariableExpression(self.CustomVariable);
   local notEqualsExpression = Ast.NotEqualsExpression(watermark, watermarkExpression);
-  local ifBody = Ast.Block({Ast.ReturnStatement({})}, Scope:new(ast.body.scope));
+  local ifBody = Ast.Block({Ast.ReturnStatement({})});
 
   table.insert(body.statements, 1, Ast.IfStatement(notEqualsExpression, ifBody, {}, nil));
 end

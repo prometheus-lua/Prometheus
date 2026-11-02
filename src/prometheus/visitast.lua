@@ -32,7 +32,7 @@ function visitAst(ast, previsit, postvisit, data)
 	end
 
 	-- Is Function Block because global scope is treated like a Function
-	visitBlock(ast.body, previsit, postvisit, data, true);
+	ast.body = visitBlock(ast.body, previsit, postvisit, data, true);
 
 	if(type(postvisit) == "function") then
 		ast = postvisit(ast, data) or ast;
@@ -53,6 +53,7 @@ local compundStats = lookupify{
 function visitBlock(block, previsit, postvisit, data, isFunctionBlock)
 	block.isBlock = true;
 	block.isFunctionBlock = isFunctionBlock or false;
+	local parentScope = data.scope;
 	data.scope = block.scope;
 	local parentBlockData = data.blockData;
 	data.blockData = {};
@@ -61,7 +62,9 @@ function visitBlock(block, previsit, postvisit, data, isFunctionBlock)
 		local node, skip = previsit(block, data);
 		block = node or block;
 		if skip then
-			data.scope = table.remove(data.scopeStack);
+			table.remove(data.scopeStack);
+			data.scope = parentScope;
+			data.blockData = parentBlockData;
 			return block
 		end
 	end
@@ -81,7 +84,8 @@ function visitBlock(block, previsit, postvisit, data, isFunctionBlock)
 	if(type(postvisit) == "function") then
 		block = postvisit(block, data) or block;
 	end
-	data.scope = table.remove(data.scopeStack);
+	table.remove(data.scopeStack);
+	data.scope = parentScope;
 	data.blockData = parentBlockData;
 	return block;
 end
@@ -129,7 +133,10 @@ function visitStatement(statement, previsit, postvisit, data)
 		statement.body = visitBlock(statement.body, previsit, postvisit, data, false);
 	elseif(statement.kind == AstKind.RepeatStatement) then
 		statement.body = visitBlock(statement.body, previsit, postvisit, data);
+		local parentScope = data.scope;
+		data.scope = statement.body.scope;
 		statement.condition = visitExpression(statement.condition, previsit, postvisit, data);
+		data.scope = parentScope;
 	elseif(statement.kind == AstKind.ForStatement) then
 		statement.initialValue = visitExpression(statement.initialValue, previsit, postvisit, data);
 		statement.finalValue = visitExpression(statement.finalValue, previsit, postvisit, data);

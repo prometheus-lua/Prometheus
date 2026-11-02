@@ -14,7 +14,6 @@ local function isSideEffectFreeLiteral(expression)
 end
 
 return function(self, statement, funcDepth)
-    local scope = self.activeBlock.scope;
     local exprregs = {};
     for i, expr in ipairs(statement.expressions) do
         if(i == #statement.expressions and #statement.ids > #statement.expressions) then
@@ -48,13 +47,12 @@ return function(self, statement, funcDepth)
             if(self:isUpvalue(statement.scope, id)) then
                 local varreg = self:getVarRegister(statement.scope, id, funcDepth);
                 local varReg = self:getVarRegister(statement.scope, id, funcDepth, nil);
-                scope:addReferenceToHigherScope(self.scope, self.allocUpvalFunction);
-                self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
-                self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, exprregs[i])), {}, {varReg, exprregs[i]}, true);
+                self:addStatement(self:setRegister(varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {})), {varReg}, {}, false);
+                self:addStatement(self:setUpvalueMember(self:register(varReg), self:register(exprregs[i])), {}, {varReg, exprregs[i]}, true);
                 self:freeRegister(exprregs[i], false);
             else
                 local varreg = self:getVarRegister(statement.scope, id, funcDepth, exprregs[i]);
-                self:addStatement(self:copyRegisters(scope, {varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
+                self:addStatement(self:copyRegisters({varreg}, {exprregs[i]}), {varreg}, {exprregs[i]}, false);
                 self:freeRegister(exprregs[i], false);
             end
         end

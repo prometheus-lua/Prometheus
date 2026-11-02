@@ -34,16 +34,15 @@ return function(Compiler)
                 (numReturns == self.RETURN_ALL or numReturns > 1) then
                 -- Parentheses collapse multiple values to one, even when it is nil.
                 local regs = handler(self, expression, funcDepth, 1);
-                local scope = self.activeBlock.scope;
                 if numReturns == self.RETURN_ALL then
                     local packed = self:allocRegister(false);
-                    self:addStatement(self:setRegister(scope, packed, self:pack(scope, {self:register(scope, regs[1])})), {packed}, {regs[1]}, false);
+                    self:addStatement(self:setRegister(packed, self:pack({self:register(regs[1])})), {packed}, {regs[1]}, false);
                     self:freeRegister(regs[1], false);
                     return {packed};
                 end
                 for i = 2, numReturns do
                     regs[i] = self:allocRegister(false);
-                    self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+                    self:addStatement(self:setRegister(regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
                 end
                 return regs;
             end

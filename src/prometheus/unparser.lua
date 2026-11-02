@@ -12,6 +12,8 @@
 
 local config = require("config");
 local Ast = require("prometheus.ast");
+local analyzeBindings = require("prometheus.bindinganalysis");
+local renameVariables = require("prometheus.names");
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local logger = require("logger");
@@ -106,6 +108,23 @@ function Unparser:unparse(ast)
 	if(ast.kind ~= AstKind.TopNode) then
 		logger:error("Unparser:unparse expects a TopNode as first argument")
 	end
+	analyzeBindings(ast);
+	-- Preserve symbol identity even for generated trees whose preferred names
+	-- collide. Keep existing names whenever lexical lookup would be unambiguous.
+	local attempts = {};
+	renameVariables(ast, {
+		Keywords = self.conventions.Keywords,
+		generateName = function(_, scope, originalName)
+			-- Symbol names are preferences. Make them valid identifier spellings
+			-- before resolving collisions and reserved words in the allocator.
+			local base = originalName:gsub(self.notIdentPattern, "_");
+			if #base == 0 or base:find(self.numberPattern) then base = "_" .. base; end
+			attempts[scope] = attempts[scope] or {};
+			local count = attempts[scope][base] or 0;
+			attempts[scope][base] = count + 1;
+			return count == 0 and base or base .. "_" .. count;
+		end,
+	});
 
 	return self:unparseBlock(ast.body);
 end
@@ -188,7 +207,7 @@ function Unparser:unparseStatement(statement, tabbing)
 	-- For Statement
 	elseif(statement.kind == AstKind.ForStatement) then
 		local bodyCode = self:unparseBlock(statement.body, tabbing);
-		push("for", self:whitespace(), statement.scope:getVariableName(statement.id), self:optionalWhitespace(), "=");
+		push("for", self:whitespace(), statement.symbol and statement.symbol.name or statement.name, self:optionalWhitespace(), "=");
 		push(self:optionalWhitespace(), self:unparseExpression(statement.initialValue, tabbing), ",");
 		push(self:optionalWhitespace(), self:unparseExpression(statement.finalValue, tabbing), ",");
 		local incrementByCode = statement.incrementBy and self:unparseExpression(statement.incrementBy, tabbing) or "1";
@@ -200,11 +219,11 @@ function Unparser:unparseStatement(statement, tabbing)
 	-- For In Statement
 	elseif(statement.kind == AstKind.ForInStatement) then
 		push("for", self:whitespace());
-		for i, id in ipairs(statement.ids) do
+		for i, symbol in ipairs(statement.symbols) do
 			if(i ~= 1) then
 				push(",", self:optionalWhitespace());
 			end
-			push(statement.scope:getVariableName(id));
+			push(symbol.name);
 		end
 		push(self:whitespace(), "in");
 		local exprcode = self:unparseExpression(statement.expressions[1], tabbing);
@@ -245,7 +264,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Function Declaration
 	elseif(statement.kind == AstKind.FunctionDeclaration) then
-		local funcname = statement.scope:getVariableName(statement.id);
+		local funcname = statement.symbol and statement.symbol.name or statement.name;
 		for _, index in ipairs(statement.indices) do
 			funcname = funcname .. "." .. index;
 		end
@@ -257,7 +276,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.scope:getVariableName(arg.id));
+				push(arg.symbol.name);
 			end
 		end
 		push(")");
@@ -267,7 +286,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Local Function Declaration
 	elseif(statement.kind == AstKind.LocalFunctionDeclaration) then
-		local funcname = statement.scope:getVariableName(statement.id);
+		local funcname = statement.symbol and statement.symbol.name or statement.name;
 		push("local", self:whitespace(), "function", self:whitespace(), funcname, "(");
 		for i, arg in ipairs(statement.args) do
 			if i > 1 then
@@ -276,7 +295,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.scope:getVariableName(arg.id));
+				push(arg.symbol.name);
 			end
 		end
 		push(")");
@@ -287,11 +306,11 @@ function Unparser:unparseStatement(statement, tabbing)
 	-- Local Variable Declaration
 	elseif(statement.kind == AstKind.LocalVariableDeclaration) then
 		push("local", self:whitespace());
-		for i, id in ipairs(statement.ids) do
+		for i, symbol in ipairs(statement.symbols) do
 			if i > 1 then
 				push(",", self:optionalWhitespace());
 			end
-			push(statement.scope:getVariableName(id));
+			push(symbol.name);
 		end
 		if(#statement.expressions > 0) then
 			push(self:optionalWhitespace(), "=", self:optionalWhitespace());
@@ -305,7 +324,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Function Call Statement
 	elseif(statement.kind == AstKind.FunctionCallStatement) then
-		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression) then
+		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression or statement.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(statement.base, tabbing), ")");
 		else
 			push(self:unparseExpression(statement.base, tabbing));
@@ -321,7 +340,7 @@ function Unparser:unparseStatement(statement, tabbing)
 
 	-- Pass Self Function Call Statement
 	elseif(statement.kind == AstKind.PassSelfFunctionCallStatement) then
-		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression) then
+		if not (statement.base.kind == AstKind.IndexExpression or statement.base.kind == AstKind.VariableExpression or statement.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(statement.base, tabbing), ")");
 		else
 			push(self:unparseExpression(statement.base, tabbing));
@@ -431,8 +450,12 @@ function Unparser:unparseExpression(expression, tabbing)
 		return str;
 	end
 
+	if(expression.kind == AstKind.GlobalVariableExpression or expression.kind == AstKind.AssignmentGlobalVariable) then
+		return expression.name;
+	end
+
 	if(expression.kind == AstKind.VariableExpression or expression.kind == AstKind.AssignmentVariable) then
-		return expression.scope:getVariableName(expression.id);
+		return expression.symbol.name;
 	end
 
 	if(expression.kind == AstKind.StringExpression) then
@@ -596,7 +619,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.FunctionCallExpression;
 	if(expression.kind == k) then
-		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression) then
+		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression or expression.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(expression.base, tabbing), ")");
 		else
 			push(self:unparseExpression(expression.base, tabbing));
@@ -614,7 +637,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 	k = AstKind.PassSelfFunctionCallExpression;
 	if(expression.kind == k) then
-		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression) then
+		if not (expression.base.kind == AstKind.IndexExpression or expression.base.kind == AstKind.VariableExpression or expression.base.kind == AstKind.GlobalVariableExpression) then
 			push("(", self:unparseExpression(expression.base, tabbing), ")");
 		else
 			push(self:unparseExpression(expression.base, tabbing));
@@ -640,7 +663,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.scope:getVariableName(arg.id));
+				push(arg.symbol.name);
 			end
 		end
 		push(")");

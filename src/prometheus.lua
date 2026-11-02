@@ -20,7 +20,7 @@ if not pcall(function()
 end) then
     local oldMathRandom = math.random;
     math.random = function(a, b)
-        if not a and b then
+        if not a then
             return oldMathRandom();
         end
         if not b then

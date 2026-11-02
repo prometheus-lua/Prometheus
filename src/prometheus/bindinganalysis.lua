@@ -1,7 +1,6 @@
--- Rebuild lexical metadata from declarations and uses. Scope/id fields are
--- derived adapters for the lowering backends; symbols are binding identities.
+-- Derive lexical metadata from declarations and uses. Symbols are binding
+-- identities; scope records and register slots are private lowering metadata.
 local Ast = require('prometheus.ast')
-local Scope = require('prometheus.scope')
 local K = Ast.AstKind
 
 local binary = {}
@@ -16,19 +15,16 @@ end
 return function(ast)
     assert(ast.kind == K.TopNode, 'Binding analysis expects a TopNode')
     ast.bindingAnalysis = nil
-    local global = ast.globalScope or Scope:newGlobal()
-    assert(global.isGlobal, 'TopNode requires a global environment scope')
+    local global = {isGlobal = true}
     ast.globalScope = global
     local analysis = {owners = {}, captured = {}, declarations = {}, references = {}, reads = {}, writes = {}}
-    local initialized, blocks, active, loops = {}, {}, {}, {}
+    local blocks, active, loops = {}, {}, {}
     local expression, statement, block, functionBody
 
     local function initialize(scope, parent, owner)
-        assert(not initialized[scope], 'A lexical scope is shared by multiple blocks')
-        initialized[scope] = true
         scope.parentScope, scope.level = parent, parent and parent.level + 1 or 0
         scope.children, scope.referenceCounts, scope.variablesFromHigherScopes = {}, {}, {}
-        scope.variables, scope.variablesLookup, scope.symbols, scope.skipIdLookup = {}, {}, {}, {}
+        scope.variables, scope.variablesLookup, scope.symbols = {}, {}, {}
         if parent then parent.children[#parent.children + 1] = scope end
         analysis.owners[scope] = owner or scope
     end
@@ -72,7 +68,6 @@ return function(ast)
             if analysis.owners[target] ~= owner then analysis.captured[symbol] = true end
         end
         node.scope, node.id = target, id
-        if node.kind == K.FunctionDeclaration then node.baseScope, node.baseId = target, id end
         target.referenceCounts[id] = (target.referenceCounts[id] or 0) + 1
         local current = scope
         while current and current ~= target do
@@ -138,7 +133,7 @@ return function(ast)
         assert(node and node.kind == K.Block, 'Expected a block')
         assert(not blocks[node], 'A block occurs multiple times in the AST')
         blocks[node] = true
-        local scope = node.scope or Scope:new()
+        local scope = {isGlobal = false}
         node.scope = scope
         initialize(scope, parent, owner)
         owner = owner or scope
@@ -190,7 +185,6 @@ return function(ast)
                 elseif kind == K.ForInStatement then
                     node.scope, node.ids = inner, {}
                     for i, symbol in ipairs(node.symbols) do node.ids[i] = bind(symbol, node, inner, locals) end
-                    node.vars = node.ids
                 end
             end, function(inner)
                 if kind == K.RepeatStatement then expression(node.condition, inner, owner) end

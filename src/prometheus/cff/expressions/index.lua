@@ -7,7 +7,6 @@
 local Ast = require("prometheus.ast");
 
 return function(self, expression, funcDepth, numReturns)
-    local scope = self.activeBlock.scope;
     local regs = {};
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
@@ -17,12 +16,12 @@ return function(self, expression, funcDepth, numReturns)
 
 
 
-            self:addStatement(self:setRegister(scope, regs[i], Ast.IndexExpression(self:register(scope, baseReg), self:register(scope, indexReg))), {regs[i]}, {baseReg, indexReg}, true);
+            self:addStatement(self:setRegister(regs[i], Ast.IndexExpression(self:register(baseReg), self:register(indexReg))), {regs[i]}, {baseReg, indexReg}, true);
 
             self:freeRegister(baseReg, false);
             self:freeRegister(indexReg, false);
         else
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            self:addStatement(self:setRegister(regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end
     end
     return regs;

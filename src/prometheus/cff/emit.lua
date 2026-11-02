@@ -5,7 +5,6 @@
 -- This Script contains the container function body emission for the compiler.
 
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
 local constants = require("prometheus.cff.constants");
 local AstKind = Ast.AstKind;
@@ -227,7 +226,7 @@ return function(Compiler)
                 table.insert(blockstats, stat.statement);
             end
 
-            local block = { id = id, index = i, block = Ast.Block(blockstats, block.scope) }
+            local block = { id = id, index = i, block = Ast.Block(blockstats) }
             -- Block IDs can overlap list indices; keep this table an ordered list.
             table.insert(blocks, block);
         end
@@ -236,10 +235,10 @@ return function(Compiler)
 
         -- Build a strict threshold condition between adjacent block IDs.
         -- Using a midpoint avoids exact-id comparisons while preserving dispatch.
-        local function buildBlockThresholdCondition(scope, leftId, rightId, useAndOr)
+        local function buildBlockThresholdCondition(leftId, rightId, useAndOr)
             -- Keep the midpoint strictly between the IDs, even when consecutive.
             local bound = (leftId + rightId) / 2;
-            local posExpr = self:pos(scope);
+            local posExpr = self:pos();
             local boundExpr = Ast.NumberExpression(bound);
 
             if useAndOr then
@@ -256,11 +255,10 @@ return function(Compiler)
         end
 
         -- Build an elseif chain for a range of blocks
-        local function buildElseifChain(tb, l, r, pScope)
+        local function buildElseifChain(tb, l, r)
             -- Handle invalid range by returning an empty block
             if r < l then
-                local emptyScope = Scope:new(pScope);
-                return Ast.Block({}, emptyScope);
+                return Ast.Block({});
             end
 
             local len = r - l + 1;
@@ -272,16 +270,15 @@ return function(Compiler)
 
             -- For small ranges, use elseif chain
             if len <= 4 then
-                local ifScope = Scope:new(pScope);
                 local elseifs = {};
 
                 -- First block uses the first midpoint threshold
-                local firstCondition = buildBlockThresholdCondition(ifScope, tb[l].id, tb[l + 1].id, false);
+                local firstCondition = buildBlockThresholdCondition(tb[l].id, tb[l + 1].id, false);
                 local firstBlock = tb[l].block;
 
                 -- Middle blocks use their upper midpoint threshold
                 for i = l + 1, r - 1 do
-                    local condition = buildBlockThresholdCondition(ifScope, tb[i].id, tb[i + 1].id, false);
+                    local condition = buildBlockThresholdCondition(tb[i].id, tb[i + 1].id, false);
                     table.insert(elseifs, {
                         condition = condition,
                         body = tb[i].block
@@ -293,7 +290,7 @@ return function(Compiler)
 
                 return Ast.Block({
                     Ast.IfStatement(firstCondition, firstBlock, elseifs, elseBlock);
-                }, ifScope);
+                });
             end
 
             -- For larger ranges, use binary split with and/or chaining
@@ -303,10 +300,8 @@ return function(Compiler)
             -- IDs are 24-bit integers, so half-integer midpoints are exact.
             -- Rounding would make consecutive IDs share a dispatch branch.
             local bound = (leftMaxId + rightMinId) / 2;
-            local ifScope = Scope:new(pScope);
-
-            local lBlock = buildElseifChain(tb, l, mid - 1, ifScope);
-            local rBlock = buildElseifChain(tb, mid, r, ifScope);
+            local lBlock = buildElseifChain(tb, l, mid - 1);
+            local rBlock = buildElseifChain(tb, mid, r);
 
             -- Randomly choose between different condition styles
             local condStyle = math.random(1, 3);
@@ -315,27 +310,24 @@ return function(Compiler)
 
             if condStyle == 1 then
                 -- pos < bound
-                condition = Ast.LessThanExpression(self:pos(ifScope), Ast.NumberExpression(bound));
+                condition = Ast.LessThanExpression(self:pos(), Ast.NumberExpression(bound));
                 trueBlock, falseBlock = lBlock, rBlock;
             elseif condStyle == 2 then
                 -- bound > pos
-                condition = Ast.GreaterThanExpression(Ast.NumberExpression(bound), self:pos(ifScope));
+                condition = Ast.GreaterThanExpression(Ast.NumberExpression(bound), self:pos());
                 trueBlock, falseBlock = lBlock, rBlock;
             else
                 -- Equivalent split using strict > with branches reversed.
-                condition = Ast.GreaterThanExpression(self:pos(ifScope), Ast.NumberExpression(bound));
+                condition = Ast.GreaterThanExpression(self:pos(), Ast.NumberExpression(bound));
                 trueBlock, falseBlock = rBlock, lBlock;
             end
 
             return Ast.Block({
                 Ast.IfStatement(condition, trueBlock, {}, falseBlock);
-            }, ifScope);
+            });
         end
 
-        local whileBody = buildElseifChain(blocks, 1, #blocks, self.containerFuncScope);
-        if self.whileScope then
-            -- Ensure whileScope is properly connected
-        end
+        local whileBody = buildElseifChain(blocks, 1, #blocks);
 
 
 
@@ -352,26 +344,26 @@ return function(Compiler)
         local stats = {}
 
         if self.maxUsedRegister >= MAX_REGS then
-            table.insert(stats, Ast.LocalVariableDeclaration(self.containerFuncScope, {self.registerVars[MAX_REGS]}, {Ast.TableConstructorExpression({})}));
+            table.insert(stats, Ast.LocalVariableDeclaration({self.registerVars[MAX_REGS]}, {Ast.TableConstructorExpression({})}));
         end
 
-        table.insert(stats, Ast.LocalVariableDeclaration(self.containerFuncScope, util.shuffle(declarations), {}));
+        table.insert(stats, Ast.LocalVariableDeclaration(util.shuffle(declarations), {}));
 
-        table.insert(stats, Ast.WhileStatement(whileBody, Ast.VariableExpression(self.containerFuncScope, self.posVar)));
+        table.insert(stats, Ast.WhileStatement(whileBody, Ast.VariableExpression(self.posVar)));
 
 
         table.insert(stats, Ast.AssignmentStatement({
-            Ast.AssignmentVariable(self.containerFuncScope, self.posVar)
+            Ast.AssignmentVariable(self.posVar)
         }, {
-            Ast.LenExpression(Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar))
+            Ast.LenExpression(Ast.VariableExpression(self.detectGcCollectVar))
         }));
 
         table.insert(stats, Ast.ReturnStatement{
-            Ast.FunctionCallExpression(self:unpack(self.containerFuncScope), {
-                Ast.VariableExpression(self.containerFuncScope, self.returnVar)
+            Ast.FunctionCallExpression(self:unpack(), {
+                Ast.VariableExpression(self.returnVar)
             });
         });
 
-        return Ast.Block(stats, self.containerFuncScope);
+        return Ast.Block(stats);
     end
 end

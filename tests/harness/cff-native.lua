@@ -29,9 +29,8 @@ local function controlFlowCounts(root)
         functionCount = countKind(root, Ast.AstKind.FunctionLiteralExpression),
     }
 end
-local function visitExpression(expression, parentAst, visitor)
-    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({expression}),}, parentAst.body.scope),
-        parentAst.globalScope)
+local function visitExpression(expression, visitor)
+    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({expression})}))
     visitast(wrapper, visitor)
 end
 local function applyCff(step, ast, pipeline)
@@ -221,7 +220,7 @@ local hoistedAst = Parser:new({LuaVersion = 'Lua51'}):parse(payloadSource)
 hoistedAst = Steps.Vmify:new():apply(hoistedAst)
 local runtimeCountsBeforeHoist = controlFlowCounts(hoistedAst.vmRuntime)
 local runtimeStringSet, runtimeStringCount = {}, 0
-visitExpression(hoistedAst.vmRuntime, hoistedAst, function(node)
+visitExpression(hoistedAst.vmRuntime, function(node)
     if node.kind == Ast.AstKind.StringExpression and not runtimeStringSet[node.value] then
         runtimeStringSet[node.value], runtimeStringCount = true, runtimeStringCount + 1
     end
@@ -234,8 +233,8 @@ assert(countKind(hoistedAst.vmRuntime, Ast.AstKind.StringExpression) == 0,
 local runtimeCache = hoistedAst.vmRuntime.body.statements
 assert(runtimeCache[1].kind == Ast.AstKind.LocalVariableDeclaration
     and runtimeCache[2].kind == Ast.AstKind.LocalVariableDeclaration
-    and #runtimeCache[1].ids > 0 and #runtimeCache[1].expressions > 0
-    and #runtimeCache[2].ids > 0 and #runtimeCache[2].expressions > 0,
+    and #runtimeCache[1].symbols > 0 and #runtimeCache[1].expressions > 0
+    and #runtimeCache[2].symbols > 0 and #runtimeCache[2].expressions > 0,
     'Hoisted runtime cache locals were not initialized')
 local afterHoistCounts = controlFlowCounts(hoistedAst.vmRuntime)
 for key, value in pairs(runtimeCountsBeforeHoist) do
@@ -248,7 +247,7 @@ visitast(hoistedAst, function(node)
         plaintextFound = true
     end
 end)
-visitExpression(hoistedAst.vmData, hoistedAst, function(node)
+visitExpression(hoistedAst.vmData, function(node)
     if node.kind == Ast.AstKind.StringExpression then encryptedDataStrings = encryptedDataStrings + 1 end
 end)
 assert(not plaintextFound and encryptedDataStrings > 0,
@@ -263,7 +262,7 @@ for _, statement in ipairs(hoistedAst.body.statements) do
 end
 local encryptedCacheStrings = 0
 if cacheInitializer then
-    visitExpression(cacheInitializer, hoistedAst, function(node)
+    visitExpression(cacheInitializer, function(node)
         if node.kind == Ast.AstKind.StringExpression then encryptedCacheStrings = encryptedCacheStrings + 1 end
     end)
 end
@@ -287,7 +286,7 @@ assert(repeatedAst.vmRuntime == repeatedRuntime
     'Repeated string encryption added empty runtime cache declarations')
 visitast(repeatedRuntime, function(node)
     if node.kind == Ast.AstKind.LocalVariableDeclaration then
-        assert(#node.ids > 0, 'Repeated hoisting emitted an empty local declaration')
+        assert(#node.symbols > 0, 'Repeated hoisting emitted an empty local declaration')
     end
 end)
 local repeatedChunk = compile('return 42,nil,...', {

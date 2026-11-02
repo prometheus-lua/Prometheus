@@ -6,7 +6,6 @@
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 
 local WrapInFunction = Step:extend();
 WrapInFunction.Description = "This Step Wraps the Entire Script into a Function";
@@ -29,13 +28,11 @@ function WrapInFunction:apply(ast)
 	for i = 1, self.Iterations, 1 do
 		local body = ast.body;
 
-		local scope = Scope:new(ast.globalScope);
-
 		ast.body = Ast.Block({
 			Ast.ReturnStatement({
 				Ast.FunctionCallExpression(Ast.FunctionLiteralExpression({Ast.VarargExpression()}, body), {Ast.VarargExpression()})
 			});
-		}, scope);
+		});
 	end
 end
 

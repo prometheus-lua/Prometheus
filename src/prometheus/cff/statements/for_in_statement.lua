@@ -7,7 +7,6 @@
 local Ast = require("prometheus.ast");
 
 return function(self, statement, funcDepth)
-    local scope = self.activeBlock.scope;
     local expressionsLength = #statement.expressions;
     local exprregs = {};
     for i, expr in ipairs(statement.expressions) do
@@ -30,7 +29,7 @@ return function(self, statement, funcDepth)
             self.registers[reg] = self.VAR_REGISTER;
         else
             exprregs[i] = self:allocRegister(true);
-            self:addStatement(self:copyRegisters(scope, {exprregs[i]}, {reg}), {exprregs[i]}, {reg}, false);
+            self:addStatement(self:copyRegisters({exprregs[i]}, {reg}), {exprregs[i]}, {reg}, false);
         end
     end
 
@@ -41,11 +40,9 @@ return function(self, statement, funcDepth)
     statement.__start_block = checkBlock;
     statement.__final_block = finalBlock;
 
-    self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+    self:addStatement(self:setPos(checkBlock.id), {self.POS_REGISTER}, {}, false);
 
     self:setActiveBlock(checkBlock);
-    local scope = self.activeBlock.scope;
-
     local varRegs = {};
     for i, id in ipairs(statement.ids) do
         varRegs[i] = self:getVarRegister(statement.scope, id, funcDepth)
@@ -56,45 +53,43 @@ return function(self, statement, funcDepth)
     -- Keep the control result separate from the visible first loop variable.
     -- Native multiple assignment preserves nils and pads missing results.
     local resultRegs = {exprregs[3]};
-    local resultTargets = {self:registerAssignment(scope, exprregs[3])};
+    local resultTargets = {self:registerAssignment(exprregs[3])};
     for i = 2, #varRegs do
         resultRegs[i] = varRegs[i];
-        resultTargets[i] = self:registerAssignment(scope, varRegs[i]);
+        resultTargets[i] = self:registerAssignment(varRegs[i]);
     end
 
     self:addStatement(Ast.AssignmentStatement(resultTargets, {
-        Ast.FunctionCallExpression(self:register(scope, exprregs[1]), {
-            self:register(scope, exprregs[2]),
-            self:register(scope, exprregs[3]),
+        Ast.FunctionCallExpression(self:register(exprregs[1]), {
+            self:register(exprregs[2]),
+            self:register(exprregs[3]),
         })
     }), resultRegs, {exprregs[1], exprregs[2], exprregs[3]}, true);
 
 
 
     self:addStatement(Ast.AssignmentStatement({
-        self:posAssignment(scope)
+        self:posAssignment()
     }, {
-        Ast.OrExpression(Ast.AndExpression(self:register(scope, exprregs[3]), Ast.NumberExpression(bodyBlock.id)), Ast.NumberExpression(finalBlock.id))
+        Ast.OrExpression(Ast.AndExpression(self:register(exprregs[3]), Ast.NumberExpression(bodyBlock.id)), Ast.NumberExpression(finalBlock.id))
     }), {self.POS_REGISTER}, {exprregs[3]}, false);
 
     self:setActiveBlock(bodyBlock);
-    local scope = self.activeBlock.scope;
-
-    self:addStatement(self:copyRegisters(scope, {varRegs[1]}, {exprregs[3]}), {varRegs[1]}, {exprregs[3]}, false);
+    self:addStatement(self:copyRegisters({varRegs[1]}, {exprregs[3]}), {varRegs[1]}, {exprregs[3]}, false);
 
     for i, id in ipairs(statement.ids) do
         if(self:isUpvalue(statement.scope, id)) then
             local varreg = varRegs[i];
             local tmpReg = self:allocRegister(false);
-            self:addStatement(self:setRegister(scope, tmpReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {tmpReg}, {}, false);
-            self:addStatement(self:setUpvalueMember(scope, self:register(scope, tmpReg), self:register(scope, varreg)), {}, {tmpReg, varreg}, true);
-            self:addStatement(self:copyRegisters(scope, {varreg}, {tmpReg}), {varreg}, {tmpReg}, false);
+            self:addStatement(self:setRegister(tmpReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {})), {tmpReg}, {}, false);
+            self:addStatement(self:setUpvalueMember(self:register(tmpReg), self:register(varreg)), {}, {tmpReg, varreg}, true);
+            self:addStatement(self:copyRegisters({varreg}, {tmpReg}), {varreg}, {tmpReg}, false);
             self:freeRegister(tmpReg, false);
         end
     end
 
     self:compileBlock(statement.body, funcDepth);
-    self:addStatement(self:setPos(scope, checkBlock.id), {self.POS_REGISTER}, {}, false);
+    self:addStatement(self:setPos(checkBlock.id), {self.POS_REGISTER}, {}, false);
     self:setActiveBlock(finalBlock);
 
     for i, _ in ipairs(exprregs) do

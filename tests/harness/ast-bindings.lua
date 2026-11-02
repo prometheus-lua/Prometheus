@@ -150,4 +150,54 @@ local proxy = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1,
     'local function f(n) if n == 0 then return 1 end return f(n - 1) end return f(3)')
 assert(assert(loadstring(proxy))() == 1)
 
+-- Steps must also operate on syntax with no cached scopes or numeric slots.
+local function stripMetadata(node, seen)
+    if type(node) ~= 'table' or seen[node] then return end
+    seen[node] = true
+    for _, field in ipairs({'scope', 'id', 'ids', 'vars', 'parentScope', 'baseScope',
+        'baseId', 'globalScope', 'bindingAnalysis'}) do node[field] = nil end
+    for _, child in pairs(node) do stripMetadata(child, seen) end
+end
+for _, config in ipairs({
+    {Name = 'EncryptStrings'},
+    {Name = 'ConstantArray', Settings = {Threshold = 1, StringsOnly = false,
+        LocalWrapperThreshold = 1, LocalWrapperCount = 2, LocalWrapperArgCount = 2}},
+    {Name = 'ProxifyLocals'},
+    {Name = 'SplitStrings', Settings = {CustomFunctionType = 'local', ConcatenationType = 'custom'}},
+    {Name = 'SplitStrings', Settings = {CustomFunctionType = 'global', ConcatenationType = 'custom'}},
+    {Name = 'SplitStrings', Settings = {CustomFunctionType = 'inline', ConcatenationType = 'custom'}},
+    {Name = 'SplitStrings', Settings = {ConcatenationType = 'table'}},
+    {Name = 'SplitStrings', Settings = {ConcatenationType = 'strcat'}},
+    {Name = 'WrapInFunction'},
+}) do
+    local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1, Steps = {config}})
+    local raw = parse('local function f(n) if n == 0 then return "scope free" end return f(n-1) end return f(2)')
+    stripMetadata(raw, {})
+    -- Force probability gates open on every Lua runtime, while retaining the
+    -- regular integer RNG for generated constants and helper variants.
+    local random = math.random
+    math.random = function(a, b)
+        if a == nil then return 0.5 end
+        if b == nil then return random(a) end
+        return random(a, b)
+    end
+    local success, transformed = pcall(pipeline.steps[1].apply, pipeline.steps[1], raw, pipeline)
+    math.random = random
+    assert(success, transformed)
+    assert(run(transformed or raw) == 'scope free', config.Name .. ' requires legacy scope metadata')
+end
+-- Backend entry points must derive their own metadata as well, including the
+-- bridge used when flattening an interpreter after string encryption.
+local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1,
+    Steps = {{Name = 'Vmify'}, {Name = 'EncryptStrings'}, {Name = 'Cff'}}})
+local raw = parse('local value = "scope free"; return value')
+for _, step in ipairs(pipeline.steps) do
+    stripMetadata(raw, {})
+    raw = step:apply(raw, pipeline) or raw
+end
+assert(run(raw) == 'scope free')
+
+local ok = pcall(Ast.VariableExpression, {})
+assert(not ok, 'Legacy scope-based reference construction must be rejected')
+
 print('AST binding identity, visibility, globals and reconstruction checks passed')

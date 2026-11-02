@@ -197,26 +197,23 @@ function EncryptStrings:apply(ast, _)
 	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
 	local doStat = newAst.body.statements[1];
 
-	local scope = ast.body.scope;
-	local decryptVar = scope:addVariable();
-	local stringsVar = scope:addVariable();
+	local decryptVar = Ast.LocalSymbol("_decrypt");
+	local stringsVar = Ast.LocalSymbol("_strings");
 
 
 	visitast(newAst, nil, function(node, data)
 		if(node.kind == AstKind.FunctionDeclaration) then
-			if(node.scope:getVariableName(node.id) == "DECRYPT") then
-				node.scope = scope;
-				node.id = decryptVar;
-				node.symbol = scope:getSymbol(decryptVar);
+			if(node.name == "DECRYPT") then
+				node.symbol = decryptVar;
 				node.name = nil;
 			end
 		end
 		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression or node.kind == AstKind.AssignmentGlobalVariable or node.kind == AstKind.GlobalVariableExpression) then
-			if(node.scope:getVariableName(node.id) == "STRINGS") then
+			if(node.name == "STRINGS") then
 				if node.kind == AstKind.AssignmentVariable or node.kind == AstKind.AssignmentGlobalVariable then
-					return Ast.AssignmentVariable(scope, stringsVar);
+					return Ast.AssignmentVariable(stringsVar);
 				end
-				return Ast.VariableExpression(scope, stringsVar);
+				return Ast.VariableExpression(stringsVar);
 			end
 		end
 	end)
@@ -224,7 +221,7 @@ function EncryptStrings:apply(ast, _)
 	visitast(ast, nil, function(node, data)
 		if(node.kind == AstKind.StringExpression) then
 			local encrypted, seed = Encryptor.encrypt(node.value);
-			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
+			return Ast.IndexExpression(Ast.VariableExpression(stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(decryptVar), {
 				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),
 			}));
 		end
@@ -233,7 +230,7 @@ function EncryptStrings:apply(ast, _)
 
 	-- Insert to Main Ast
 	table.insert(ast.body.statements, 1, doStat);
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(scope, util.shuffle{ decryptVar, stringsVar }, {}));
+	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(util.shuffle{ decryptVar, stringsVar }, {}));
 	return ast
 end
 

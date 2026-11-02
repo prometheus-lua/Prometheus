@@ -123,7 +123,7 @@ end
 function Compiler:readVariable(scope, id)
     local register = self:alloc()
     if scope.isGlobal then
-        self:emit('GLOBAL', register, self:constant(scope:getVariableName(id)))
+        self:emit('GLOBAL', register, self:constant(scope.variables[id]))
     elseif self.analysis.owners[scope] == self.owner then
         self:emit(self:isCaptured(scope, id) and 'GETCELL' or 'MOVE',
             register, self:localRegister(scope, id))
@@ -133,7 +133,7 @@ end
 
 function Compiler:writeVariable(scope, id, source)
     if scope.isGlobal then
-        self:emit('SETGLOBAL', self:constant(scope:getVariableName(id)), source)
+        self:emit('SETGLOBAL', self:constant(scope.variables[id]), source)
     elseif self.analysis.owners[scope] == self.owner then
         self:emit(self:isCaptured(scope, id) and 'SETCELL' or 'MOVE',
             self:localRegister(scope, id), source)

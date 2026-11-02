@@ -148,7 +148,7 @@ return function(Compiler)
 		self:emit("EQ", ended, first, nilreg)
 		local exit = self:emit("JTRUE", ended, 0)
 		self:emit("MOVE", control, first)
-		for i, id in ipairs(node.ids or node.vars) do
+		for i, id in ipairs(node.ids) do
 			local value = self:alloc()
 			self:emit("TAKE", value, results, i)
 			self:initVariable(node.scope, id, value)

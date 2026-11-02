@@ -82,7 +82,7 @@ local function generateTableConcatNode(chunks, data)
 		table.insert(chunkNodes, Ast.TableEntry(Ast.StringExpression(chunk)));
 	end
 	local tb = Ast.TableConstructorExpression(chunkNodes);
-	return Ast.FunctionCallExpression(Ast.VariableExpression(data.tableConcatScope, data.tableConcatId), {tb});
+	return Ast.FunctionCallExpression(Ast.VariableExpression(data.tableConcatSymbol), {tb});
 end
 
 local function generateStrCatNode(chunks)
@@ -164,7 +164,7 @@ local function generateCustomNodeArgs(chunks, data, variant)
 
 end
 
-local function generateCustomFunctionLiteral(parentScope, variant)
+local function generateCustomFunctionLiteral(variant)
 	local parser = Parser:new({
 		LuaVersion = LuaVersion.Lua51;
 	});
@@ -185,26 +185,24 @@ local function generateCustomFunctionLiteral(parentScope, variant)
 	end
 end
 
-local function generateGlobalCustomFunctionDeclaration(ast, data)
+local function generateGlobalCustomFunctionDeclaration(data)
 	local parser = Parser:new({
 		LuaVersion = LuaVersion.Lua51;
 	});
 
 	-- Custom Function Type 1
 	if data.customFunctionVariant == 1 then
-		local astScope = ast.body.scope;
 		local funcDeclNode = parser:parse(custom1Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.LocalVariableDeclaration(astScope, {data.customFuncId},
+		return Ast.LocalVariableDeclaration({data.customFuncSymbol},
 		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
 	-- Custom Function Type 2
 	else
-		local astScope = ast.body.scope;
 		local funcDeclNode = parser:parse(custom2Code).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.LocalVariableDeclaration(data.customFuncScope, {data.customFuncId},
+		return Ast.LocalVariableDeclaration({data.customFuncSymbol},
 		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
 	end
 end
@@ -218,17 +216,11 @@ function SplitStrings:apply(ast, pipeline)
 
 
 	if(self.ConcatenationType == "table") then
-		local scope = ast.body.scope;
-		local id = scope:addVariable();
-		data.tableConcatScope = scope;
-		data.tableConcatId = id;
+		data.tableConcatSymbol = Ast.LocalSymbol("_table_concat");
 	elseif(self.ConcatenationType == "custom") then
 		data.customFunctionType = self.CustomFunctionType;
 		if data.customFunctionType == "global" then
-			local scope = ast.body.scope;
-			local id = scope:addVariable();
-			data.customFuncScope = scope;
-			data.customFuncId = id;
+			data.customFuncSymbol = Ast.LocalSymbol("_custom_concat");
 			data.customFunctionVariant = self:variant();
 		end
 	end
@@ -244,12 +236,10 @@ function SplitStrings:apply(ast, pipeline)
 		if(self.ConcatenationType == "custom" and data.customFunctionType == "local" and node.kind == Ast.AstKind.Block and node.isFunctionBlock) then
 			data.functionData.localFunctions = {};
 			for i = 1, customLocalFunctionsCount, 1 do
-				local scope = data.scope;
-				local id = scope:addVariable();
+				local symbol = Ast.LocalSymbol("_custom_concat");
 				local variant = self:variant();
 				table.insert(data.functionData.localFunctions, {
-					scope = scope,
-					id = id,
+					symbol = symbol,
 					variant = variant,
 					used = false,
 				});
@@ -263,8 +253,8 @@ function SplitStrings:apply(ast, pipeline)
 		if(self.ConcatenationType == "custom" and data.customFunctionType == "local" and node.kind == Ast.AstKind.Block and node.isFunctionBlock) then
 			for i, func in ipairs(data.functionData.localFunctions) do
 				if func.used then
-					local literal = generateCustomFunctionLiteral(func.scope, func.variant);
-					table.insert(node.statements, 1, Ast.LocalVariableDeclaration(func.scope, {func.id}, {literal}));
+					local literal = generateCustomFunctionLiteral(func.variant);
+					table.insert(node.statements, 1, Ast.LocalVariableDeclaration({func.symbol}, {literal}));
 				end
 			end
 		end
@@ -292,18 +282,18 @@ function SplitStrings:apply(ast, pipeline)
 					elseif self.ConcatenationType == "custom" then
 						if self.CustomFunctionType == "global" then
 							local args = generateCustomNodeArgs(chunks, data, data.customFunctionVariant);
-							node = Ast.FunctionCallExpression(Ast.VariableExpression(data.customFuncScope, data.customFuncId), args);
+							node = Ast.FunctionCallExpression(Ast.VariableExpression(data.customFuncSymbol), args);
 						elseif self.CustomFunctionType == "local" then
 							local lfuncs = data.functionData.localFunctions;
 							local idx = math.random(1, #lfuncs);
 							local func = lfuncs[idx];
 							local args = generateCustomNodeArgs(chunks, data, func.variant);
 							func.used = true;
-							node = Ast.FunctionCallExpression(Ast.VariableExpression(func.scope, func.id), args);
+							node = Ast.FunctionCallExpression(Ast.VariableExpression(func.symbol), args);
 						elseif self.CustomFunctionType == "inline" then
 							local variant = self:variant();
 							local args = generateCustomNodeArgs(chunks, data, variant);
-							local literal = generateCustomFunctionLiteral(data.scope, variant);
+							local literal = generateCustomFunctionLiteral(variant);
 							node = Ast.FunctionCallExpression(literal, args);
 						end
 					end
@@ -316,12 +306,10 @@ function SplitStrings:apply(ast, pipeline)
 
 
 	if(self.ConcatenationType == "table") then
-		local globalScope = data.globalScope;
-		local tableScope, tableId = globalScope:resolve("table")
-		table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(data.tableConcatScope, {data.tableConcatId},
-		{Ast.IndexExpression(Ast.VariableExpression(tableScope, tableId), Ast.StringExpression("concat"))}));
+		table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration({data.tableConcatSymbol},
+		{Ast.IndexExpression(Ast.GlobalVariableExpression("table"), Ast.StringExpression("concat"))}));
 	elseif(self.ConcatenationType == "custom" and self.CustomFunctionType == "global") then
-		table.insert(ast.body.statements, 1, generateGlobalCustomFunctionDeclaration(ast, data));
+		table.insert(ast.body.statements, 1, generateGlobalCustomFunctionDeclaration(data));
 	end
 end
 

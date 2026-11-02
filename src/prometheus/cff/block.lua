@@ -3,8 +3,6 @@
 -- block.lua
 --
 -- Block management for the compiler
-
-local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
 
 local lookupify = util.lookupify;
@@ -16,12 +14,9 @@ return function(Compiler)
             id = math.random(0, 2^24)
         until not self.usedBlockIds[id];
         self.usedBlockIds[id] = true;
-
-        local scope = Scope:new(self.containerFuncScope);
         local block = {
             id = id;
             statements = {};
-            scope = scope;
             advanceToNextBlock = true;
         };
         table.insert(self.blocks, block);

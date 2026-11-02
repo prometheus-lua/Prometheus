@@ -16,6 +16,15 @@ local function inventory(ast)
     end)
     return counts
 end
+local function declarationSymbolCount(ast)
+    local count = 0
+    visitast(ast, function(node)
+        if node.kind == 'LocalVariableDeclaration' then
+            count = count + #(node.symbols or {})
+        end
+    end)
+    return count
+end
 local function unique(ast)
     local counts = inventory(ast)
     for value, count in pairs(counts) do
@@ -28,9 +37,9 @@ local function pack(...) return {n = select('#', ...), ...} end
 -- Empty/unique inputs need no pool. Sharing is idempotent.
 for _, source in ipairs({'return ...', 'return "single", 7'}) do
     local ast = parser:parse(source)
-    local statements, variables = #ast.body.statements, #ast.body.scope.variables
+    local statements, symbols = #ast.body.statements, declarationSymbolCount(ast)
     assert(shareStrings(ast) == ast)
-    assert(#ast.body.statements == statements and #ast.body.scope.variables == variables)
+    assert(#ast.body.statements == statements and declarationSymbolCount(ast) == symbols)
 end
 local source = [[
     local object = {message = 'shared', [''] = 'shared'}
@@ -46,11 +55,13 @@ shareStrings(ast)
 local counts = unique(ast)
 assert(counts.shared == 1 and counts['a\000b'] == 1 and counts[''] == 1)
 local pool = ast.body.statements[1]
-assert(pool.kind == 'LocalVariableDeclaration' and #pool.ids == 1)
-local statements, variables = #ast.body.statements, #ast.body.scope.variables
+assert(pool.kind == 'LocalVariableDeclaration' and #pool.symbols == 1)
+local poolSymbol = pool.symbols[1]
+local statements, symbols = #ast.body.statements, declarationSymbolCount(ast)
 shareStrings(ast)
 assert(ast.body.statements[1] == pool and #ast.body.statements == statements
-    and #ast.body.scope.variables == variables, 'sharing must be idempotent')
+    and pool.symbols[1] == poolSymbol and declarationSymbolCount(ast) == symbols,
+    'sharing must be idempotent')
 local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion='Lua51', Seed=17, Steps={}})
 pipeline:renameVariables(ast)
 local chunk = assert(loadstring(unparser:unparse(ast)))

@@ -7,17 +7,16 @@
 local Ast = require("prometheus.ast");
 
 return function(self, expression, funcDepth, numReturns)
-    local scope = self.activeBlock.scope;
     local regs = {};
     for i = 1, numReturns do
         regs[i] = self:allocRegister();
         if i == 1 then
             local rhsReg = self:compileExpression(expression.rhs, funcDepth, 1)[1];
 
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NegateExpression(self:register(scope, rhsReg))), {regs[i]}, {rhsReg}, true);
+            self:addStatement(self:setRegister(regs[i], Ast.NegateExpression(self:register(rhsReg))), {regs[i]}, {rhsReg}, true);
             self:freeRegister(rhsReg, false);
         else
-            self:addStatement(self:setRegister(scope, regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
+            self:addStatement(self:setRegister(regs[i], Ast.NilExpression()), {regs[i]}, {}, false);
         end
     end
     return regs;

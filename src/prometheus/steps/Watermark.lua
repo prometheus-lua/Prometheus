@@ -6,7 +6,6 @@
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 
 local Watermark = Step:extend();
 Watermark.Description = "This Step will add a watermark to the script";
@@ -34,23 +33,19 @@ end
 function Watermark:apply(ast)
   local body = ast.body;
   if string.len(self.Content) > 0 then
-    local scope, variable = ast.globalScope:resolve(self.CustomVariable);
-    local watermark = Ast.AssignmentVariable(ast.globalScope, variable);
-
-    local functionScope = Scope:new(body.scope);
-    
-    local arg = functionScope:addVariable();
+    local watermark = Ast.AssignmentGlobalVariable(self.CustomVariable);
+    local arg = Ast.LocalSymbol("_watermark_arg");
     local statement = Ast.PassSelfFunctionCallStatement(Ast.StringExpression(self.Content), "gsub", {
       Ast.StringExpression(".+"),
       Ast.FunctionLiteralExpression({
-        Ast.VariableExpression(functionScope, arg)
+        Ast.VariableExpression(arg)
       }, Ast.Block({
         Ast.AssignmentStatement({
           watermark
         }, {
-          Ast.VariableExpression(functionScope, arg)
+          Ast.VariableExpression(arg)
         })
-      }, functionScope))
+      }))
     });
 
     table.insert(ast.body.statements, 1, statement)

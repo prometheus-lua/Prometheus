@@ -6,7 +6,6 @@
 
 local Ast = require("prometheus.ast");
 local analyzeBindings = require("prometheus.bindinganalysis");
-local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
 
 local lookupify = util.lookupify;
@@ -100,69 +99,52 @@ function Compiler:compile(ast)
 
     self.upvalsProxyLenReturn = math.random(-2^22, 2^22);
 
-    local newGlobalScope = Scope:newGlobal();
-    local psc = Scope:new(newGlobalScope, nil);
+    local getfenvVar, setfenvVar = "getfenv", "setfenv";
+    local tableVar, unpackVar, envVar = "table", "unpack", "_ENV";
+    local newproxyVar, setmetatableVar, getmetatableVar = "newproxy", "setmetatable", "getmetatable";
+    local selectVar, tonumberVar, errorVar = "select", "tonumber", "error";
+    self.envVar = Ast.LocalSymbol();
+    self.getfenvVar = Ast.LocalSymbol();
+    self.setfenvVar = Ast.LocalSymbol();
+    self.callFunctionVar = Ast.LocalSymbol();
+    self.containerFuncVar = Ast.LocalSymbol();
+    self.unpackVar = Ast.LocalSymbol();
+    self.packVar = Ast.LocalSymbol();
+    self.unpackPackedVar = Ast.LocalSymbol();
+    self.newproxyVar = Ast.LocalSymbol();
+    self.setmetatableVar = Ast.LocalSymbol();
+    self.getmetatableVar = Ast.LocalSymbol();
+    self.selectVar = Ast.LocalSymbol();
+    self.tonumberVar = Ast.LocalSymbol();
+    self.errorVar = Ast.LocalSymbol();
 
-    local _, getfenvVar = newGlobalScope:resolve("getfenv");
-    local _, setfenvVar = newGlobalScope:resolve("setfenv");
-    local _, tableVar = newGlobalScope:resolve("table");
-    local _, unpackVar = newGlobalScope:resolve("unpack");
-    local _, envVar = newGlobalScope:resolve("_ENV");
-    local _, newproxyVar = newGlobalScope:resolve("newproxy");
-    local _, setmetatableVar = newGlobalScope:resolve("setmetatable");
-    local _, getmetatableVar = newGlobalScope:resolve("getmetatable");
-    local _, selectVar = newGlobalScope:resolve("select");
-    local _, tonumberVar = newGlobalScope:resolve("tonumber");
-    local _, errorVar = newGlobalScope:resolve("error");
+    local argVar = Ast.LocalSymbol();
 
 
-    self.scope = Scope:new(psc);
-    self.envVar = self.scope:addVariable();
-    self.getfenvVar = self.scope:addVariable();
-    self.setfenvVar = self.scope:addVariable();
-    self.callFunctionVar = self.scope:addVariable();
-    self.containerFuncVar = self.scope:addVariable();
-    self.unpackVar = self.scope:addVariable();
-    self.packVar = self.scope:addVariable();
-    self.unpackPackedVar = self.scope:addVariable();
-    self.newproxyVar = self.scope:addVariable();
-    self.setmetatableVar = self.scope:addVariable();
-    self.getmetatableVar = self.scope:addVariable();
-    self.selectVar = self.scope:addVariable();
-    self.tonumberVar = self.scope:addVariable();
-    self.errorVar = self.scope:addVariable();
+    self.posVar = Ast.LocalSymbol();
+    self.argsVar = Ast.LocalSymbol();
+    self.currentUpvaluesVar = Ast.LocalSymbol();
+    self.detectGcCollectVar = Ast.LocalSymbol();
+    self.currentEnvVar = Ast.LocalSymbol();
+    self.returnVar = Ast.LocalSymbol();
 
-    local argVar = self.scope:addVariable();
+    self.upvaluesTable = Ast.LocalSymbol();
+    self.upvaluesReferenceCountsTable = Ast.LocalSymbol();
+    self.allocUpvalFunction = Ast.LocalSymbol();
+    self.currentUpvalId = Ast.LocalSymbol();
 
-    self.containerFuncScope = Scope:new(self.scope);
-    self.whileScope = Scope:new(self.containerFuncScope);
-
-    self.posVar = self.containerFuncScope:addVariable();
-    self.argsVar = self.containerFuncScope:addVariable();
-    self.currentUpvaluesVar = self.containerFuncScope:addVariable();
-    self.detectGcCollectVar = self.containerFuncScope:addVariable();
-    self.currentEnvVar = self.containerFuncScope:addVariable();
-    self.returnVar = self.containerFuncScope:addVariable();
-
-    self.upvaluesTable = self.scope:addVariable();
-    self.upvaluesReferenceCountsTable = self.scope:addVariable();
-    self.allocUpvalFunction = self.scope:addVariable();
-    self.currentUpvalId = self.scope:addVariable();
-
-    self.upvaluesProxyFunctionVar = self.scope:addVariable();
-    self.upvaluesGcFunctionVar = self.scope:addVariable();
-    self.freeUpvalueFunc = self.scope:addVariable();
+    self.upvaluesProxyFunctionVar = Ast.LocalSymbol();
+    self.upvaluesGcFunctionVar = Ast.LocalSymbol();
+    self.freeUpvalueFunc = Ast.LocalSymbol();
 
     self.createClosureVars = {};
-    self.createVarargClosureVar = self.scope:addVariable();
-    local createClosureScope = Scope:new(self.scope);
-    local createClosurePosArg = createClosureScope:addVariable();
-    local createClosureUpvalsArg = createClosureScope:addVariable();
-    local createClosureEnvArg = createClosureScope:addVariable();
-    local createClosureProxyObject = createClosureScope:addVariable();
-    local createClosureFuncVar = createClosureScope:addVariable();
+    self.createVarargClosureVar = Ast.LocalSymbol();
 
-    local createClosureSubScope = Scope:new(createClosureScope);
+    local createClosurePosArg = Ast.LocalSymbol();
+    local createClosureUpvalsArg = Ast.LocalSymbol();
+    local createClosureEnvArg = Ast.LocalSymbol();
+    local createClosureProxyObject = Ast.LocalSymbol();
+    local createClosureFuncVar = Ast.LocalSymbol();
 
     local upvalEntries = {};
     local upvalueIds = {};
@@ -173,7 +155,7 @@ function Compiler:compile(ast)
             if upvalueIds[id] then
                 return upvalueIds[id];
             end
-            expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {});
+            expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {});
         else
             require("logger"):error("Unresolved Upvalue, this error should not occur!");
         end
@@ -187,146 +169,145 @@ function Compiler:compile(ast)
     self:compileTopNode(ast);
 
     -- VM value lists carry an explicit count: table length loses trailing nils.
-    local packScope = Scope:new(self.scope);
-    local unpackScope = Scope:new(self.scope);
-    local unpackValuesVar = unpackScope:addVariable();
+
+
+    local unpackValuesVar = Ast.LocalSymbol();
 
     -- Keep query handling shared: a per-call closure would capture the frame's
     -- environment and delay its collection when another Cff pass wraps it.
     -- Ordinary functions receive exactly their original arguments via a tail call.
-    local callScope = Scope:new(self.scope);
-    local callFuncVar, callEnvVar = callScope:addVariable(), callScope:addVariable();
-    local getterScope = Scope:new(callScope);
-    local levelVar = getterScope:addVariable();
-    local currentScope = Scope:new(getterScope);
+
+    local callFuncVar, callEnvVar = Ast.LocalSymbol(), Ast.LocalSymbol();
+
+    local levelVar = Ast.LocalSymbol();
 
     local functionNodeAssignments = {
         {
-            var = Ast.AssignmentVariable(self.scope, self.callFunctionVar),
+            var = Ast.AssignmentVariable(self.callFunctionVar),
             val = Ast.FunctionLiteralExpression({
-                Ast.VariableExpression(callScope, callFuncVar),
-                Ast.VariableExpression(callScope, callEnvVar),
+                Ast.VariableExpression(callFuncVar),
+                Ast.VariableExpression(callEnvVar),
                 Ast.VarargExpression(),
             }, Ast.Block({
                 Ast.IfStatement(Ast.AndExpression(
-                    Ast.VariableExpression(self.scope, self.getfenvVar),
-                    Ast.EqualsExpression(Ast.VariableExpression(callScope, callFuncVar), Ast.VariableExpression(self.scope, self.getfenvVar))
+                    Ast.VariableExpression(self.getfenvVar),
+                    Ast.EqualsExpression(Ast.VariableExpression(callFuncVar), Ast.VariableExpression(self.getfenvVar))
                 ), Ast.Block({
-                    Ast.LocalVariableDeclaration(getterScope, {levelVar}, {Ast.VarargExpression()}),
+                    Ast.LocalVariableDeclaration({levelVar}, {Ast.VarargExpression()}),
                     Ast.IfStatement(Ast.OrExpression(
-                        Ast.EqualsExpression(Ast.VariableExpression(getterScope, levelVar), Ast.NilExpression()),
-                        Ast.EqualsExpression(Ast.VariableExpression(getterScope, levelVar), Ast.NumberExpression(1))
-                    ), Ast.Block({Ast.ReturnStatement{Ast.VariableExpression(callScope, callEnvVar)}}, currentScope), {}),
-                }, getterScope), {}),
-                Ast.ReturnStatement{Ast.FunctionCallExpression(Ast.VariableExpression(callScope, callFuncVar), {Ast.VarargExpression()})},
-            }, callScope)),
+                        Ast.EqualsExpression(Ast.VariableExpression(levelVar), Ast.NilExpression()),
+                        Ast.EqualsExpression(Ast.VariableExpression(levelVar), Ast.NumberExpression(1))
+                    ), Ast.Block({Ast.ReturnStatement{Ast.VariableExpression(callEnvVar)}}), {}),
+                }), {}),
+                Ast.ReturnStatement{Ast.FunctionCallExpression(Ast.VariableExpression(callFuncVar), {Ast.VarargExpression()})},
+            })),
         },
         {
-            var = Ast.AssignmentVariable(self.scope, self.packVar),
+            var = Ast.AssignmentVariable(self.packVar),
             val = Ast.FunctionLiteralExpression({Ast.VarargExpression()}, Ast.Block({
                 Ast.ReturnStatement{Ast.TableConstructorExpression({
                     Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.FunctionCallExpression(
-                        Ast.VariableExpression(self.scope, self.selectVar),
+                        Ast.VariableExpression(self.selectVar),
                         {Ast.StringExpression("#"), Ast.VarargExpression()})),
                     Ast.TableEntry(Ast.VarargExpression()),
                 })},
-            }, packScope)),
+            })),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.unpackPackedVar),
-            val = Ast.FunctionLiteralExpression({Ast.VariableExpression(unpackScope, unpackValuesVar)}, Ast.Block({
-                Ast.ReturnStatement{Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.unpackVar), {
-                    Ast.VariableExpression(unpackScope, unpackValuesVar),
+            var = Ast.AssignmentVariable(self.unpackPackedVar),
+            val = Ast.FunctionLiteralExpression({Ast.VariableExpression(unpackValuesVar)}, Ast.Block({
+                Ast.ReturnStatement{Ast.FunctionCallExpression(Ast.VariableExpression(self.unpackVar), {
+                    Ast.VariableExpression(unpackValuesVar),
                     Ast.NumberExpression(1),
-                    Ast.IndexExpression(Ast.VariableExpression(unpackScope, unpackValuesVar), Ast.StringExpression("n")),
+                    Ast.IndexExpression(Ast.VariableExpression(unpackValuesVar), Ast.StringExpression("n")),
                 })},
-            }, unpackScope)),
+            })),
         },
         {
-            var = Ast.AssignmentVariable(self.scope, self.containerFuncVar),
+            var = Ast.AssignmentVariable(self.containerFuncVar),
             val = Ast.FunctionLiteralExpression({
-                Ast.VariableExpression(self.containerFuncScope, self.posVar),
-                Ast.VariableExpression(self.containerFuncScope, self.argsVar),
-                Ast.VariableExpression(self.containerFuncScope, self.currentUpvaluesVar),
-                Ast.VariableExpression(self.containerFuncScope, self.detectGcCollectVar),
-                Ast.VariableExpression(self.containerFuncScope, self.currentEnvVar)
+                Ast.VariableExpression(self.posVar),
+                Ast.VariableExpression(self.argsVar),
+                Ast.VariableExpression(self.currentUpvaluesVar),
+                Ast.VariableExpression(self.detectGcCollectVar),
+                Ast.VariableExpression(self.currentEnvVar)
             }, self:emitContainerFuncBody());
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.createVarargClosureVar),
+            var = Ast.AssignmentVariable(self.createVarargClosureVar),
             val = Ast.FunctionLiteralExpression({
-                    Ast.VariableExpression(createClosureScope, createClosurePosArg),
-                    Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
-                    Ast.VariableExpression(createClosureScope, createClosureEnvArg),
+                    Ast.VariableExpression(createClosurePosArg),
+                    Ast.VariableExpression(createClosureUpvalsArg),
+                    Ast.VariableExpression(createClosureEnvArg),
                 },
                 Ast.Block({
-                    Ast.LocalVariableDeclaration(createClosureScope, {
+                    Ast.LocalVariableDeclaration({
                         createClosureProxyObject
                     }, {
-                        Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar), {
-                            Ast.VariableExpression(createClosureScope, createClosureUpvalsArg)
+                        Ast.FunctionCallExpression(Ast.VariableExpression(self.upvaluesProxyFunctionVar), {
+                            Ast.VariableExpression(createClosureUpvalsArg)
                         })
                     }),
-                    Ast.LocalVariableDeclaration(createClosureScope, {createClosureFuncVar},{
+                    Ast.LocalVariableDeclaration({createClosureFuncVar},{
                         Ast.FunctionLiteralExpression({
                             Ast.VarargExpression();
                         },
                         Ast.Block({
                             Ast.ReturnStatement{
-                                Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.containerFuncVar), {
-                                    Ast.VariableExpression(createClosureScope, createClosurePosArg),
-                                    self:pack(createClosureSubScope, {Ast.VarargExpression()}),
-                                    Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
-                                    Ast.VariableExpression(createClosureScope, createClosureProxyObject),
-                                    self:closureEnvironment(createClosureSubScope, createClosureScope, createClosureEnvArg)
+                                Ast.FunctionCallExpression(Ast.VariableExpression(self.containerFuncVar), {
+                                    Ast.VariableExpression(createClosurePosArg),
+                                    self:pack({Ast.VarargExpression()}),
+                                    Ast.VariableExpression(createClosureUpvalsArg),
+                                    Ast.VariableExpression(createClosureProxyObject),
+                                    self:closureEnvironment(createClosureEnvArg)
                                 })
                             }
-                        }, createClosureSubScope)
+                        })
                         );
                     });
-                    self:inheritClosureEnvironment(createClosureScope, createClosureFuncVar, createClosureEnvArg);
-                    Ast.ReturnStatement{Ast.VariableExpression(createClosureScope, createClosureFuncVar)};
-                }, createClosureScope)
+                    self:inheritClosureEnvironment(createClosureFuncVar, createClosureEnvArg);
+                    Ast.ReturnStatement{Ast.VariableExpression(createClosureFuncVar)};
+                })
             );
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.upvaluesTable),
+            var = Ast.AssignmentVariable(self.upvaluesTable),
             val = Ast.TableConstructorExpression({}),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.upvaluesReferenceCountsTable),
+            var = Ast.AssignmentVariable(self.upvaluesReferenceCountsTable),
             val = Ast.TableConstructorExpression({}),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.allocUpvalFunction),
+            var = Ast.AssignmentVariable(self.allocUpvalFunction),
             val = self:createAllocUpvalFunction(),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.currentUpvalId),
+            var = Ast.AssignmentVariable(self.currentUpvalId),
             val = Ast.NumberExpression(0),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.upvaluesProxyFunctionVar),
+            var = Ast.AssignmentVariable(self.upvaluesProxyFunctionVar),
             val = self:createUpvaluesProxyFunc(),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.upvaluesGcFunctionVar),
+            var = Ast.AssignmentVariable(self.upvaluesGcFunctionVar),
             val = self:createUpvaluesGcFunc(),
         }, {
-            var = Ast.AssignmentVariable(self.scope, self.freeUpvalueFunc),
+            var = Ast.AssignmentVariable(self.freeUpvalueFunc),
             val = self:createFreeUpvalueFunc(),
         },
     }
 
     local tbl = {
-        Ast.VariableExpression(self.scope, self.callFunctionVar),
-        Ast.VariableExpression(self.scope, self.packVar),
-        Ast.VariableExpression(self.scope, self.unpackPackedVar),
-        Ast.VariableExpression(self.scope, self.containerFuncVar),
-        Ast.VariableExpression(self.scope, self.createVarargClosureVar),
-        Ast.VariableExpression(self.scope, self.upvaluesTable),
-        Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable),
-        Ast.VariableExpression(self.scope, self.allocUpvalFunction),
-        Ast.VariableExpression(self.scope, self.currentUpvalId),
-        Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar),
-        Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
-        Ast.VariableExpression(self.scope, self.freeUpvalueFunc),
+        Ast.VariableExpression(self.callFunctionVar),
+        Ast.VariableExpression(self.packVar),
+        Ast.VariableExpression(self.unpackPackedVar),
+        Ast.VariableExpression(self.containerFuncVar),
+        Ast.VariableExpression(self.createVarargClosureVar),
+        Ast.VariableExpression(self.upvaluesTable),
+        Ast.VariableExpression(self.upvaluesReferenceCountsTable),
+        Ast.VariableExpression(self.allocUpvalFunction),
+        Ast.VariableExpression(self.currentUpvalId),
+        Ast.VariableExpression(self.upvaluesProxyFunctionVar),
+        Ast.VariableExpression(self.upvaluesGcFunctionVar),
+        Ast.VariableExpression(self.freeUpvalueFunc),
     };
     for i, entry in pairs(self.createClosureVars) do
         table.insert(functionNodeAssignments, entry);
-        table.insert(tbl, Ast.VariableExpression(entry.var.scope, entry.var.id));
+        table.insert(tbl, Ast.VariableExpression(entry.symbol));
     end
 
     util.shuffle(functionNodeAssignments);
@@ -341,35 +322,35 @@ function Compiler:compile(ast)
     local ids = util.shuffle({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
 
     local items = {
-        Ast.VariableExpression(self.scope, self.envVar),
-        Ast.VariableExpression(self.scope, self.unpackVar),
-        Ast.VariableExpression(self.scope, self.newproxyVar),
-        Ast.VariableExpression(self.scope, self.setmetatableVar),
-        Ast.VariableExpression(self.scope, self.getmetatableVar),
-        Ast.VariableExpression(self.scope, self.selectVar),
-        Ast.VariableExpression(self.scope, argVar),
-        Ast.VariableExpression(self.scope, self.tonumberVar),
-        Ast.VariableExpression(self.scope, self.errorVar),
-        Ast.VariableExpression(self.scope, self.getfenvVar),
-        Ast.VariableExpression(self.scope, self.setfenvVar),
+        Ast.VariableExpression(self.envVar),
+        Ast.VariableExpression(self.unpackVar),
+        Ast.VariableExpression(self.newproxyVar),
+        Ast.VariableExpression(self.setmetatableVar),
+        Ast.VariableExpression(self.getmetatableVar),
+        Ast.VariableExpression(self.selectVar),
+        Ast.VariableExpression(argVar),
+        Ast.VariableExpression(self.tonumberVar),
+        Ast.VariableExpression(self.errorVar),
+        Ast.VariableExpression(self.getfenvVar),
+        Ast.VariableExpression(self.setfenvVar),
     }
 
     local astItems = {
-        Ast.OrExpression(Ast.AndExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), Ast.FunctionCallExpression(Ast.VariableExpression(newGlobalScope, getfenvVar), {})), Ast.VariableExpression(newGlobalScope, envVar));
-        Ast.OrExpression(Ast.VariableExpression(newGlobalScope, unpackVar), Ast.IndexExpression(Ast.VariableExpression(newGlobalScope, tableVar), Ast.StringExpression("unpack")));
-        Ast.VariableExpression(newGlobalScope, newproxyVar);
-        Ast.VariableExpression(newGlobalScope, setmetatableVar);
-        Ast.VariableExpression(newGlobalScope, getmetatableVar);
-        Ast.VariableExpression(newGlobalScope, selectVar);
+        Ast.OrExpression(Ast.AndExpression(Ast.GlobalVariableExpression(getfenvVar), Ast.FunctionCallExpression(Ast.GlobalVariableExpression(getfenvVar), {})), Ast.GlobalVariableExpression(envVar));
+        Ast.OrExpression(Ast.GlobalVariableExpression(unpackVar), Ast.IndexExpression(Ast.GlobalVariableExpression(tableVar), Ast.StringExpression("unpack")));
+        Ast.GlobalVariableExpression(newproxyVar);
+        Ast.GlobalVariableExpression(setmetatableVar);
+        Ast.GlobalVariableExpression(getmetatableVar);
+        Ast.GlobalVariableExpression(selectVar);
         Ast.TableConstructorExpression({
             Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.FunctionCallExpression(
-                Ast.VariableExpression(newGlobalScope, selectVar), {Ast.StringExpression("#"), Ast.VarargExpression()})),
+                Ast.GlobalVariableExpression(selectVar), {Ast.StringExpression("#"), Ast.VarargExpression()})),
             Ast.TableEntry(Ast.VarargExpression());
         });
-        Ast.VariableExpression(newGlobalScope, tonumberVar);
-        Ast.VariableExpression(newGlobalScope, errorVar);
-        Ast.VariableExpression(newGlobalScope, getfenvVar);
-        Ast.VariableExpression(newGlobalScope, setfenvVar);
+        Ast.GlobalVariableExpression(tonumberVar);
+        Ast.GlobalVariableExpression(errorVar);
+        Ast.GlobalVariableExpression(getfenvVar);
+        Ast.GlobalVariableExpression(setfenvVar);
     }
 
     local functionNode = Ast.FunctionLiteralExpression({
@@ -380,13 +361,13 @@ function Compiler:compile(ast)
     }, Ast.Block({
         Ast.AssignmentStatement(assignmentStatLhs, assignmentStatRhs);
         Ast.ReturnStatement{
-            Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.createVarargClosureVar), {
+            Ast.FunctionCallExpression(Ast.FunctionCallExpression(Ast.VariableExpression(self.createVarargClosureVar), {
                     Ast.NumberExpression(self.startBlockId);
                     Ast.TableConstructorExpression(upvalEntries);
-                    Ast.VariableExpression(self.scope, self.envVar);
-                }), {Ast.FunctionCallExpression(self:unpack(self.scope), {Ast.VariableExpression(self.scope, argVar)})});
+                    Ast.VariableExpression(self.envVar);
+                }), {Ast.FunctionCallExpression(self:unpack(), {Ast.VariableExpression(argVar)})});
         }
-    }, self.scope));
+    }));
 
     return Ast.TopNode(Ast.Block({
         Ast.ReturnStatement{Ast.FunctionCallExpression(functionNode, {
@@ -394,89 +375,89 @@ function Compiler:compile(ast)
             astItems[ids[5]], astItems[ids[6]], astItems[ids[7]], astItems[ids[8]], astItems[ids[9]],
             astItems[ids[10]], astItems[ids[11]],
         })};
-    }, psc), newGlobalScope);
+    }));
 end
 
 -- Each wrapper reads its own environment at entry, before tail-calling the VM.
 -- The VM keeps this table in its call frame so recursion and yields are isolated.
-function Compiler:closureEnvironment(scope, inheritedScope, inheritedVar)
+function Compiler:closureEnvironment(inheritedVar)
     return Ast.OrExpression(Ast.AndExpression(
-        Ast.VariableExpression(self.scope, self.getfenvVar),
-        Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.getfenvVar), {Ast.NumberExpression(1)})
-    ), Ast.VariableExpression(inheritedScope, inheritedVar));
+        Ast.VariableExpression(self.getfenvVar),
+        Ast.FunctionCallExpression(Ast.VariableExpression(self.getfenvVar), {Ast.NumberExpression(1)})
+    ), Ast.VariableExpression(inheritedVar));
 end
 
-function Compiler:inheritClosureEnvironment(scope, funcVar, envVar)
-    local bodyScope = Scope:new(scope);
-    return Ast.IfStatement(Ast.VariableExpression(self.scope, self.setfenvVar), Ast.Block({
-        Ast.FunctionCallStatement(Ast.VariableExpression(self.scope, self.setfenvVar), {
-            Ast.VariableExpression(scope, funcVar),
-            Ast.VariableExpression(scope, envVar),
+function Compiler:inheritClosureEnvironment(funcVar, envVar)
+
+    return Ast.IfStatement(Ast.VariableExpression(self.setfenvVar), Ast.Block({
+        Ast.FunctionCallStatement(Ast.VariableExpression(self.setfenvVar), {
+            Ast.VariableExpression(funcVar),
+            Ast.VariableExpression(envVar),
         }),
-    }, bodyScope), {});
+    }), {});
 end
 
 function Compiler:getCreateClosureVar(argCount)
     if not self.createClosureVars[argCount] then
-        local var = Ast.AssignmentVariable(self.scope, self.scope:addVariable());
-        local createClosureScope = Scope:new(self.scope);
-        local createClosureSubScope = Scope:new(createClosureScope);
+        local var = Ast.LocalSymbol();
 
-        local createClosurePosArg = createClosureScope:addVariable();
-        local createClosureUpvalsArg = createClosureScope:addVariable();
-        local createClosureEnvArg = createClosureScope:addVariable();
-        local createClosureProxyObject = createClosureScope:addVariable();
-        local createClosureFuncVar = createClosureScope:addVariable();
+
+        local createClosurePosArg = Ast.LocalSymbol();
+        local createClosureUpvalsArg = Ast.LocalSymbol();
+        local createClosureEnvArg = Ast.LocalSymbol();
+        local createClosureProxyObject = Ast.LocalSymbol();
+        local createClosureFuncVar = Ast.LocalSymbol();
 
 
         local  argsTb, argsTb2 = {}, {};
         for i = 1, argCount do
-            local arg = createClosureSubScope:addVariable()
-            argsTb[i] = Ast.VariableExpression(createClosureSubScope, arg);
-            argsTb2[i] = Ast.TableEntry(Ast.VariableExpression(createClosureSubScope, arg));
+            local arg = Ast.LocalSymbol()
+            argsTb[i] = Ast.VariableExpression(arg);
+            argsTb2[i] = Ast.TableEntry(Ast.VariableExpression(arg));
         end
         table.insert(argsTb2, Ast.KeyedTableEntry(Ast.StringExpression("n"), Ast.NumberExpression(argCount)));
 
         local val = Ast.FunctionLiteralExpression({
-            Ast.VariableExpression(createClosureScope, createClosurePosArg),
-            Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
-            Ast.VariableExpression(createClosureScope, createClosureEnvArg),
+            Ast.VariableExpression(createClosurePosArg),
+            Ast.VariableExpression(createClosureUpvalsArg),
+            Ast.VariableExpression(createClosureEnvArg),
         }, Ast.Block({
-                Ast.LocalVariableDeclaration(createClosureScope, {
+                Ast.LocalVariableDeclaration({
                     createClosureProxyObject
                 }, {
-                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.upvaluesProxyFunctionVar), {
-                        Ast.VariableExpression(createClosureScope, createClosureUpvalsArg)
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.upvaluesProxyFunctionVar), {
+                        Ast.VariableExpression(createClosureUpvalsArg)
                     })
                 }),
-                Ast.LocalVariableDeclaration(createClosureScope, {createClosureFuncVar},{
+                Ast.LocalVariableDeclaration({createClosureFuncVar},{
                     Ast.FunctionLiteralExpression(argsTb,
                     Ast.Block({
                         Ast.ReturnStatement{
-                            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.containerFuncVar), {
-                                Ast.VariableExpression(createClosureScope, createClosurePosArg),
+                            Ast.FunctionCallExpression(Ast.VariableExpression(self.containerFuncVar), {
+                                Ast.VariableExpression(createClosurePosArg),
                                 Ast.TableConstructorExpression(argsTb2),
-                                Ast.VariableExpression(createClosureScope, createClosureUpvalsArg),
-                                Ast.VariableExpression(createClosureScope, createClosureProxyObject),
-                                self:closureEnvironment(createClosureSubScope, createClosureScope, createClosureEnvArg)
+                                Ast.VariableExpression(createClosureUpvalsArg),
+                                Ast.VariableExpression(createClosureProxyObject),
+                                self:closureEnvironment(createClosureEnvArg)
                             })
                         }
-                    }, createClosureSubScope)
+                    })
                     );
                 });
-                self:inheritClosureEnvironment(createClosureScope, createClosureFuncVar, createClosureEnvArg);
-                Ast.ReturnStatement{Ast.VariableExpression(createClosureScope, createClosureFuncVar)}
-            }, createClosureScope)
+                self:inheritClosureEnvironment(createClosureFuncVar, createClosureEnvArg);
+                Ast.ReturnStatement{Ast.VariableExpression(createClosureFuncVar)}
+            })
         );
         self.createClosureVars[argCount] = {
-            var = var,
+            symbol = var,
+            var = Ast.AssignmentVariable(var),
             val = val,
         }
     end
 
 
-    local var = self.createClosureVars[argCount].var;
-    return var.scope, var.id;
+    local var = self.createClosureVars[argCount].symbol;
+    return var;
 end
 
 return Compiler;

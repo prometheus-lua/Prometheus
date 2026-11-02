@@ -9,6 +9,7 @@ local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local Parser = require("prometheus.parser");
 local analyzeBindings = require("prometheus.bindinganalysis");
+local renameVariables = require("prometheus.names");
 local Unparser = require("prometheus.unparser");
 local logger = require("logger");
 
@@ -257,8 +258,7 @@ function Pipeline:renameVariables(ast)
 		logger:error(string.format("The Prefix \"%s\" is not a valid Identifier in %s", self.VarNamePrefix, self.LuaVersion));
 	end
 
-	local globalScope = ast.globalScope;
-	globalScope:renameVariables({
+	renameVariables(ast, {
 		Keywords = self.conventions.Keywords;
 		generateName = generatorFunction;
 		prefix = self.VarNamePrefix;

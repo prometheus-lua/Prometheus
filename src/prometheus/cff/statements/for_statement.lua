@@ -8,7 +8,6 @@ local Ast = require("prometheus.ast");
 local util = require("prometheus.util");
 
 return function(self, statement, funcDepth)
-    local scope = self.activeBlock.scope;
     local checkBlock = self:createBlock();
     local innerBlock = self:createBlock();
     local finalBlock = self:createBlock();
@@ -21,17 +20,17 @@ return function(self, statement, funcDepth)
 
     local initialExprReg = self:compileExpression(statement.initialValue, funcDepth, 1)[1];
     local initialReg = self:allocRegister(false);
-    self:addStatement(self:copyRegisters(scope, {initialReg}, {initialExprReg}), {initialReg}, {initialExprReg}, false);
+    self:addStatement(self:copyRegisters({initialReg}, {initialExprReg}), {initialReg}, {initialExprReg}, false);
     self:freeRegister(initialExprReg);
 
     local finalExprReg = self:compileExpression(statement.finalValue, funcDepth, 1)[1];
     local finalReg = self:allocRegister(false);
-    self:addStatement(self:copyRegisters(scope, {finalReg}, {finalExprReg}), {finalReg}, {finalExprReg}, false);
+    self:addStatement(self:copyRegisters({finalReg}, {finalExprReg}), {finalReg}, {finalExprReg}, false);
     self:freeRegister(finalExprReg);
 
     local incrementExprReg = self:compileExpression(statement.incrementBy, funcDepth, 1)[1];
     local incrementReg = self:allocRegister(false);
-    self:addStatement(self:copyRegisters(scope, {incrementReg}, {incrementExprReg}), {incrementReg}, {incrementExprReg}, false);
+    self:addStatement(self:copyRegisters({incrementReg}, {incrementExprReg}), {incrementReg}, {incrementExprReg}, false);
     self:freeRegister(incrementExprReg);
 
     -- Lua evaluates all three expressions before coercing and validating them.
@@ -42,82 +41,78 @@ return function(self, statement, funcDepth)
         {incrementReg, "step"},
     }) do
         local reg, name = input[1], input[2];
-        self:addStatement(self:setRegister(scope, reg, Ast.OrExpression(
-            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.tonumberVar), {
-                self:register(scope, reg),
+        self:addStatement(self:setRegister(reg, Ast.OrExpression(
+            Ast.FunctionCallExpression(Ast.VariableExpression(self.tonumberVar), {
+                self:register(reg),
             }),
-            Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.errorVar), {
+            Ast.FunctionCallExpression(Ast.VariableExpression(self.errorVar), {
                 Ast.StringExpression("'for' " .. name .. " must be a number"),
             })
         )), {reg}, {reg}, true);
     end
 
     local tmpReg = self:allocRegister(false);
-    self:addStatement(self:setRegister(scope, tmpReg, Ast.NumberExpression(0)), {tmpReg}, {}, false);
+    self:addStatement(self:setRegister(tmpReg, Ast.NumberExpression(0)), {tmpReg}, {}, false);
     local incrementIsNegReg = self:allocRegister(false);
 
     local shouldSwap3 = math.random(1, 2) == 2;
     local shuffledRegs4 = shouldSwap3 and {incrementReg, tmpReg} or {tmpReg, incrementReg};
-    self:addStatement(self:setRegister(scope, incrementIsNegReg, Ast[shouldSwap3 and "LessThanExpression" or "GreaterThanExpression"](self:register(scope, shuffledRegs4[1]), self:register(scope, shuffledRegs4[2]))), {incrementIsNegReg}, {shuffledRegs4[1], shuffledRegs4[2]}, false);
+    self:addStatement(self:setRegister(incrementIsNegReg, Ast[shouldSwap3 and "LessThanExpression" or "GreaterThanExpression"](self:register(shuffledRegs4[1]), self:register(shuffledRegs4[2]))), {incrementIsNegReg}, {shuffledRegs4[1], shuffledRegs4[2]}, false);
 
     self:freeRegister(tmpReg);
 
     local currentReg = self:allocRegister(true);
-    self:addStatement(self:setRegister(scope, currentReg, Ast.SubExpression(self:register(scope, initialReg), self:register(scope, incrementReg))), {currentReg}, {initialReg, incrementReg}, false);
+    self:addStatement(self:setRegister(currentReg, Ast.SubExpression(self:register(initialReg), self:register(incrementReg))), {currentReg}, {initialReg, incrementReg}, false);
     self:freeRegister(initialReg);
 
-    self:addStatement(self:jmp(scope, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
+    self:addStatement(self:jmp(Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
 
     self:setActiveBlock(checkBlock);
-
-    scope = checkBlock.scope;
-
     -- x = x + y or x = y + x instead of just x = x + y.
     --> NEW: In an attempt to thwart deobfuscations, despite this being a simple comparison... Shuffling these causes problems for decompilers.
     --> NOTE: This isn't unstable code, I've tested it multiple times.
 
     local shuffledRegs = util.shuffle({currentReg, incrementReg});
-    self:addStatement(self:setRegister(scope, currentReg, Ast.AddExpression(self:register(scope, shuffledRegs[1]), self:register(scope, shuffledRegs[2]))), {currentReg}, {shuffledRegs[1], shuffledRegs[2]}, false);
+    self:addStatement(self:setRegister(currentReg, Ast.AddExpression(self:register(shuffledRegs[1]), self:register(shuffledRegs[2]))), {currentReg}, {shuffledRegs[1], shuffledRegs[2]}, false);
     local tmpReg1 = self:allocRegister(false);
     local tmpReg2 = self:allocRegister(false);
-    self:addStatement(self:setRegister(scope, tmpReg2, Ast.NotExpression(self:register(scope, incrementIsNegReg))), {tmpReg2}, {incrementIsNegReg}, false);
+    self:addStatement(self:setRegister(tmpReg2, Ast.NotExpression(self:register(incrementIsNegReg))), {tmpReg2}, {incrementIsNegReg}, false);
 
     local shouldSwap = math.random(1, 2) == 2;
     local shuffledRegs2 = shouldSwap and {currentReg, finalReg} or {finalReg, currentReg};
-    self:addStatement(self:setRegister(scope, tmpReg1, Ast[shouldSwap and "LessThanOrEqualsExpression" or "GreaterThanOrEqualsExpression"](self:register(scope, shuffledRegs2[1]), self:register(scope, shuffledRegs2[2]))), {tmpReg1}, {shuffledRegs2[1], shuffledRegs2[2]}, false);
-    self:addStatement(self:setRegister(scope, tmpReg1, Ast.AndExpression(self:register(scope, tmpReg2), self:register(scope, tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
+    self:addStatement(self:setRegister(tmpReg1, Ast[shouldSwap and "LessThanOrEqualsExpression" or "GreaterThanOrEqualsExpression"](self:register(shuffledRegs2[1]), self:register(shuffledRegs2[2]))), {tmpReg1}, {shuffledRegs2[1], shuffledRegs2[2]}, false);
+    self:addStatement(self:setRegister(tmpReg1, Ast.AndExpression(self:register(tmpReg2), self:register(tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
 
     local shouldSwap2 = math.random(1, 2) == 2;
     local shuffledRegs3 = shouldSwap2 and {currentReg, finalReg} or {finalReg, currentReg};
-    self:addStatement(self:setRegister(scope, tmpReg2, Ast[shouldSwap2 and "GreaterThanOrEqualsExpression" or "LessThanOrEqualsExpression"](self:register(scope, shuffledRegs3[1]), self:register(scope, shuffledRegs3[2]))), {tmpReg2}, {shuffledRegs3[1], shuffledRegs3[2]}, false);
+    self:addStatement(self:setRegister(tmpReg2, Ast[shouldSwap2 and "GreaterThanOrEqualsExpression" or "LessThanOrEqualsExpression"](self:register(shuffledRegs3[1]), self:register(shuffledRegs3[2]))), {tmpReg2}, {shuffledRegs3[1], shuffledRegs3[2]}, false);
 
-    self:addStatement(self:setRegister(scope, tmpReg2, Ast.AndExpression(self:register(scope, incrementIsNegReg), self:register(scope, tmpReg2))), {tmpReg2}, {tmpReg2, incrementIsNegReg}, false);
-    self:addStatement(self:setRegister(scope, tmpReg1, Ast.OrExpression(self:register(scope, tmpReg2), self:register(scope, tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
+    self:addStatement(self:setRegister(tmpReg2, Ast.AndExpression(self:register(incrementIsNegReg), self:register(tmpReg2))), {tmpReg2}, {tmpReg2, incrementIsNegReg}, false);
+    self:addStatement(self:setRegister(tmpReg1, Ast.OrExpression(self:register(tmpReg2), self:register(tmpReg1))), {tmpReg1}, {tmpReg1, tmpReg2}, false);
     self:freeRegister(tmpReg2);
     tmpReg2 = self:compileExpression(Ast.NumberExpression(innerBlock.id), funcDepth, 1)[1];
-    self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.AndExpression(self:register(scope, tmpReg1), self:register(scope, tmpReg2))), {self.POS_REGISTER}, {tmpReg1, tmpReg2}, false);
+    self:addStatement(self:setRegister(self.POS_REGISTER, Ast.AndExpression(self:register(tmpReg1), self:register(tmpReg2))), {self.POS_REGISTER}, {tmpReg1, tmpReg2}, false);
     self:freeRegister(tmpReg2);
     self:freeRegister(tmpReg1);
     tmpReg2 = self:compileExpression(Ast.NumberExpression(finalBlock.id), funcDepth, 1)[1];
-    self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.OrExpression(self:register(scope, self.POS_REGISTER), self:register(scope, tmpReg2))), {self.POS_REGISTER}, {self.POS_REGISTER, tmpReg2}, false);
+    self:addStatement(self:setRegister(self.POS_REGISTER, Ast.OrExpression(self:register(self.POS_REGISTER), self:register(tmpReg2))), {self.POS_REGISTER}, {self.POS_REGISTER, tmpReg2}, false);
     self:freeRegister(tmpReg2);
 
     self:setActiveBlock(innerBlock);
-    scope = innerBlock.scope;
     self.registers[self.POS_REGISTER] = posState;
 
     local varReg = self:getVarRegister(statement.scope, statement.id, funcDepth, nil);
 
     if(self:isUpvalue(statement.scope, statement.id)) then
-        self:addStatement(self:setRegister(scope, varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.allocUpvalFunction), {})), {varReg}, {}, false);
-        self:addStatement(self:setUpvalueMember(scope, self:register(scope, varReg), self:register(scope, currentReg)), {}, {varReg, currentReg}, true);
+        self:addStatement(self:setRegister(varReg, Ast.FunctionCallExpression(Ast.VariableExpression(self.allocUpvalFunction), {})), {varReg}, {}, false);
+        self:addStatement(self:setUpvalueMember(self:register(varReg), self:register(currentReg)), {}, {varReg, currentReg}, true);
     else
-        self:addStatement(self:setRegister(scope, varReg, self:register(scope, currentReg)), {varReg}, {currentReg}, false);
+        self:addStatement(self:setRegister(varReg, self:register(currentReg)), {varReg}, {currentReg}, false);
     end
 
 
     self:compileBlock(statement.body, funcDepth);
-    self:addStatement(self:setRegister(scope, self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
+    self:addStatement(self:setRegister(self.POS_REGISTER, Ast.NumberExpression(checkBlock.id)), {self.POS_REGISTER}, {}, false);
 
     -- Loop state is live on the back edge; release it only after exiting.
     self:setActiveBlock(finalBlock);

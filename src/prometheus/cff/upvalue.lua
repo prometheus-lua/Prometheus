@@ -5,159 +5,141 @@
 -- This Script contains the upvalue and GC management for the compiler.
 
 local Ast = require("prometheus.ast");
-local Scope = require("prometheus.scope");
 local util = require("prometheus.util");
 
 local unpack = unpack or table.unpack;
 
 return function(Compiler)
     function Compiler:createUpvaluesGcFunc()
-        local scope = Scope:new(self.scope);
-        local selfVar = scope:addVariable();
+        local selfVar = Ast.LocalSymbol();
 
-        local iteratorVar = scope:addVariable();
-        local valueVar = scope:addVariable();
-
-        local whileScope = Scope:new(scope);
-
-        local ifScope = Scope:new(whileScope);
-
-        return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, selfVar)}, Ast.Block({
-            Ast.LocalVariableDeclaration(scope, {iteratorVar, valueVar}, {Ast.NumberExpression(1), Ast.IndexExpression(Ast.VariableExpression(scope, selfVar), Ast.NumberExpression(1))}),
+        local iteratorVar = Ast.LocalSymbol();
+        local valueVar = Ast.LocalSymbol();
+        return Ast.FunctionLiteralExpression({Ast.VariableExpression(selfVar)}, Ast.Block({
+            Ast.LocalVariableDeclaration({iteratorVar, valueVar}, {Ast.NumberExpression(1), Ast.IndexExpression(Ast.VariableExpression(selfVar), Ast.NumberExpression(1))}),
             Ast.WhileStatement(Ast.Block({
                 Ast.AssignmentStatement({
-                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)),
-                    Ast.AssignmentVariable(scope, iteratorVar),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(valueVar)),
+                    Ast.AssignmentVariable(iteratorVar),
                 }, {
-                    Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)), Ast.NumberExpression(1)),
-                    Ast.AddExpression(unpack(util.shuffle{Ast.VariableExpression(scope, iteratorVar), Ast.NumberExpression(1)})),
+                    Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(valueVar)), Ast.NumberExpression(1)),
+                    Ast.AddExpression(unpack(util.shuffle{Ast.VariableExpression(iteratorVar), Ast.NumberExpression(1)})),
                 }),
-                Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)), Ast.NumberExpression(0)})), Ast.Block({
+                Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(valueVar)), Ast.NumberExpression(0)})), Ast.Block({
                     Ast.AssignmentStatement({
-                        Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, valueVar)),
-                        Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), Ast.VariableExpression(scope, valueVar)),
+                        Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(valueVar)),
+                        Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesTable), Ast.VariableExpression(valueVar)),
                     }, {
                         Ast.NilExpression(),
                         Ast.NilExpression(),
                     })
-                }, ifScope), {}, nil),
+                }), {}, nil),
                 Ast.AssignmentStatement({
-                    Ast.AssignmentVariable(scope, valueVar),
+                    Ast.AssignmentVariable(valueVar),
                 }, {
-                    Ast.IndexExpression(Ast.VariableExpression(scope, selfVar), Ast.VariableExpression(scope, iteratorVar)),
+                    Ast.IndexExpression(Ast.VariableExpression(selfVar), Ast.VariableExpression(iteratorVar)),
                 }),
-            }, whileScope), Ast.VariableExpression(scope, valueVar), scope);
-        }, scope));
+            }), Ast.VariableExpression(valueVar));
+        }));
     end
 
     function Compiler:createFreeUpvalueFunc()
-        local scope = Scope:new(self.scope);
-        local argVar = scope:addVariable();
-        local ifScope = Scope:new(scope);
-        return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, argVar)}, Ast.Block({
+        local argVar = Ast.LocalSymbol();
+        return Ast.FunctionLiteralExpression({Ast.VariableExpression(argVar)}, Ast.Block({
             Ast.AssignmentStatement({
-                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar))
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(argVar))
             }, {
-                Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)), Ast.NumberExpression(1));
+                Ast.SubExpression(Ast.IndexExpression(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(argVar)), Ast.NumberExpression(1));
             }),
-            Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)), Ast.NumberExpression(0)})), Ast.Block({
+            Ast.IfStatement(Ast.EqualsExpression(unpack(util.shuffle{Ast.IndexExpression(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(argVar)), Ast.NumberExpression(0)})), Ast.Block({
                 Ast.AssignmentStatement({
-                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(scope, argVar)),
-                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesTable), Ast.VariableExpression(scope, argVar)),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(argVar)),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesTable), Ast.VariableExpression(argVar)),
                 }, {
                     Ast.NilExpression(),
                     Ast.NilExpression(),
                 })
-            }, ifScope), {}, nil)
-        }, scope))
+            }), {}, nil)
+        }))
     end
 
     function Compiler:createUpvaluesProxyFunc()
-        local scope = Scope:new(self.scope);
+        local entriesVar = Ast.LocalSymbol();
+        local proxyVar = Ast.LocalSymbol();
+        local metatableVar = Ast.LocalSymbol();
+        local forArg = Ast.LocalSymbol();
 
-        local entriesVar = scope:addVariable();
-
-        local ifScope = Scope:new(scope);
-        local proxyVar = ifScope:addVariable();
-        local metatableVar = ifScope:addVariable();
-        local elseScope = Scope:new(scope);
-
-        local forScope = Scope:new(scope);
-        local forArg = forScope:addVariable();
-
-        return Ast.FunctionLiteralExpression({Ast.VariableExpression(scope, entriesVar)}, Ast.Block({
-            Ast.ForStatement(forScope, forArg, Ast.NumberExpression(1), Ast.LenExpression(Ast.VariableExpression(scope, entriesVar)), Ast.NumberExpression(1), Ast.Block({
+        return Ast.FunctionLiteralExpression({Ast.VariableExpression(entriesVar)}, Ast.Block({
+            Ast.ForStatement(forArg, Ast.NumberExpression(1), Ast.LenExpression(Ast.VariableExpression(entriesVar)), Ast.NumberExpression(1), Ast.Block({
                 Ast.AssignmentStatement({
-                    Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(scope, entriesVar), Ast.VariableExpression(forScope, forArg)))
+                    Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(entriesVar), Ast.VariableExpression(forArg)))
                 }, {
                     Ast.AddExpression(unpack(util.shuffle{
-                        Ast.IndexExpression(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(scope, entriesVar), Ast.VariableExpression(forScope, forArg))),
+                        Ast.IndexExpression(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.IndexExpression(Ast.VariableExpression(entriesVar), Ast.VariableExpression(forArg))),
                         Ast.NumberExpression(1),
                     }))
                 })
-            }, forScope), scope);
-            Ast.IfStatement(Ast.VariableExpression(self.scope, self.newproxyVar), Ast.Block({
-                Ast.LocalVariableDeclaration(ifScope, {proxyVar}, {
-                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.newproxyVar), {
+            }));
+            Ast.IfStatement(Ast.VariableExpression(self.newproxyVar), Ast.Block({
+                Ast.LocalVariableDeclaration({proxyVar}, {
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.newproxyVar), {
                         Ast.BooleanExpression(true)
                     });
                 });
-                Ast.LocalVariableDeclaration(ifScope, {metatableVar}, {
-                    Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.getmetatableVar), {
-                        Ast.VariableExpression(ifScope, proxyVar);
+                Ast.LocalVariableDeclaration({metatableVar}, {
+                    Ast.FunctionCallExpression(Ast.VariableExpression(self.getmetatableVar), {
+                        Ast.VariableExpression(proxyVar);
                     });
                 });
                 Ast.AssignmentStatement({
-                    Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__index")),
-                    Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__gc")),
-                    Ast.AssignmentIndexing(Ast.VariableExpression(ifScope, metatableVar), Ast.StringExpression("__len")),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(metatableVar), Ast.StringExpression("__index")),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(metatableVar), Ast.StringExpression("__gc")),
+                    Ast.AssignmentIndexing(Ast.VariableExpression(metatableVar), Ast.StringExpression("__len")),
                 }, {
-                    Ast.VariableExpression(scope, entriesVar),
-                    Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar),
+                    Ast.VariableExpression(entriesVar),
+                    Ast.VariableExpression(self.upvaluesGcFunctionVar),
                     Ast.FunctionLiteralExpression({}, Ast.Block({
                         Ast.ReturnStatement({Ast.NumberExpression(self.upvalsProxyLenReturn)})
-                    }, Scope:new(ifScope)));
+                    }));
                 });
                 Ast.ReturnStatement({
-                    Ast.VariableExpression(ifScope, proxyVar)
+                    Ast.VariableExpression(proxyVar)
                 })
-            }, ifScope), {}, Ast.Block({
-                Ast.ReturnStatement({Ast.FunctionCallExpression(Ast.VariableExpression(self.scope, self.setmetatableVar), {
+            }), {}, Ast.Block({
+                Ast.ReturnStatement({Ast.FunctionCallExpression(Ast.VariableExpression(self.setmetatableVar), {
                     Ast.TableConstructorExpression({}),
                     Ast.TableConstructorExpression({
-                        Ast.KeyedTableEntry(Ast.StringExpression("__gc"), Ast.VariableExpression(self.scope, self.upvaluesGcFunctionVar)),
-                        Ast.KeyedTableEntry(Ast.StringExpression("__index"), Ast.VariableExpression(scope, entriesVar)),
+                        Ast.KeyedTableEntry(Ast.StringExpression("__gc"), Ast.VariableExpression(self.upvaluesGcFunctionVar)),
+                        Ast.KeyedTableEntry(Ast.StringExpression("__index"), Ast.VariableExpression(entriesVar)),
                         Ast.KeyedTableEntry(Ast.StringExpression("__len"), Ast.FunctionLiteralExpression({}, Ast.Block({
                             Ast.ReturnStatement({Ast.NumberExpression(self.upvalsProxyLenReturn)})
-                        }, Scope:new(ifScope)))),
+                        }))),
                     })
                 })})
-            }, elseScope));
-        }, scope));
+            }));
+        }));
     end
 
     function Compiler:createAllocUpvalFunction()
-        local scope = Scope:new(self.scope);
-
         return Ast.FunctionLiteralExpression({}, Ast.Block({
             Ast.AssignmentStatement({
-                    Ast.AssignmentVariable(self.scope, self.currentUpvalId),
+                    Ast.AssignmentVariable(self.currentUpvalId),
                 },{
                     Ast.AddExpression(unpack(util.shuffle({
-                        Ast.VariableExpression(self.scope, self.currentUpvalId),
+                        Ast.VariableExpression(self.currentUpvalId),
                         Ast.NumberExpression(1),
                     }))),
                 }
             ),
             Ast.AssignmentStatement({
-                Ast.AssignmentIndexing(Ast.VariableExpression(self.scope, self.upvaluesReferenceCountsTable), Ast.VariableExpression(self.scope, self.currentUpvalId)),
+                Ast.AssignmentIndexing(Ast.VariableExpression(self.upvaluesReferenceCountsTable), Ast.VariableExpression(self.currentUpvalId)),
             }, {
                 Ast.NumberExpression(1),
             }),
             Ast.ReturnStatement({
-                Ast.VariableExpression(self.scope, self.currentUpvalId),
+                Ast.VariableExpression(self.currentUpvalId),
             })
-        }, scope));
+        }));
     end
 end
 

@@ -1,18 +1,17 @@
 -- Flatten a generated interpreter without virtualizing its large data initializer.
 local Ast = require('prometheus.ast')
-local Scope = require('prometheus.scope')
 local visitast = require('prometheus.visitast')
 local Parser = require('prometheus.parser')
 local Unparser = require('prometheus.unparser')
 local CffCompiler = require('prometheus.cff.compiler')
 local Enums = require('prometheus.enums')
+local analyzeBindings = require('prometheus.bindinganalysis')
 
 local function externalVariables(ast, runtime)
     local owned, variables, seen = {}, {}, {}
-    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({runtime})},
-        Scope:new(ast.globalScope)), ast.globalScope)
+    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({runtime})}))
     visitast(wrapper, function(node)
-        if node.kind == 'Block' then owned[node.scope] = true end
+        if node.kind == 'Block' and node.scope then owned[node.scope] = true end
     end)
     local writes = false
     visitast(wrapper, function(node)
@@ -21,7 +20,7 @@ local function externalVariables(ast, runtime)
             or kind == 'AssignmentVariable' or kind == 'AssignmentGlobalVariable'
             or kind == 'FunctionDeclaration' then
             local scope = node.scope
-            if not scope.isGlobal and not owned[scope] then
+            if scope and not scope.isGlobal and not owned[scope] then
                 if kind == 'AssignmentVariable' or kind == 'AssignmentGlobalVariable'
                     or (kind == 'FunctionDeclaration' and #node.indices == 0) then
                     writes = true
@@ -40,6 +39,7 @@ local function externalVariables(ast, runtime)
 end
 
 return function(ast)
+    analyzeBindings(ast)
     local runtime = ast.vmRuntime
     local variables, writes = externalVariables(ast, runtime)
     if writes then return nil end
@@ -61,16 +61,14 @@ return function(ast)
         while used[name] do name = name .. '_' end
         used[name], markers[symbol], captures[name], markerNames[i] = true, name, symbol, name
     end
-    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({runtime})},
-        Scope:new(ast.globalScope)), ast.globalScope)
+    local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({runtime})}))
     visitast(wrapper, nil, function(node)
         local name = markers[node.symbol]
         if name then
             if node.kind == 'VariableExpression' then return Ast.GlobalVariableExpression(name) end
             if node.kind == 'FunctionDeclaration' then
                 node.symbol, node.name = nil, name
-                node.scope, node.id = ast.globalScope:resolve(name)
-                node.baseScope, node.baseId = node.scope, node.id
+                node.scope, node.id = nil, nil
             end
         end
     end)
@@ -87,8 +85,7 @@ return function(ast)
     local replacementSource = 'return function(...) return (function(...) '
         .. flattened .. ' end)(' .. forwarded .. ') end'
     local replacement = parser:parse(replacementSource).body.statements[1].args[1]
-    local replacementAst = Ast.TopNode(Ast.Block({Ast.ReturnStatement({replacement})},
-        Scope:new(ast.globalScope)), ast.globalScope)
+    local replacementAst = Ast.TopNode(Ast.Block({Ast.ReturnStatement({replacement})}))
     visitast(replacementAst, nil, function(node)
         if node.kind == 'GlobalVariableExpression' and captures[node.name] then
             return Ast.VariableExpression(captures[node.name])
@@ -98,6 +95,6 @@ return function(ast)
         if node == runtime then return replacement, true end
     end)
     ast.vmRuntime = replacement
-    require('prometheus.bindinganalysis')(ast)
+    analyzeBindings(ast)
     return ast
 end

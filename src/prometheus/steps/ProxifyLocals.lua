@@ -91,6 +91,9 @@ end
 
 function ProxifyLocals:apply(ast, pipeline)
 	local localMetatableInfos = {}
+	-- Rewrite exemptions belong to this invocation, including when the same
+	-- step instance is applied repeatedly to an already transformed tree.
+	local skipped, ignored = {}, {}
 	local function isGlobal(node)
 		return node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable
 	end
@@ -114,7 +117,7 @@ function ProxifyLocals:apply(ast, pipeline)
 	local emptyFunctionDeclaration = Ast.LocalVariableDeclaration({self.emptyFunctionSymbol}, {
 		Ast.FunctionLiteralExpression({}, Ast.Block({})),
 	})
-	emptyFunctionDeclaration.__skipProxifyLocals = true
+	skipped[emptyFunctionDeclaration] = true
 	table.insert(ast.body.statements, 1, emptyFunctionDeclaration)
 
 	visitast(ast, function(node)
@@ -128,14 +131,14 @@ function ProxifyLocals:apply(ast, pipeline)
 					local info = getLocalMetatableInfo(statement.symbol)
 					if info then
 						local declaration = Ast.LocalVariableDeclaration({statement.symbol}, {})
-						declaration.__skipProxifyLocals = true
+						skipped[declaration] = true
 						local literal = Ast.FunctionLiteralExpression(statement.args, statement.body)
 						local target = Ast.AssignmentVariable(statement.symbol)
-						target.__ignoreProxifyLocals = true
+						ignored[target] = true
 						local assignment = Ast.AssignmentStatement({target}, {
 							self:CreateAssignmentExpression(info, literal),
 						})
-						assignment.__skipProxifyLocals = true
+						skipped[assignment] = true
 						node.statements[i] = declaration
 						table.insert(node.statements, i + 1, assignment)
 						i = i + 1
@@ -157,21 +160,21 @@ function ProxifyLocals:apply(ast, pipeline)
 			end
 		end
 
-		if node.kind == AstKind.AssignmentStatement and not node.__skipProxifyLocals
+		if node.kind == AstKind.AssignmentStatement and not skipped[node]
 			and #node.lhs == 1 and node.lhs[1].kind == AstKind.AssignmentVariable then
 			local variable = node.lhs[1]
 			local info = not isGlobal(variable) and getLocalMetatableInfo(variable.symbol)
 			if info then
 				local args = shallowcopy(node.rhs)
 				local reference = Ast.VariableExpression(variable.symbol)
-				reference.__ignoreProxifyLocals = true
+				ignored[reference] = true
 				args[1] = info.setValue.constructor(reference, args[1])
 				self.emptyFunctionUsed = true
 				return Ast.FunctionCallStatement(Ast.VariableExpression(self.emptyFunctionSymbol), args)
 			end
 		end
 	end, function(node)
-		if node.kind == AstKind.LocalVariableDeclaration and not node.__skipProxifyLocals then
+		if node.kind == AstKind.LocalVariableDeclaration and not skipped[node] then
 			for i, symbol in ipairs(node.symbols) do
 				local info = getLocalMetatableInfo(symbol)
 				if info then
@@ -179,7 +182,7 @@ function ProxifyLocals:apply(ast, pipeline)
 				end
 			end
 		end
-		if node.kind == AstKind.VariableExpression and not node.__ignoreProxifyLocals and not isGlobal(node) then
+		if node.kind == AstKind.VariableExpression and not ignored[node] and not isGlobal(node) then
 			local info = getLocalMetatableInfo(node.symbol)
 			if info then
 				local literal
@@ -190,10 +193,10 @@ function ProxifyLocals:apply(ast, pipeline)
 				return info.getValue.constructor(node, literal)
 			end
 		end
-		if node.kind == AstKind.AssignmentVariable and not node.__ignoreProxifyLocals and not isGlobal(node) then
+		if node.kind == AstKind.AssignmentVariable and not ignored[node] and not isGlobal(node) then
 			local info = getLocalMetatableInfo(node.symbol)
 			if info then
-				node.__ignoreProxifyLocals = true
+				ignored[node] = true
 				return Ast.AssignmentIndexing(node, Ast.StringExpression(info.valueName))
 			end
 		end

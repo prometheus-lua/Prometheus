@@ -23,6 +23,10 @@ local read = Ast.VariableExpression(value)
 local write = Ast.AssignmentVariable(value)
 ```
 
+Names are preferences: the unparser normalizes invalid identifier characters and
+leading digits, and resolves collisions and reserved words while preserving symbol
+identity. Valid names are retained when they are unambiguous.
+
 The AST constructors are symbol-only. `Ast.LocalFunctionDeclaration(symbol,
 args, body)` declares a local function. `Ast.FunctionDeclaration(target,
 indices, args, body)` accepts a global reference or a local reference as its
@@ -78,7 +82,9 @@ own initializer. Local functions are active while their bodies are analyzed,
 which allows recursion. Function arguments and loop variables are active in
 their function or loop body. A reference is valid only while its symbol is
 active on the enclosing lexical path. References from nested functions are
-recorded as captures.
+recorded as captures. Compound assignments record their local target as both a
+read and a write, while retaining one reference occurrence. Updating an indexed
+target reads its table and index bindings; it does not write those bindings.
 
 Analysis does not widen a lexical region to make a reference valid. If a
 transform moves a reference outside its symbol's declaration region, it must

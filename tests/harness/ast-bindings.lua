@@ -87,6 +87,34 @@ local info = analyze(ast)
 assert(info.captured[shared] and #info.reads[shared] == 1 and #info.writes[shared] == 1)
 assert(info.writes[shared][1] == write and run(ast)() == 42)
 
+-- Compound targets are one occurrence with both a read and a write. Reading
+-- the address of an indexed target does not write its table or index bindings.
+for _, operator in ipairs({'+=', '-=', '*=', '/=', '%=', '^=', '..='}) do
+    local initial, operand = '1', '2'
+    if operator == '..=' then initial, operand = '"a"', '"b"' end
+    local compound = Parser:new({LuaVersion = 'LuaU'}):parse(
+        'local x=' .. initial .. '; x ' .. operator .. ' ' .. operand .. '; return x')
+    local symbol = compound.body.statements[1].symbols[1]
+    local target = compound.body.statements[2].lhs
+    local analysis = compound.bindingAnalysis
+    assert(#analysis.reads[symbol] == 2 and #analysis.writes[symbol] == 1, operator)
+    assert(analysis.reads[symbol][1] == target and analysis.writes[symbol][1] == target)
+    assert(#analysis.references[symbol] == 2, 'Compound access must not duplicate reference occurrences')
+end
+local indexed = Parser:new({LuaVersion = 'LuaU'}):parse(
+    'local t={1}; local i=1; t[i] += 2; return t[i]')
+for i = 1, 2 do
+    local symbol = indexed.body.statements[i].symbols[1]
+    assert(#indexed.bindingAnalysis.reads[symbol] == 2)
+    assert(not indexed.bindingAnalysis.writes[symbol], 'Indexed updates must not write their address bindings')
+end
+local compoundCapture = Parser:new({LuaVersion = 'LuaU'}):parse(
+    'local x=0; return function() x += 1; return x end')
+local captured = compoundCapture.body.statements[1].symbols[1]
+assert(compoundCapture.bindingAnalysis.captured[captured]
+    and #compoundCapture.bindingAnalysis.reads[captured] == 2
+    and #compoundCapture.bindingAnalysis.writes[captured] == 1)
+
 -- Global accesses have distinct kinds and never acquire local symbols.
 ast = parse('result = print; return result')
 assert(ast.body.statements[1].lhs[1].kind == K.AssignmentGlobalVariable)
@@ -144,11 +172,56 @@ ast = tree({Ast.LocalVariableDeclaration({outer}, {Ast.NumberExpression(1)}),
 plain = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1, Steps = {}}):unparse(ast)
 assert(assert(loadstring(plain))() == 1)
 
+-- Preferred names can be arbitrary labels. Printing must choose valid names
+-- without shadowing globals or merging bindings that normalize to the same base.
+local Unparser = require('prometheus.unparser')
+for _, version in ipairs({'Lua51', 'LuaU'}) do
+    local symbols, values, references = {}, {}, {}
+    for i, preferred in ipairs({'bad-name', 'bad name', 'bad_name', '1st', '', 'end', 'continue', 'normal_name'}) do
+        symbols[i], values[i] = Ast.LocalSymbol(preferred), Ast.NumberExpression(i)
+        references[i] = Ast.VariableExpression(symbols[i])
+    end
+    references[#references + 1] = Ast.GlobalVariableExpression('bad_name')
+    local constructed = tree({Ast.LocalVariableDeclaration(symbols, values), Ast.ReturnStatement(references)})
+    local unparser = Unparser:new({LuaVersion = version})
+    local output = unparser:unparse(constructed)
+    for _, symbol in ipairs(symbols) do assert(unparser:isValidIdentifier(symbol.name)) end
+    assert(symbols[#symbols].name == 'normal_name', 'Valid preferred names should be preserved')
+    assert(unparser:unparse(constructed) == output, 'Name normalization must be stable across repeated printing')
+    local chunk = assert(loadstring(output))
+    setfenv(chunk, {bad_name = 99})
+    local result = {chunk()}
+    for i = 1, #symbols do assert(result[i] == i) end
+    assert(result[#symbols + 1] == 99, 'Normalized locals must not capture global accesses')
+end
+
 -- Lowering a recursive local function must preserve its declaration point.
 local proxy = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1,
     Steps = {{Name = 'ProxifyLocals'}}}):apply(
     'local function f(n) if n == 0 then return 1 end return f(n - 1) end return f(3)')
 assert(assert(loadstring(proxy))() == 1)
+
+-- Repeated passes must transform earlier generated declarations and uses
+-- consistently, including when a caller reuses the same step instance.
+local proxySources = {
+    'local function f() return 1 end return f()',
+    'local function f(n) if n==0 then return 1 end return f(n-1) end return f(3)',
+    'local x=0; local function f() x=x+1; return x end; f(); return f()',
+}
+for _, seed in ipairs({1, 4, 17}) do
+    for i, source in ipairs(proxySources) do
+        local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = seed,
+            Steps = {{Name = 'ProxifyLocals'}, {Name = 'ProxifyLocals'}}})
+        local chunk = assert(loadstring(pipeline:apply(source)))
+        assert(chunk() == (i == 3 and 2 or 1), 'Repeated ProxifyLocals changed function behavior')
+    end
+end
+local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 1,
+    Steps = {{Name = 'ProxifyLocals'}}})
+local reused, transformed = pipeline.steps[1], parse(proxySources[2])
+math.randomseed(1)
+for i = 1, 3 do reused:apply(transformed, pipeline) end
+assert(run(transformed) == 1, 'Reusing a step instance must not retain rewrite exemptions')
 
 -- Steps must also operate on syntax with no cached scopes or numeric slots.
 local function stripMetadata(node, seen)

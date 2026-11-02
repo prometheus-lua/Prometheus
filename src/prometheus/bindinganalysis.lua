@@ -44,7 +44,7 @@ return function(ast)
         return id
     end
 
-    local function reference(node, scope, owner)
+    local function reference(node, scope, owner, readWrite)
         local target, id
         if node.kind == K.GlobalVariableExpression or node.kind == K.AssignmentGlobalVariable
             or (node.kind == K.FunctionDeclaration and not node.symbol) then
@@ -65,6 +65,11 @@ return function(ast)
             local uses = writes and analysis.writes or analysis.reads
             uses[symbol] = uses[symbol] or {}
             uses[symbol][#uses[symbol] + 1] = node
+            if writes and readWrite then
+                analysis.reads[symbol] = analysis.reads[symbol] or {}
+                local reads = analysis.reads[symbol]
+                reads[#reads + 1] = node
+            end
             if analysis.owners[target] ~= owner then analysis.captured[symbol] = true end
         end
         node.scope, node.id = target, id
@@ -83,11 +88,11 @@ return function(ast)
         for _, node in ipairs(list or {}) do expression(node, scope, owner) end
     end
 
-    function expression(node, scope, owner)
+    function expression(node, scope, owner, readWrite)
         local kind = node.kind
         if kind == K.VariableExpression or kind == K.AssignmentVariable
             or kind == K.GlobalVariableExpression or kind == K.AssignmentGlobalVariable then
-            reference(node, scope, owner)
+            reference(node, scope, owner, readWrite)
         elseif binary[kind] then
             expression(node.lhs, scope, owner); expression(node.rhs, scope, owner)
         elseif kind == K.NotExpression or kind == K.NegateExpression or kind == K.LenExpression then
@@ -159,7 +164,7 @@ return function(ast)
         elseif kind == K.AssignmentStatement then
             expressions(node.lhs, scope, owner); expressions(node.rhs, scope, owner)
         elseif compound[kind] then
-            expression(node.lhs, scope, owner); expression(node.rhs, scope, owner)
+            expression(node.lhs, scope, owner, true); expression(node.rhs, scope, owner)
         elseif kind == K.ReturnStatement then expressions(node.args, scope, owner)
         elseif kind == K.FunctionCallStatement or kind == K.PassSelfFunctionCallStatement then
             expression(node.base, scope, owner); expressions(node.args, scope, owner)

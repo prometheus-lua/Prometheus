@@ -115,10 +115,14 @@ function Unparser:unparse(ast)
 	renameVariables(ast, {
 		Keywords = self.conventions.Keywords,
 		generateName = function(_, scope, originalName)
+			-- Symbol names are preferences. Make them valid identifier spellings
+			-- before resolving collisions and reserved words in the allocator.
+			local base = originalName:gsub(self.notIdentPattern, "_");
+			if #base == 0 or base:find(self.numberPattern) then base = "_" .. base; end
 			attempts[scope] = attempts[scope] or {};
-			local count = attempts[scope][originalName] or 0;
-			attempts[scope][originalName] = count + 1;
-			return count == 0 and originalName or originalName .. "_" .. count;
+			local count = attempts[scope][base] or 0;
+			attempts[scope][base] = count + 1;
+			return count == 0 and base or base .. "_" .. count;
 		end,
 	});
 

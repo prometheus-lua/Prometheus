@@ -1,10 +1,7 @@
 -- Flatten a generated interpreter without virtualizing its large data initializer.
 local Ast = require('prometheus.ast')
 local visitast = require('prometheus.visitast')
-local Parser = require('prometheus.parser')
-local Unparser = require('prometheus.unparser')
 local CffCompiler = require('prometheus.cff.compiler')
-local Enums = require('prometheus.enums')
 local analyzeBindings = require('prometheus.bindinganalysis')
 
 local function externalVariables(ast, runtime)
@@ -43,54 +40,38 @@ return function(ast)
     local runtime = ast.vmRuntime
     local variables, writes = externalVariables(ast, runtime)
     if writes then return nil end
-    local parser = Parser:new({LuaVersion = Enums.LuaVersion.Lua51, AllowInternalIdentifiers = true})
-    local unparser = Unparser:new({LuaVersion = Enums.LuaVersion.Lua51})
-    -- Serialize captures through fresh marker names, then reconnect the parsed
-    -- forwarding references to their original symbols. Textual name resolution
-    -- would silently rebind them when surrounding locals are renamed.
-    local used, markers, captures = {}, {}, {}
-    visitast(ast, function(node)
-        if node.scope then
-            for _, name in pairs(node.scope.variables) do used[name] = true end
-        end
-        if node.name then used[node.name] = true end
-    end)
-    local markerNames = {}
+    -- Give standalone captures fresh parameter bindings. The forwarding reads
+    -- below still point to the actual outer symbols, without textual rebinding.
+    local parameters, replacements = {}, {}
+    local forwarded = {}
     for i, symbol in ipairs(variables) do
-        local name = '__prometheus_capture_' .. i
-        while used[name] do name = name .. '_' end
-        used[name], markers[symbol], captures[name], markerNames[i] = true, name, symbol, name
+        local parameter = Ast.LocalSymbol('runtime_capture_' .. i)
+        parameters[i], replacements[symbol] = parameter, parameter
+        forwarded[i] = Ast.VariableExpression(symbol)
     end
+    forwarded[#forwarded + 1] = Ast.VarargExpression()
     local wrapper = Ast.TopNode(Ast.Block({Ast.ReturnStatement({runtime})}))
     visitast(wrapper, nil, function(node)
-        local name = markers[node.symbol]
-        if name then
-            if node.kind == 'VariableExpression' then return Ast.GlobalVariableExpression(name) end
-            if node.kind == 'FunctionDeclaration' then
-                node.symbol, node.name = nil, name
-                node.scope, node.id = nil, nil
-            end
+        local parameter = replacements[node.symbol]
+        if parameter then
+            if node.kind == 'VariableExpression' then return Ast.VariableExpression(parameter) end
+            if node.kind == 'FunctionDeclaration' then node.symbol = parameter end
         end
     end)
-    local runtimeSource = unparser:unparseExpression(runtime, 0)
-    local prefix = ''
-    local arguments = '...'
-    if #variables > 0 then
-        prefix = 'local ' .. table.concat(markerNames, ',') .. '=...;'
-        arguments = 'select(' .. (#variables + 1) .. ',...)'
+    local statements, arguments = {}, {Ast.VarargExpression()}
+    if #parameters > 0 then
+        statements[1] = Ast.LocalVariableDeclaration(parameters, {Ast.VarargExpression()})
+        arguments = {Ast.FunctionCallExpression(Ast.GlobalVariableExpression('select'), {
+            Ast.NumberExpression(#parameters + 1), Ast.VarargExpression(),
+        })}
     end
-    local standalone = parser:parse(prefix .. 'return (' .. runtimeSource .. ')(' .. arguments .. ')')
-    local flattened = unparser:unparse(CffCompiler:new():compile(standalone))
-    local forwarded = #variables > 0 and table.concat(markerNames, ',') .. ',...' or '...'
-    local replacementSource = 'return function(...) return (function(...) '
-        .. flattened .. ' end)(' .. forwarded .. ') end'
-    local replacement = parser:parse(replacementSource).body.statements[1].args[1]
-    local replacementAst = Ast.TopNode(Ast.Block({Ast.ReturnStatement({replacement})}))
-    visitast(replacementAst, nil, function(node)
-        if node.kind == 'GlobalVariableExpression' and captures[node.name] then
-            return Ast.VariableExpression(captures[node.name])
-        end
-    end)
+    statements[#statements + 1] = Ast.ReturnStatement({Ast.FunctionCallExpression(runtime, arguments)})
+    local standalone = Ast.TopNode(Ast.Block(statements))
+    local flattened = CffCompiler:new():compile(standalone)
+    local replacement = Ast.FunctionLiteralExpression({Ast.VarargExpression()}, Ast.Block({
+        Ast.ReturnStatement({Ast.FunctionCallExpression(
+            Ast.FunctionLiteralExpression({Ast.VarargExpression()}, flattened.body), forwarded)}),
+    }))
     visitast(ast, function(node)
         if node == runtime then return replacement, true end
     end)

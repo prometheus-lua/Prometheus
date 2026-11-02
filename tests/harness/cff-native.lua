@@ -307,4 +307,73 @@ assert(result.n == 5 and result[1] == plaintext and result[2] == plaintext
     and result[3] == 'hoist_second_value' and result[4] == 'tail' and result[5] == nil,
     'Final Medium pipeline changed hoisted payload strings or result arity')
 
+-- Native expressions retain binding identity instead of recovering bindings
+-- from printed names. Exercise functions and tables containing functions, with
+-- names that also collide with the environment bridge's preferred name.
+do
+    local parser = Parser:new({LuaVersion = 'Lua51'})
+    local unparser = Unparser:new({LuaVersion = 'Lua51'})
+    for _, seed in ipairs({1, 4, 17}) do
+        for _, tableCase in ipairs({false, true}) do
+            local source = 'function() local first=1; local second=2; return first,second,_VERSION end'
+            local ast = parser:parse('return ' .. (tableCase and '{' .. source .. '}' or source))
+            local native = ast.body.statements[1].args[1]
+            local fn = tableCase and native.entries[1].value or native
+            for i = 1, 2 do fn.body.statements[i].symbols[1].name = 'native_env' end
+            local compiler = CffCompiler:new()
+            compiler.nativeExpressions = {[native] = true}
+            math.randomseed(seed)
+            local compiled = compiler:compile(ast)
+            local value = assert(loadstring(unparser:unparse(compiled)))()
+            local result = pack((tableCase and value[1] or value)())
+            assert(result.n == 3 and result[1] == 1 and result[2] == 2 and result[3] == _VERSION,
+                'Native Cff merged distinct symbols with colliding preferred names')
+        end
+    end
+end
+
+-- The standalone flattening bridge uses fresh capture bindings and forwards
+-- actual outer symbols. All source locals may share a preferred name, including
+-- the generated capture parameter's name; trailing nil arguments must survive.
+do
+    local flatten = require('prometheus.vm.flatten')
+    local parser = Parser:new({LuaVersion = 'Lua51'})
+    local unparser = Unparser:new({LuaVersion = 'Lua51'})
+    for _, seed in ipairs({1, 4, 17}) do
+        local ast = parser:parse([[
+            local outside=10; local other=20
+            return (function(...)
+                local first=1; local second=2
+                return outside,other,first,second,...
+            end)(...)
+        ]])
+        local runtime = ast.body.statements[3].args[1].base
+        for i = 1, 2 do
+            ast.body.statements[i].symbols[1].name = 'runtime_capture_1'
+            runtime.body.statements[i].symbols[1].name = 'runtime_capture_1'
+        end
+        ast.vmRuntime = runtime
+        math.randomseed(seed)
+        local compiled = assert(flatten(ast))
+        local result = pack(assert(loadstring(unparser:unparse(compiled)))(nil, 3, nil))
+        assert(result.n == 7 and result[1] == 10 and result[2] == 20
+            and result[3] == 1 and result[4] == 2 and result[5] == nil
+            and result[6] == 3 and result[7] == nil,
+            'Flattening changed local bindings, captures, or argument arity')
+    end
+    local ast = parser:parse([[
+        local object={}
+        local result=(function()
+            function object.run(value) return value+1 end
+            return object
+        end)()
+        return result==object,object.run(41)
+    ]])
+    ast.vmRuntime = ast.body.statements[2].expressions[1].base
+    math.randomseed(1)
+    local compiled = assert(flatten(ast))
+    local same, value = assert(loadstring(unparser:unparse(compiled)))()
+    assert(same and value == 42, 'Flattening detached a captured table or its method target')
+end
+
 print('Cff native VM exclusion and captured closure checks passed')

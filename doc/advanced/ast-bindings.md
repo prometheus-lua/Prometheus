@@ -105,6 +105,10 @@ local binding, create a fresh `Ast.LocalSymbol` for the clone and point its
 cloned references to that symbol. Reusing the original symbol would make two
 declarations claim one identity. Global nodes can be cloned by name.
 
+Native Cff wrappers and standalone interpreter flattening are built directly as
+AST nodes. They preserve local symbols and use fresh symbols for bridge parameters;
+printing and reparsing fragments must not be used to recover binding identities.
+
 Lowering backends may attach private slot or scope metadata for their own
 implementation. Such fields are derived and backend-specific; AST transforms
 must use symbols and must not rely on those fields for binding identity.

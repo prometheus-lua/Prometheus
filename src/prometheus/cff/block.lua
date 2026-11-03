@@ -4,6 +4,7 @@
 --
 -- Block management for the compiler
 local util = require("prometheus.util");
+local Source = require("prometheus.source");
 
 local lookupify = util.lookupify;
 
@@ -29,6 +30,7 @@ return function(Compiler)
 
     function Compiler:addStatement(statement, writes, reads, usesUpvals, isCleanup)
         if(self.activeBlock.advanceToNextBlock) then
+            Source.fill(statement, self.currentOrigin);
             table.insert(self.activeBlock.statements, {
                 statement = statement,
                 writes = lookupify(writes),

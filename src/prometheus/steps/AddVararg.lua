@@ -8,6 +8,7 @@ local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local visitast = require("prometheus.visitast");
 local AstKind = Ast.AstKind;
+local Source = require("prometheus.source");
 
 local AddVararg = Step:extend();
 AddVararg.Description = "This Step Adds Vararg to all Functions";
@@ -18,10 +19,11 @@ AddVararg.SettingsDescriptor = {}
 function AddVararg:init(_) end
 
 function AddVararg:apply(ast)
+	local generatedSpan = Source.generated("AddVararg");
 	visitast(ast, nil, function(node)
         if node.kind == AstKind.FunctionDeclaration or node.kind == AstKind.LocalFunctionDeclaration or node.kind == AstKind.FunctionLiteralExpression then
             if #node.args < 1 or node.args[#node.args].kind ~= AstKind.VarargExpression then
-                node.args[#node.args + 1] = Ast.VarargExpression();
+				node.args[#node.args + 1] = Source.fill(Ast.VarargExpression(), generatedSpan);
             end
         end
     end)

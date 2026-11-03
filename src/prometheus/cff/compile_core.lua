@@ -50,4 +50,17 @@ return function(Compiler)
         end
         logger:error(string.format("%s is not an compliable expression!", expression.kind));
     end
+
+    -- Each handler emits operations for its input node. Nested compilation
+    -- temporarily selects the child's origin and restores the enclosing one.
+    for _, method in ipairs({'compileStatement', 'compileExpression'}) do
+        local compile = Compiler[method]
+        Compiler[method] = function(self, node, ...)
+            local previous = self.currentOrigin
+            self.currentOrigin = node.sourceSpan or previous
+            local result = compile(self, node, ...)
+            self.currentOrigin = previous
+            return result
+        end
+    end
 end

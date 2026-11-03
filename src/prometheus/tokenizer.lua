@@ -45,7 +45,8 @@ Tokenizer.EOF_TOKEN = {
 }
 
 local function token(self, startPos, kind, value)
-	local line, linePos = self:getPosition(self.index);
+	local line, linePos = self:getPosition(startPos);
+	local endLine, endLinePos = self:getPosition(self.index);
 	local annotations = self.annotations
 	self.annotations = {};
 	return {
@@ -56,6 +57,8 @@ local function token(self, startPos, kind, value)
 		source = self.source:sub(startPos + 1, self.index),
 		line = line,
 		linePos = linePos,
+		endLine = endLine,
+		endLinePos = endLinePos,
 		annotations = annotations,
 	}
 end
@@ -70,34 +73,37 @@ local function generateWarning(token, message)
 end
 
 function Tokenizer:getPosition(i)
-	local column = self.columnMap[i]
+	local position = self.positionMap[i]
 
-	if not column then --// `i` is bigger than self.length, this shouldn't happen, but it did. (Theres probably some error in the tokenizer, cant find it.)
-		column = self.columnMap[#self.columnMap]
+	if not position then
+		position = self.positionMap[self.length] or {line = 1, column = 1}
 	end
 
-	return column.id, column.charMap[i]
+	return position.line, position.column
 end
 
---// Prepare columnMap for getPosition
+--// Prepare byte-coordinate positions for every offset from 0 through length.
 function Tokenizer:prepareGetPosition()
-	local columnMap, column = {}, { charMap = {}, id = 1, length = 0 }
+	local positionMap = {[0] = {line = 1, column = 1}}
+	local line, column = 1, 1
+	local previousNewline
 
-	for index = 1, self.length do
-		local character = string.sub(self.source, index, index) -- NOTE_1: this could use table.clone to reduce amount of NEWTABLE (if that causes any performance issues)
-
-		local columnLength = column.length + 1
-		column.length = columnLength
-		column.charMap[index] = columnLength
-
-		if character == "\n" then
-			column = { charMap = {}, id = column.id + 1, length = 0 } -- NOTE_1
+	for offset = 1, self.length do
+		local character = self.source:sub(offset, offset)
+		if character == "\r" or character == "\n" then
+			local paired = (character == "\r" and previousNewline == "\n")
+				or (character == "\n" and previousNewline == "\r")
+			if not paired then line = line + 1 end
+			column = 1
+			previousNewline = character
+		else
+			column = column + 1
+			previousNewline = nil
 		end
-
-		columnMap[index] = column
+		positionMap[offset] = {line = line, column = column}
 	end
 
-	self.columnMap = columnMap
+	self.positionMap = positionMap
 end
 
 -- Constructor for Tokenizer
@@ -146,6 +152,7 @@ function Tokenizer:new(settings)
 
 		StringStartLookup = lookupify({"\"", "\'"}),
 		annotations = {},
+		positionMap = {[0] = {line = 1, column = 1}},
 	};
 
 	setmetatable(tokenizer, self);
@@ -160,7 +167,7 @@ function Tokenizer:reset()
 	self.length = 0;
 	self.source = "";
 	self.annotations = {};
-	self.columnMap = {};
+	self.positionMap = {[0] = {line = 1, column = 1}};
 end
 
 -- Append String to this Tokenizer
@@ -489,7 +496,8 @@ end
 
 function Tokenizer:symbol()
 	local startPos = self.index;
-	for len = self.MaxSymbolLength, 1, -1 do
+	local maxLength = math.min(self.MaxSymbolLength, self.length - self.index)
+	for len = maxLength, 1, -1 do
 		local str = self.source:sub(self.index + 1, self.index + len);
 		if self.SymbolsLookup[str] then
 			self.index = self.index + len;

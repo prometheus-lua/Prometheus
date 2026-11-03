@@ -7,6 +7,7 @@
 local Ast = require("prometheus.ast");
 local util = require("prometheus.util");
 local constants = require("prometheus.cff.constants");
+local Source = require("prometheus.source");
 local AstKind = Ast.AstKind;
 
 local MAX_REGS = constants.MAX_REGS;
@@ -39,7 +40,7 @@ return function(Compiler)
         return slots;
     end
 
-    local function canMergeParallelAssignmentStatements(statA, statB)
+    local function canMergeParallelAssignmentStatements(statA, statB, sourceMap)
         if type(statA) ~= "table" or type(statB) ~= "table" then
             return false;
         end
@@ -54,6 +55,9 @@ return function(Compiler)
         local a = statA.statement;
         local b = statB.statement;
         if type(a) ~= "table" or type(b) ~= "table" then
+            return false;
+        end
+        if sourceMap and not Source.sameLine(a.sourceSpan, b.sourceSpan) then
             return false;
         end
         if a.kind ~= AstKind.AssignmentStatement or b.kind ~= AstKind.AssignmentStatement then
@@ -127,7 +131,7 @@ return function(Compiler)
         for i = 1, #bRhs do rhs[#aRhs + i] = bRhs[i]; end
 
         return {
-            statement = Ast.AssignmentStatement(lhs, rhs),
+            statement = Source.inherit(Ast.AssignmentStatement(lhs, rhs), statA.statement),
             writes = unionLookupTables(statA.writes, statB.writes),
             reads = unionLookupTables(statA.reads, statB.reads),
             usesUpvals = statA.usesUpvals or statB.usesUpvals,
@@ -135,14 +139,14 @@ return function(Compiler)
         };
     end
 
-    local function mergeAdjacentParallelAssignments(blockstats)
+    local function mergeAdjacentParallelAssignments(blockstats, sourceMap)
         local merged = {};
         local i = 1;
         while i <= #blockstats do
             local stat = blockstats[i];
             i = i + 1;
 
-            while i <= #blockstats and canMergeParallelAssignmentStatements(stat, blockstats[i]) do
+            while i <= #blockstats and canMergeParallelAssignmentStatements(stat, blockstats[i], sourceMap) do
                 stat = mergeParallelAssignmentStatements(stat, blockstats[i]);
                 i = i + 1;
             end
@@ -216,9 +220,9 @@ return function(Compiler)
                 end
             end
 
-            local mergedBlockStats = mergeAdjacentParallelAssignments(blockstats);
+            local mergedBlockStats = mergeAdjacentParallelAssignments(blockstats, self.sourceMap);
             for _=1, 7 do
-                mergedBlockStats = mergeAdjacentParallelAssignments(mergedBlockStats);
+                mergedBlockStats = mergeAdjacentParallelAssignments(mergedBlockStats, self.sourceMap);
             end
 
             blockstats = {};

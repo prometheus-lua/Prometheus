@@ -13,6 +13,7 @@ local Ast = require("prometheus.ast")
 local visitast = require("prometheus.visitast")
 local util = require("prometheus.util")
 local logger = require("logger")
+local Source = require("prometheus.source")
 local AstKind = Ast.AstKind
 
 local NumbersToExpressions = Step:extend()
@@ -188,7 +189,7 @@ function NumbersToExpressions:apply(ast)
 	visitast(ast, nil, function(node, _)
 		if node.kind == AstKind.NumberExpression then
 			if math.random() <= self.Threshold then
-				return self:CreateNumberExpression(node.value, 0)
+				return Source.inherit(self:CreateNumberExpression(node.value, 0), node)
 			end
 		end
 	end)

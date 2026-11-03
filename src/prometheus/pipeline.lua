@@ -12,6 +12,7 @@ local analyzeBindings = require("prometheus.bindinganalysis");
 local renameVariables = require("prometheus.names");
 local Unparser = require("prometheus.unparser");
 local logger = require("logger");
+local Source = require("prometheus.source");
 
 local NameGenerators = require("prometheus.namegenerators");
 
@@ -34,6 +35,8 @@ local Pipeline = {
 	DefaultSettings = {
 		LuaVersion = LuaVersion.LuaU; -- The Lua Version to use for the Tokenizer, Parser and Unparser
 		PrettyPrint = false; -- Note that Pretty Print is currently not producing Pretty results
+		SourceMap = false;
+		SourceMapIncludeSources = true;
 		Seed = 0; -- The Seed. 0 or below uses the current time as a seed
 		VarNamePrefix = ""; -- The Prefix that every variable will start with
 	}
@@ -55,6 +58,8 @@ function Pipeline:new(settings)
 	local pipeline = {
 		LuaVersion = luaVersion;
 		PrettyPrint = prettyPrint;
+		SourceMap = settings.SourceMap == true;
+		SourceMapIncludeSources = settings.SourceMapIncludeSources ~= false;
 		VarNamePrefix = prefix;
 		Seed = seed;
 		parser = Parser:new({
@@ -63,6 +68,8 @@ function Pipeline:new(settings)
 		unparser = Unparser:new({
 			LuaVersion = luaVersion;
 			PrettyPrint = prettyPrint;
+			SourceMap = settings.SourceMap == true;
+			SourceMapIncludeSources = settings.SourceMapIncludeSources ~= false;
 			Highlight = settings.Highlight;
 		});
 		namegenerator = Pipeline.NameGenerators.MangledShuffled;
@@ -81,6 +88,8 @@ function Pipeline:fromConfig(config)
 	local pipeline = Pipeline:new({
 		LuaVersion = config.LuaVersion or LuaVersion.Lua51;
 		PrettyPrint = config.PrettyPrint or false;
+		SourceMap = config.SourceMap == true;
+		SourceMapIncludeSources = config.SourceMapIncludeSources ~= false;
 		VarNamePrefix = config.VarNamePrefix or "";
 		Seed = config.Seed or 0;
 	});
@@ -136,6 +145,9 @@ function Pipeline:setLuaVersion(luaVersion)
 	});
 	self.unparser = Unparser:new({
 		LuaVersion = luaVersion;
+		PrettyPrint = self.PrettyPrint;
+		SourceMap = self.SourceMap;
+		SourceMapIncludeSources = self.SourceMapIncludeSources;
 	});
 	self.conventions = conventions;
 end
@@ -222,7 +234,7 @@ function Pipeline:apply(code, filename)
 	local parserStartTime = gettime();
 
 	local sourceLen = string.len(code);
-	local ast = self.parser:parse(code);
+	local ast = self.parser:parse(code, filename);
 
 	local parserTimeDiff = gettime() - parserStartTime;
 	logger:info(string.format("Parsing Done in %.2f seconds", parserTimeDiff));
@@ -235,6 +247,7 @@ function Pipeline:apply(code, filename)
 		if type(newAst) == "table" then
 			ast = newAst;
 		end
+		Source.fill(ast, Source.generated(step.Name or 'step'));
 		analyzeBindings(ast);
 		logger:info(string.format("Step \"%s\" Done in %.2f seconds", step.Name or "Unnamed", gettime() - stepStartTime));
 	end
@@ -242,26 +255,31 @@ function Pipeline:apply(code, filename)
 	-- Rename Variables Step
 	self:renameVariables(ast);
 
-	code = self:unparse(ast);
+	local map;
+	code, map = self:unparse(ast);
 
 	local timeDiff = gettime() - startTime;
 	logger:info(string.format("Obfuscation Done in %.2f seconds", timeDiff));
 
 	logger:info(string.format("Generated Code size is %.2f%% of the Source Code size", (string.len(code) / sourceLen)*100))
 
-	return code;
+	return code, map;
 end
 
 function Pipeline:unparse(ast)
 	local startTime = gettime();
 	logger:info("Generating Code ...");
 
-	local unparsed = self.unparser:unparse(ast);
+	-- Options can be changed directly by existing programmatic consumers.
+	self.unparser.sourceMap = self.SourceMap;
+	self.unparser.includeSources = self.SourceMapIncludeSources;
+	self.unparser.prettyPrint = self.PrettyPrint;
+	local unparsed, map = self.unparser:unparse(ast);
 
 	local timeDiff = gettime() - startTime;
 	logger:info(string.format("Code Generation Done in %.2f seconds", timeDiff));
 
-	return unparsed;
+	return unparsed, map;
 end
 
 function Pipeline:renameVariables(ast)

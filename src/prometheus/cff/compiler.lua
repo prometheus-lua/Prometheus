@@ -7,6 +7,7 @@
 local Ast = require("prometheus.ast");
 local analyzeBindings = require("prometheus.bindinganalysis");
 local util = require("prometheus.util");
+local Source = require("prometheus.source");
 
 local lookupify = util.lookupify;
 local AstKind = Ast.AstKind;
@@ -83,6 +84,7 @@ function Compiler:popRegisterUsageInfo()
 end
 
 function Compiler:compile(ast)
+    self.currentOrigin = nil;
     analyzeBindings(ast);
     self.blocks = {};
     self.registers = {};
@@ -369,13 +371,13 @@ function Compiler:compile(ast)
         }
     }));
 
-    return Ast.TopNode(Ast.Block({
+    return Source.fill(Ast.TopNode(Ast.Block({
         Ast.ReturnStatement{Ast.FunctionCallExpression(functionNode, {
             astItems[ids[1]], astItems[ids[2]], astItems[ids[3]], astItems[ids[4]],
             astItems[ids[5]], astItems[ids[6]], astItems[ids[7]], astItems[ids[8]], astItems[ids[9]],
             astItems[ids[10]], astItems[ids[11]],
         })};
-    }));
+    })), Source.generated('Cff'));
 end
 
 -- Each wrapper reads its own environment at entry, before tail-calling the VM.

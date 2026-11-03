@@ -40,6 +40,9 @@ access to the original files. `--source-map-no-sources` omits that text; the
 trace command then looks for the original source relative to the map file,
 including any `sourceRoot` recorded in the map. The CLI stores relative source
 paths relative to the map file so maps remain usable when saved in a subfolder.
+When embedded-source output is enabled, source text that is not valid UTF-8 is
+omitted from `sourcesContent` as `null` and the CLI logs a warning. With
+`--source-map-no-sources`, no embedded-source warning is emitted.
 
 For example, save a traceback in a file and translate it with:
 

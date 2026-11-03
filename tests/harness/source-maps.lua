@@ -26,6 +26,19 @@ assert(Json.decode('"\\ud83d\\ude00"') == '\240\159\152\128')
 for _, input in ipairs({'01', '[1,]', '{"a":}', '"\\ud800"', 'true false'}) do
     assert(not pcall(Json.decode, input), 'Should reject JSON ' .. input)
 end
+for _, text in ipairs({'', 'ASCII\0text', '\194\128', '\223\191', '\224\160\128',
+    '\237\159\191', '\239\191\191', '\240\144\128\128', '\244\143\191\191',
+    'Unicode: \228\184\173 \240\159\152\128'}) do
+    assert(Json.isValidUtf8(text))
+    assert(Json.decode(Json.encode(text)) == text)
+end
+for _, text in ipairs({'\255', '\128', '\192\128', '\193\191', '\194', '\194a',
+    '\224\159\191', '\237\160\128', '\239\191', '\240\143\191\191',
+    '\244\144\128\128', '\245\128\128\128', 'bad \226\130'}) do
+    assert(not Json.isValidUtf8(text))
+    assert(not pcall(Json.encode, text))
+    assert(not pcall(Json.decode, '"' .. text .. '"'))
+end
 
 local function pipeline(pretty, steps, dialect)
     return Prometheus.Pipeline:fromConfig({LuaVersion = dialect or 'Lua51', Seed = 7,

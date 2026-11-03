@@ -246,4 +246,78 @@ assert(message == "ok")
         generate(luau_dir, local_source, output_path, map_path, "LuaU", pretty)
         check([LUAU, str(output_path)], luau_dir)
 
+    # Maps remain valid UTF-8 JSON when source bytes are not valid UTF-8. The
+    # original source is represented by JSON null, while valid Unicode remains
+    # embedded, and generated Lua preserves each source's runtime behavior.
+    utf8_fixtures = {
+        "invalid-literal": (
+            b'local value = "\xff"\n'
+            b'assert(string.byte(value) == 255)\n'
+            b'print("invalid literal ok")\n',
+            "invalid literal ok",
+            False,
+        ),
+        "invalid-comment": (
+            b'-- comment with invalid byte: \xff\n'
+            b'assert(2 + 2 == 4)\n'
+            b'print("invalid comment ok")\n',
+            "invalid comment ok",
+            False,
+        ),
+        "unicode": (
+            'local value = "漢字🙂"\n'
+            'assert(value == "漢字🙂")\n'
+            'print("unicode ok")\n'.encode("utf-8"),
+            "unicode ok",
+            True,
+        ),
+    }
+    for pretty in (False, True):
+        utf8_dir = base / f"utf8-{int(pretty)}"
+        utf8_dir.mkdir()
+        for name, (source_bytes, expected_output, valid_source) in utf8_fixtures.items():
+            source_path = utf8_dir / f"{name}.lua"
+            source_path.write_bytes(source_bytes)
+            output_path = utf8_dir / f"{name}.generated.lua"
+            map_path = utf8_dir / f"{name}.generated.lua.map"
+            args = ["--preset", "Minify", "--out", output_path.name,
+                    "--source-map", map_path.name, "--Lua51"]
+            if pretty:
+                args.append("--pretty")
+            args.append(source_path.name)
+            build_log = check(lua_cli(*args, cwd=utf8_dir), utf8_dir)
+            warning = "Omitting embedded source content for"
+            if valid_source:
+                assert warning not in build_log, build_log
+            else:
+                assert warning in build_log and "invalid UTF-8" in build_log, build_log
+
+            source_map = json.loads(map_path.read_bytes())
+            content = source_map["sourcesContent"][0]
+            if valid_source:
+                assert content == source_bytes.decode("utf-8"), source_map
+            else:
+                assert content is None, source_map
+
+            for runtime in (LUA51, LUAU):
+                output = check([runtime, str(output_path)], utf8_dir)
+                assert expected_output in output, (runtime, output)
+
+    # Omitting all sources suppresses the invalid-UTF-8 warning as well as
+    # sourcesContent in the map.
+    no_sources_dir = base / "utf8-no-sources"
+    no_sources_dir.mkdir()
+    invalid_path = no_sources_dir / "invalid.lua"
+    invalid_path.write_bytes(utf8_fixtures["invalid-literal"][0])
+    output_path = no_sources_dir / "generated.lua"
+    map_path = no_sources_dir / "generated.lua.map"
+    build_log = check(lua_cli("--preset", "Minify", "--Lua51", "--out", output_path.name,
+                              "--source-map", map_path.name, "--source-map-no-sources",
+                              invalid_path.name, cwd=no_sources_dir), no_sources_dir)
+    assert "Omitting embedded source content" not in build_log, build_log
+    assert "sourcesContent" not in json.loads(map_path.read_bytes())
+    for runtime in (LUA51, LUAU):
+        output = check([runtime, str(output_path)], no_sources_dir)
+        assert "invalid literal ok" in output, (runtime, output)
+
 print("Source map CLI integration checks passed")

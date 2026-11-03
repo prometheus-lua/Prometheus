@@ -1,5 +1,6 @@
 -- Source Map v3 / ECMA-426. Mapping coordinates are zero based on the wire.
 local Json = require('prometheus.json')
+local logger = require('logger')
 local SourceMap = {}
 local alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local digits = {}
@@ -49,7 +50,12 @@ function SourceMap.build(origins, count, includeSources)
                 id = #map.sources + 1
                 ids[source] = id
                 map.sources[id] = source.path
-                if map.sourcesContent then map.sourcesContent[id] = source.content or Json.null end
+                if map.sourcesContent then
+                    if source.content ~= nil and not Json.isValidUtf8(source.content) then
+                        logger:warn('Omitting embedded source content for ' .. source.path .. ': invalid UTF-8')
+                        map.sourcesContent[id] = Json.null
+                    else map.sourcesContent[id] = source.content or Json.null end
+                end
             end
             local originalLine = origin.startLine - 1
             lines[i] = 'A' .. vlq(id - 1 - lastSource) .. vlq(originalLine - lastLine) .. 'A'

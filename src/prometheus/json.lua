@@ -5,7 +5,42 @@ local arrayMeta = {}
 function Json.array(value) return setmetatable(value or {}, arrayMeta) end
 function Json.isArray(value) return type(value) == 'table' and getmetatable(value) == arrayMeta end
 
+-- Lua strings can contain arbitrary bytes; JSON strings must contain UTF-8
+-- Unicode scalars. Reject overlong sequences, surrogates and code points above
+-- U+10FFFF, while leaving valid source text byte-for-byte unchanged.
+function Json.isValidUtf8(value)
+    if type(value) ~= 'string' then return false end
+    local index = value:find('[\128-\255]') or #value + 1
+    while index <= #value do
+        local byte = value:byte(index)
+        if byte < 128 then
+            index = index + 1
+        else
+            local length, minimum, maximum = 0, 128, 191
+            if byte >= 194 and byte <= 223 then length = 2
+            elseif byte >= 224 and byte <= 239 then
+                length = 3
+                if byte == 224 then minimum = 160 end
+                if byte == 237 then maximum = 159 end
+            elseif byte >= 240 and byte <= 244 then
+                length = 4
+                if byte == 240 then minimum = 144 end
+                if byte == 244 then maximum = 143 end
+            else return false end
+            local second = value:byte(index + 1)
+            if not second or second < minimum or second > maximum then return false end
+            for offset = 2, length - 1 do
+                local continuation = value:byte(index + offset)
+                if not continuation or continuation < 128 or continuation > 191 then return false end
+            end
+            index = index + length
+        end
+    end
+    return true
+end
+
 local function quote(value)
+    assert(Json.isValidUtf8(value), 'Cannot encode JSON string containing invalid UTF-8')
     return '"' .. value:gsub('[%z\1-\31\\"]', function(char)
         if char == '"' then return '\\"' end
         if char == '\\' then return '\\\\' end
@@ -48,6 +83,7 @@ end
 
 function Json.decode(input)
     assert(type(input) == 'string', 'JSON input must be a string')
+    assert(Json.isValidUtf8(input), 'Invalid JSON: invalid UTF-8')
     local index, depth = 1, 0
     local function fail(message) error('Invalid JSON at byte ' .. index .. ': ' .. message, 0) end
     local function whitespace()

@@ -383,4 +383,48 @@ assert(message == "ok")
     for runtime, count in compatible_newline_runtimes.items():
         assert count > 0, f"{runtime} did not report the expected line for any newline convention"
 
+    # Lua 5.1 truncates long chunk filenames in both the error and traceback
+    # frame. Source-map matching should use the retained filename suffix.
+    long_name_dir = base / "long-lua51-name"
+    long_name_dir.mkdir()
+    long_basename = "generated-" + "x" * 80 + "-trace-suffix.lua"
+    for pretty in (False, True):
+        case_dir = long_name_dir / ("pretty" if pretty else "compact")
+        case_dir.mkdir()
+        long_source = case_dir / "original-long.lua"
+        long_source.write_bytes(b"local value=nil\nreturn value+1\n")
+        long_output = case_dir / long_basename
+        long_map = case_dir / (long_basename + ".map")
+        generate(case_dir, long_source, long_output, long_map, "Lua51", pretty)
+        xpcall_runner = case_dir / "xpcall-runner.lua"
+        xpcall_runner.write_text('''local chunk = assert(loadfile(arg[1]))
+local ok, message = xpcall(chunk, function(err)
+    return debug.traceback(tostring(err), 2)
+end)
+if not ok then
+    io.stdout:write(message, "\\n")
+    os.exit(1)
+end
+''', encoding="utf-8", newline="")
+        long_trace = run([LUA51, str(xpcall_runner), str(long_output)], case_dir)
+        assert long_trace.returncode != 0, long_trace.stdout
+        matching_trace_lines = [line for line in long_trace.stdout.splitlines()
+                                if "trace-suffix.lua" in line]
+        assert len(matching_trace_lines) >= 2, long_trace.stdout
+        error_lines = [line for line in matching_trace_lines
+                       if "attempt to perform arithmetic" in line]
+        frame_lines = [line for line in matching_trace_lines if "in main chunk" in line]
+        assert error_lines and all("..." in line for line in error_lines), long_trace.stdout
+        assert frame_lines and all("..." in line for line in frame_lines), long_trace.stdout
+
+        augmented_trace = long_trace.stdout.rstrip() + (
+            "\n\t..." + "y" * 40 + "-trace-suffix.lua:2: in function 'unrelated'"
+            "\n\t...x.lua:2: in function 'short-name'\n")
+        rewritten = check(traceback_command(long_map), case_dir, input_text=augmented_trace)
+        rewritten_trace = rewritten.split("\nSource excerpts:\n", 1)[0]
+        assert rewritten_trace.count("original-long.lua:2") >= 2, rewritten
+        assert "> 2 | return value+1" in rewritten, rewritten
+        assert "..." + "y" * 40 + "-trace-suffix.lua:2: in function 'unrelated'" in rewritten, rewritten
+        assert "...x.lua:2: in function 'short-name'" in rewritten, rewritten
+
 print("Source map CLI integration checks passed")

@@ -25,7 +25,16 @@ local function map_file_matches(filename, mapFile)
 
 	local normalizedFilename = normalize_path(filename)
 	local normalizedMapFile = normalize_path(mapFile)
-	return normalizedFilename == normalizedMapFile or basename(normalizedFilename) == basename(normalizedMapFile)
+	if normalizedFilename == normalizedMapFile or basename(normalizedFilename) == basename(normalizedMapFile) then
+		return true
+	end
+	-- Lua shortens long chunk filenames to "..." followed by their tail.
+	-- Require a substantial retained suffix to avoid guessing from short names.
+	if normalizedFilename:sub(1, 3) == "..." then
+		local suffix = normalizedFilename:sub(4)
+		return #suffix >= 32 and normalizedMapFile:sub(-#suffix) == suffix
+	end
+	return false
 end
 
 local function source_match(candidate, mapFile)

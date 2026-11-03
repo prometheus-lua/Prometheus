@@ -1,6 +1,7 @@
 -- Utilities for translating generated Lua traceback locations through a source map.
 
 local Traceback = {}
+local util = require('prometheus.util')
 
 local function normalize_path(path)
 	return (path or ""):gsub("\\", "/"):gsub("/+", "/")
@@ -145,8 +146,16 @@ end
 
 local function excerpt_lines(content)
 	local lines = {}
-	for line in (content .. "\n"):gmatch("(.-)\n") do
-		lines[#lines + 1] = line:gsub("\r$", "")
+	local start = 1
+	while true do
+		local newline = content:find('[\r\n]', start)
+		if not newline then
+			lines[#lines + 1] = content:sub(start)
+			break
+		end
+		lines[#lines + 1] = content:sub(start, newline - 1)
+		local paired = util.isNewlinePair(content:sub(newline, newline), content:sub(newline + 1, newline + 1))
+		start = newline + (paired and 2 or 1)
 	end
 	return lines
 end

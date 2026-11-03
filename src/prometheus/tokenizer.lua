@@ -91,8 +91,7 @@ function Tokenizer:prepareGetPosition()
 	for offset = 1, self.length do
 		local character = self.source:sub(offset, offset)
 		if character == "\r" or character == "\n" then
-			local paired = (character == "\r" and previousNewline == "\n")
-				or (character == "\n" and previousNewline == "\r")
+			local paired = util.isNewlinePair(previousNewline, character)
 			if not paired then line = line + 1 end
 			column = 1
 			-- Consume CRLF/LFCR as a pair; its second byte cannot also

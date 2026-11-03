@@ -320,4 +320,67 @@ assert(message == "ok")
         output = check([runtime, str(output_path)], no_sources_dir)
         assert "invalid literal ok" in output, (runtime, output)
 
+    # Newline pairs remain non-overlapping in both generated mappings and
+    # traceback excerpts. Keep each source byte-for-byte to exercise CR, LF,
+    # CRLF, LFCR, and mixed paired endings.
+    newline_sequences = {
+        "lf": (b"\n", b"\n"),
+        "cr": (b"\r", b"\r"),
+        "crlf": (b"\r\n", b"\r\n"),
+        "lfcr": (b"\n\r", b"\n\r"),
+        "mixed-pairs": (b"\r\n", b"\n\r"),
+    }
+    compatible_newline_runtimes = {LUA51: 0, LUAU: 0}
+    for convention, (first_ending, second_ending) in newline_sequences.items():
+        baseline_dir = base / f"newline-baseline-{convention}"
+        baseline_dir.mkdir()
+        baseline_source = baseline_dir / "source.lua"
+        baseline_bytes = (b"local value=nil" + first_ending + second_ending
+                          + b"return value+1" + first_ending)
+        baseline_source.write_bytes(baseline_bytes)
+        compatible = {}
+        for runtime in (LUA51, LUAU):
+            baseline = run([runtime, str(baseline_source)], baseline_dir)
+            source_error = re.search(r"source\.lua:(\d+):", baseline.stdout)
+            compatible[runtime] = baseline.returncode != 0 and source_error is not None \
+                and int(source_error.group(1)) == 3
+            if compatible[runtime]:
+                compatible_newline_runtimes[runtime] += 1
+
+        for pretty in (False, True):
+            for embed_sources in (True, False):
+                case_dir = base / f"newline-{convention}-{int(pretty)}-{int(embed_sources)}"
+                (case_dir / "build").mkdir(parents=True)
+                source_path = case_dir / "source.lua"
+                source_path.write_bytes(baseline_bytes)
+                output_path = case_dir / "build" / "generated.lua"
+                map_path = case_dir / "build" / "generated.lua.map"
+                args = ["--preset", "Minify", "--Lua51", "--out", "build/generated.lua",
+                        "--source-map", "build/generated.lua.map"]
+                if pretty:
+                    args.append("--pretty")
+                if not embed_sources:
+                    args.append("--source-map-no-sources")
+                args.append(source_path.name)
+                check(lua_cli(*args, cwd=case_dir), case_dir)
+
+                source_map = json.loads(map_path.read_bytes())
+                if embed_sources:
+                    assert source_map["sourcesContent"] == [baseline_bytes.decode("ascii")], source_map
+                else:
+                    assert "sourcesContent" not in source_map, source_map
+
+                for runtime in (LUA51, LUAU):
+                    if not compatible[runtime]:
+                        continue
+                    result = run([runtime, str(output_path)], case_dir)
+                    assert result.returncode != 0, (runtime, convention, pretty, embed_sources, result.stdout)
+                    formatted = check(traceback_command(map_path), case_dir,
+                                      input_text=result.stdout)
+                    assert "source.lua:3" in formatted, (runtime, convention, formatted)
+                    assert "> 3 | return value+1" in formatted, (runtime, convention, formatted)
+
+    for runtime, count in compatible_newline_runtimes.items():
+        assert count > 0, f"{runtime} did not report the expected line for any newline convention"
+
 print("Source map CLI integration checks passed")

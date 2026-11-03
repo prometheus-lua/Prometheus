@@ -95,7 +95,9 @@ function Tokenizer:prepareGetPosition()
 				or (character == "\n" and previousNewline == "\r")
 			if not paired then line = line + 1 end
 			column = 1
-			previousNewline = character
+			-- Consume CRLF/LFCR as a pair; its second byte cannot also
+			-- start a pair with the following newline.
+			previousNewline = not paired and character or nil
 		else
 			column = column + 1
 			previousNewline = nil

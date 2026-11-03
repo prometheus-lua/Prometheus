@@ -1,5 +1,6 @@
 local Prometheus = require('src.prometheus')
 Prometheus.Logger.logLevel = Prometheus.Logger.LogLevel.Error
+local SourceMap = Prometheus.SourceMap
 
 local Parser = require('prometheus.parser')
 local Source = require('prometheus.source')
@@ -77,10 +78,43 @@ crlfTokenizer:append('\r\n')
 local crlfEof = crlfTokenizer:scanAll()[1]
 assert(crlfEof.line == 2 and crlfEof.linePos == 1)
 assert(crlfEof.endLine == 2 and crlfEof.endLinePos == 1)
-local lfcrTokenizer = Tokenizer:new({LuaVersion = 'Lua51'})
-lfcrTokenizer:append('a\n\rb')
-local lfcrTokens = lfcrTokenizer:scanAll()
-assert(lfcrTokens[2].line == 2 and lfcrTokens[2].linePos == 1)
+local pairedNewlines = {
+	{'\r\n\r\n', 3},
+	{'\n\r\n\r', 3},
+	{'\r\n\n\r', 3},
+	{'\n\r\r\n', 3},
+}
+for _, case in ipairs(pairedNewlines) do
+	local newline, expectedLine = case[1], case[2]
+	local pairedTokenizer = Tokenizer:new({LuaVersion = 'Lua51'})
+	pairedTokenizer:append(newline)
+	local pairedEof = pairedTokenizer:scanAll()[1]
+	assert(pairedEof.line == expectedLine and pairedEof.linePos == 1)
+	assert(pairedEof.endLine == expectedLine and pairedEof.endLinePos == 1)
+end
+local loadChunk = loadstring or load
+for _, case in ipairs(pairedNewlines) do
+	local newline, expectedLine = case[1], case[2]
+	local input = 'local x={}' .. newline .. 'return x.missing + 1' .. newline
+	local mappedAst = Parser:new({LuaVersion = 'Lua51'}):parse(input, 'paired-newlines.lua')
+	assert(mappedAst.body.statements[2].sourceSpan.startLine == expectedLine)
+	assert(mappedAst.sourceSpan.endLine == expectedLine + 2)
+	for _, pretty in ipairs({false, true}) do
+		local pipeline = Prometheus.Pipeline:fromConfig({LuaVersion = 'Lua51', Seed = 7,
+			SourceMap = true, PrettyPrint = pretty, Steps = {}})
+		local generated, map = pipeline:apply(input, 'paired-newlines.lua')
+		local chunk = assert(loadChunk(generated, '@paired-output.lua'))
+		local ok, err = pcall(chunk)
+		assert(not ok, 'Paired newline source-map fixture must fail')
+		local generatedLine = tonumber(tostring(err):match('paired%-output%.lua:(%d+):'))
+		assert(generatedLine, tostring(err))
+		local recovered = SourceMap.lookup(map, generatedLine)
+		assert(recovered and recovered.source == 'paired-newlines.lua'
+			and recovered.line == expectedLine,
+			(pretty and 'Pretty' or 'Compact') .. ' map recovered '
+				.. (recovered and recovered.source .. ':' .. recovered.line or 'no source'))
+	end
+end
 for _, newline in ipairs({'\n\n', '\r\r'}) do
 	local repeatedTokenizer = Tokenizer:new({LuaVersion = 'Lua51'})
 	repeatedTokenizer:append('a' .. newline .. 'b')

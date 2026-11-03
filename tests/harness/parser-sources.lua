@@ -122,6 +122,72 @@ for _, newline in ipairs({'\n\n', '\r\r'}) do
 	assert(repeatedTokens[2].line == 3 and repeatedTokens[2].linePos == 1)
 end
 
+-- Independently calculate coordinates at every byte boundary. Newline pairs
+-- consume two opposite newline bytes as one line break; equal adjacent newline
+-- bytes remain two separate line breaks.
+local function referencePositions(text)
+	local positions = {[0] = {line = 1, column = 1}}
+	local line, column, offset = 1, 1, 0
+	while offset < #text do
+		local character = text:sub(offset + 1, offset + 1)
+		if character == '\r' or character == '\n' then
+			local nextCharacter = text:sub(offset + 2, offset + 2)
+			local paired = (character == '\r' and nextCharacter == '\n')
+				or (character == '\n' and nextCharacter == '\r')
+			line, column = line + 1, 1
+			positions[offset + 1] = {line = line, column = column}
+			offset = offset + 1
+			if paired then
+				positions[offset + 1] = {line = line, column = column}
+				offset = offset + 1
+			end
+		else
+			column = column + 1
+			offset = offset + 1
+			positions[offset] = {line = line, column = column}
+		end
+	end
+	return positions
+end
+
+local function assertAllBytePositions(tokenizer, text)
+	local expected = referencePositions(text)
+	for offset = 0, #text do
+		local line, column = tokenizer:getPosition(offset)
+		assert(line == expected[offset].line and column == expected[offset].column,
+			string.format('Offset %d in %q expected %d:%d, got %d:%d', offset, text,
+				expected[offset].line, expected[offset].column, line, column))
+	end
+	local eof = expected[#text]
+	local line, column = tokenizer:getPosition(#text + 1)
+	assert(line == eof.line and column == eof.column, 'Past-EOF position should fall back to EOF')
+	line, column = tokenizer:getPosition(-1)
+	assert(line == eof.line and column == eof.column, 'Negative position should fall back to EOF')
+end
+
+local coordinateSamples = {
+	'ASCII byte columns',
+	'one\r\ntwo\n\rthree\r\n\r\nend',
+	'caf\195\169\r\nline\n\rend',
+	'\r\n\r\n\n\r\n\r',
+}
+local coordinateTokenizer = Tokenizer:new({LuaVersion = 'Lua51'})
+for _, sample in ipairs(coordinateSamples) do
+	coordinateTokenizer:reset()
+	coordinateTokenizer:append(sample)
+	assertAllBytePositions(coordinateTokenizer, sample)
+end
+
+-- Appending may split a pair across calls; reset must also clear old coordinates.
+coordinateTokenizer:reset()
+coordinateTokenizer:append('prefix\r')
+assertAllBytePositions(coordinateTokenizer, 'prefix\r')
+coordinateTokenizer:append('\nnext\n\r')
+assertAllBytePositions(coordinateTokenizer, 'prefix\r\nnext\n\r')
+coordinateTokenizer:reset()
+coordinateTokenizer:append('q')
+assertAllBytePositions(coordinateTokenizer, 'q')
+
 parser.disableLog = true
 assert(not pcall(function() parser:parse('local =') end))
 assert(parser.disableLog, 'parse should preserve the caller logging preference')

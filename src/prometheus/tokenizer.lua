@@ -73,18 +73,14 @@ local function generateWarning(token, message)
 end
 
 function Tokenizer:getPosition(i)
-	local position = self.positionMap[i]
-
-	if not position then
-		position = self.positionMap[self.length] or {line = 1, column = 1}
-	end
-
-	return position.line, position.column
+	if not self.positionLines[i] then i = self.length end
+	return self.positionLines[i] or 1, self.positionColumns[i] or 1
 end
 
 --// Prepare byte-coordinate positions for every offset from 0 through length.
 function Tokenizer:prepareGetPosition()
-	local positionMap = {[0] = {line = 1, column = 1}}
+	-- Dense numeric arrays avoid allocating a separate table for every byte.
+	local positionLines, positionColumns = {[0] = 1}, {[0] = 1}
 	local line, column = 1, 1
 	local previousNewline
 
@@ -101,10 +97,10 @@ function Tokenizer:prepareGetPosition()
 			column = column + 1
 			previousNewline = nil
 		end
-		positionMap[offset] = {line = line, column = column}
+		positionLines[offset], positionColumns[offset] = line, column
 	end
 
-	self.positionMap = positionMap
+	self.positionLines, self.positionColumns = positionLines, positionColumns
 end
 
 -- Constructor for Tokenizer
@@ -153,7 +149,8 @@ function Tokenizer:new(settings)
 
 		StringStartLookup = lookupify({"\"", "\'"}),
 		annotations = {},
-		positionMap = {[0] = {line = 1, column = 1}},
+		positionLines = {[0] = 1},
+		positionColumns = {[0] = 1},
 	};
 
 	setmetatable(tokenizer, self);
@@ -168,7 +165,8 @@ function Tokenizer:reset()
 	self.length = 0;
 	self.source = "";
 	self.annotations = {};
-	self.positionMap = {[0] = {line = 1, column = 1}};
+	self.positionLines = {[0] = 1};
+	self.positionColumns = {[0] = 1};
 end
 
 -- Append String to this Tokenizer

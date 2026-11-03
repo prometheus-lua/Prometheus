@@ -9,6 +9,7 @@ local Ast = require("prometheus.ast");
 local visitAst = require("prometheus.visitast");
 local Parser = require("prometheus.parser");
 local util = require("prometheus.util");
+local Source = require("prometheus.source");
 local enums = require("prometheus.enums")
 
 local LuaVersion = enums.LuaVersion;
@@ -171,17 +172,17 @@ local function generateCustomFunctionLiteral(variant)
 
 	-- Custom Function Type 1
 	if variant == 1 then
-		local funcDeclNode = parser:parse(custom1Code).body.statements[1];
+		local funcDeclNode = parser:parse(custom1Code, Source.internal("SplitStrings.CustomFunction1", custom1Code)).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.FunctionLiteralExpression(funcArgs, funcBody);
+		return Source.fill(Ast.FunctionLiteralExpression(funcArgs, funcBody), Source.generated("SplitStrings.CustomFunction"));
 
 		-- Custom Function Type 2
 	else
-		local funcDeclNode = parser:parse(custom2Code).body.statements[1];
+		local funcDeclNode = parser:parse(custom2Code, Source.internal("SplitStrings.CustomFunction2", custom2Code)).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.FunctionLiteralExpression(funcArgs, funcBody);
+		return Source.fill(Ast.FunctionLiteralExpression(funcArgs, funcBody), Source.generated("SplitStrings.CustomFunction"));
 	end
 end
 
@@ -192,18 +193,18 @@ local function generateGlobalCustomFunctionDeclaration(data)
 
 	-- Custom Function Type 1
 	if data.customFunctionVariant == 1 then
-		local funcDeclNode = parser:parse(custom1Code).body.statements[1];
+		local funcDeclNode = parser:parse(custom1Code, Source.internal("SplitStrings.GlobalFunction1", custom1Code)).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.LocalVariableDeclaration({data.customFuncSymbol},
-		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
+		return Source.fill(Ast.LocalVariableDeclaration({data.customFuncSymbol},
+		{Ast.FunctionLiteralExpression(funcArgs, funcBody)}), Source.generated("SplitStrings.GlobalFunction"));
 	-- Custom Function Type 2
 	else
-		local funcDeclNode = parser:parse(custom2Code).body.statements[1];
+		local funcDeclNode = parser:parse(custom2Code, Source.internal("SplitStrings.GlobalFunction2", custom2Code)).body.statements[1];
 		local funcBody = funcDeclNode.body;
 		local funcArgs = funcDeclNode.args;
-		return Ast.LocalVariableDeclaration({data.customFuncSymbol},
-		{Ast.FunctionLiteralExpression(funcArgs, funcBody)});
+		return Source.fill(Ast.LocalVariableDeclaration({data.customFuncSymbol},
+		{Ast.FunctionLiteralExpression(funcArgs, funcBody)}), Source.generated("SplitStrings.GlobalFunction"));
 	end
 end
 
@@ -212,7 +213,7 @@ function SplitStrings:variant()
 end
 
 function SplitStrings:apply(ast, pipeline)
-	local data = {};
+	local data = { generatedSpan = Source.generated("SplitStrings") };
 
 
 	if(self.ConcatenationType == "table") then
@@ -254,7 +255,7 @@ function SplitStrings:apply(ast, pipeline)
 			for i, func in ipairs(data.functionData.localFunctions) do
 				if func.used then
 					local literal = generateCustomFunctionLiteral(func.variant);
-					table.insert(node.statements, 1, Ast.LocalVariableDeclaration({func.symbol}, {literal}));
+					table.insert(node.statements, 1, Source.fill(Ast.LocalVariableDeclaration({func.symbol}, {literal}), data.generatedSpan));
 				end
 			end
 		end
@@ -262,6 +263,7 @@ function SplitStrings:apply(ast, pipeline)
 
 		-- Apply Only to String nodes
 		if(node.kind == Ast.AstKind.StringExpression) then
+			local original = node;
 			local str = node.value;
 			local chunks = {};
 			local i = 1;
@@ -300,14 +302,14 @@ function SplitStrings:apply(ast, pipeline)
 				end
 			end
 
-			return node, true;
+			return Source.inherit(node, original), true;
 		end
 	end, data)
 
 
 	if(self.ConcatenationType == "table") then
-		table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration({data.tableConcatSymbol},
-		{Ast.IndexExpression(Ast.GlobalVariableExpression("table"), Ast.StringExpression("concat"))}));
+		table.insert(ast.body.statements, 1, Source.fill(Ast.LocalVariableDeclaration({data.tableConcatSymbol},
+		{Ast.IndexExpression(Ast.GlobalVariableExpression("table"), Ast.StringExpression("concat"))}), data.generatedSpan));
 	elseif(self.ConcatenationType == "custom" and self.CustomFunctionType == "global") then
 		table.insert(ast.body.statements, 1, generateGlobalCustomFunctionDeclaration(data));
 	end

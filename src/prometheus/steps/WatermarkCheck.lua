@@ -7,6 +7,7 @@
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local Watermark = require("prometheus.steps.Watermark");
+local Source = require("prometheus.source");
 
 local WatermarkCheck = Step:extend();
 WatermarkCheck.Description = "This Step will add a watermark to the script";
@@ -31,6 +32,7 @@ end
 function WatermarkCheck:init(_) end
 
 function WatermarkCheck:apply(ast, pipeline)
+  local generatedSpan = Source.generated("WatermarkCheck");
   self.CustomVariable = "_" .. callNameGenerator(pipeline.namegenerator, math.random(10000000000, 100000000000));
   pipeline:addStep(Watermark:new(self));
 
@@ -40,7 +42,7 @@ function WatermarkCheck:apply(ast, pipeline)
   local notEqualsExpression = Ast.NotEqualsExpression(watermark, watermarkExpression);
   local ifBody = Ast.Block({Ast.ReturnStatement({})});
 
-  table.insert(body.statements, 1, Ast.IfStatement(notEqualsExpression, ifBody, {}, nil));
+  table.insert(body.statements, 1, Source.fill(Ast.IfStatement(notEqualsExpression, ifBody, {}, nil), generatedSpan));
 end
 
 return WatermarkCheck;

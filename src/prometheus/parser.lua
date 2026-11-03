@@ -18,6 +18,7 @@ local util = require("prometheus.util");
 local Ast = require("prometheus.ast");
 local analyzeBindings = require("prometheus.bindinganalysis");
 local logger = require("logger");
+local Source = require("prometheus.source");
 
 local AstKind = Ast.AstKind;
 
@@ -25,6 +26,7 @@ local LuaVersion = Enums.LuaVersion;
 local lookupify = util.lookupify;
 
 local TokenKind = Tokenizer.TokenKind;
+local unpack = unpack or table.unpack
 
 -- Transient parser name environments never become part of the AST.
 local Bindings = {};
@@ -85,6 +87,59 @@ end
 
 local function generateWarning(token, message)
 	return "Warning at Position " .. tostring(token.line) .. ":" .. tostring(token.linePos) .. ", " .. message;
+end
+
+local function sourceSpan(self, startOffset, endOffset)
+	local startLine, startColumn = self.tokenizer:getPosition(startOffset)
+	local endLine, endColumn = self.tokenizer:getPosition(endOffset)
+	return {
+		source = self.sourceRecord,
+		startLine = startLine,
+		startColumn = startColumn,
+		endLine = endLine,
+		endColumn = endColumn,
+		startOffset = startOffset,
+		endOffset = endOffset,
+	}
+end
+
+local function tokenSpan(self, token)
+	if token then return sourceSpan(self, token.startPos, token.endPos) end
+end
+
+local function parserRangeSpan(self, firstIndex, lastIndex)
+	local first = self.tokens[firstIndex]
+	local last = self.tokens[lastIndex]
+	local startOffset = first and first.startPos or self.tokenizer.length
+	local endOffset = last and last.endPos or startOffset
+	if lastIndex < firstIndex then endOffset = startOffset end
+	return sourceSpan(self, startOffset, endOffset)
+end
+
+local function combinedSpan(self, left, right)
+	local a = left and left.sourceSpan
+	local b = right and right.sourceSpan
+	if a and b then
+		return sourceSpan(self, math.min(a.startOffset, b.startOffset), math.max(a.endOffset, b.endOffset))
+	elseif a then
+		return a
+	elseif b then
+		return b
+	end
+end
+
+local function markCombined(self, node, left, right)
+	local span = combinedSpan(self, left, right)
+	if span then node.sourceSpan = span end
+	return node
+end
+
+local function markThrough(self, node, left, lastToken)
+	local leftSpan = left and left.sourceSpan
+	local startOffset = leftSpan and leftSpan.startOffset or (lastToken and lastToken.startPos) or 0
+	local endOffset = lastToken and lastToken.endPos or startOffset
+	node.sourceSpan = sourceSpan(self, startOffset, endOffset)
+	return node
 end
 
 function Parser:new(settings)
@@ -171,30 +226,48 @@ local function expect(self, kind, source)
 end
 
 -- Parse the given code to an Abstract Syntax Tree
-function Parser:parse(code)
-	self.tokenizer:append(code);
-	self.tokens = self.tokenizer:scanAll();
-	self.length = #self.tokens;
+function Parser:parse(code, source)
+	local previousDisableLog = self.disableLog
+	self.tokenizer:reset()
+	self.tokens = {}
+	self.index = 0
+	self.length = 0
+	if type(source) == "string" then
+		self.sourceRecord = Source.new(source, code)
+	elseif type(source) == "table" then
+		self.sourceRecord = source
+	else
+		self.sourceRecord = Source.internal("snippet", code)
+	end
 
-	-- Begin transient name lookup at the chunk boundary
-	local globalScope = Bindings:new();
+	local ok, ast = pcall(function()
+		self.tokenizer:append(code)
+		self.tokens = self.tokenizer:scanAll()
+		self.length = #self.tokens
 
-	local ast = Ast.TopNode(self:block(globalScope, false));
-	-- File Must be Over when Top Node is Fully Parsed
-	expect(self, TokenKind.Eof);
+		-- Begin transient name lookup at the chunk boundary
+		local globalScope = Bindings:new()
+		local parsedAst = Ast.TopNode(self:block(globalScope, false))
+		-- File Must be Over when Top Node is Fully Parsed
+		expect(self, TokenKind.Eof)
 
-	logger:debug("Cleaning up Parser for next Use ...")
-	-- Clean Up
-	self.tokenizer:reset();
-	self.tokens = {};
-	self.index = 0;
-	self.length = 0;
+		-- The top node covers the complete input, including leading and trailing
+		-- whitespace. All child nodes retain their narrower parser spans.
+		Source.fill(parsedAst, sourceSpan(self, 0, #code))
+		-- Keep direct Parser consumers on the same analyzed AST path as the pipeline.
+		analyzeBindings(parsedAst)
+		return parsedAst
+	end)
 
-	logger:debug("Cleanup Done")
-	-- Keep direct Parser consumers on the same analyzed AST path as the pipeline.
-	analyzeBindings(ast);
-
-	return ast;
+	-- Always clear scanner/parser state so a failed parse does not poison reuse.
+	self.tokenizer:reset()
+	self.tokens = {}
+	self.index = 0
+	self.length = 0
+	self.disableLog = previousDisableLog
+	self.sourceRecord = nil
+	if not ok then error(ast, 0) end
+	return ast
 end
 
 -- Parse a Code Block
@@ -321,7 +394,9 @@ function Parser:statement(scope, currentLoop)
 
 		if(obj.passSelf) then
 			local symbol = funcScope:declare("self", obj.token);
-			table.insert(args, 1, Ast.VariableExpression(symbol));
+			local selfArgument = Ast.VariableExpression(symbol)
+			selfArgument.sourceSpan = tokenSpan(self, obj.token)
+			table.insert(args, 1, selfArgument);
 		end
 
 		local body = self:block(nil, false, funcScope);
@@ -371,6 +446,7 @@ function Parser:statement(scope, currentLoop)
 
 	-- For Statement
 	if(consume(self, TokenKind.Keyword, "for")) then
+		local forToken = self.tokens[self.index]
 		-- Normal for Statement
 		if(is(self, TokenKind.Symbol, "=", 1)) then
 			local forScope = Bindings:new(scope);
@@ -384,6 +460,7 @@ function Parser:statement(scope, currentLoop)
 			expect(self, TokenKind.Symbol, ",");
 			local finalValue = self:expression(scope);
 			local incrementBy = Ast.NumberExpression(1);
+			incrementBy.sourceSpan = tokenSpan(self, forToken)
 			if(consume(self, TokenKind.Symbol, ",")) then
 				incrementBy = self:expression(scope);
 			end
@@ -523,9 +600,10 @@ end
 function Parser:primaryExpression(scope)
 	local i = self.index;
 	local s = self;
+	local previousDisableLog = self.disableLog
 	self.disableLog = true;
 	local status, val = pcall(self.expressionFunctionCall, self, scope);
-	self.disableLog = false;
+	self.disableLog = previousDisableLog;
 	if(status) then
 		return val;
 	else
@@ -574,7 +652,8 @@ function Parser:funcName(scope)
 	local ident = expect(self, TokenKind.Ident);
 	local baseName = ident.value;
 
-	local target = scope:resolve(baseName);
+		local target = scope:resolve(baseName);
+		target.sourceSpan = tokenSpan(self, ident);
 
 	local indices = {};
 	local passSelf = false;
@@ -605,7 +684,7 @@ function Parser:expressionOr(scope)
 
 	if(consume(self, TokenKind.Keyword, "or")) then
 		local rhs = self:expressionOr(scope);
-		return Ast.OrExpression(lhs, rhs, true);
+		return markCombined(self, Ast.OrExpression(lhs, rhs, true), lhs, rhs);
 	end
 
 	return lhs;
@@ -616,7 +695,7 @@ function Parser:expressionAnd(scope)
 
 	if(consume(self, TokenKind.Keyword, "and")) then
 		local rhs = self:expressionAnd(scope);
-		return Ast.AndExpression(lhs, rhs, true);
+		return markCombined(self, Ast.AndExpression(lhs, rhs, true), lhs, rhs);
 	end
 
 	return lhs;
@@ -628,37 +707,37 @@ function Parser:expressionComparision(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "<")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.LessThanExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.LessThanExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, ">")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.GreaterThanExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.GreaterThanExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "<=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.LessThanOrEqualsExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.LessThanOrEqualsExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, ">=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.GreaterThanOrEqualsExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.GreaterThanOrEqualsExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "~=")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.NotEqualsExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.NotEqualsExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "==")) then
 			local rhs = self:expressionStrCat(scope);
-			curr = Ast.EqualsExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.EqualsExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 	until not found;
@@ -671,7 +750,7 @@ function Parser:expressionStrCat(scope)
 
 	if(consume(self, TokenKind.Symbol, "..")) then
 		local rhs = self:expressionStrCat(scope);
-		return Ast.StrCatExpression(lhs, rhs, true);
+		return markCombined(self, Ast.StrCatExpression(lhs, rhs, true), lhs, rhs);
 	end
 
 	return lhs;
@@ -684,13 +763,13 @@ function Parser:expressionAddSub(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "+")) then
 			local rhs = self:expressionMulDivMod(scope);
-			curr = Ast.AddExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.AddExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "-")) then
 			local rhs = self:expressionMulDivMod(scope);
-			curr = Ast.SubExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.SubExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 	until not found;
@@ -706,19 +785,19 @@ function Parser:expressionMulDivMod(scope)
 		local found = false;
 		if(consume(self, TokenKind.Symbol, "*")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.MulExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.MulExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "/")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.DivExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.DivExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 
 		if(consume(self, TokenKind.Symbol, "%")) then
 			local rhs = self:expressionUnary(scope);
-			curr = Ast.ModExpression(curr, rhs, true);
+			curr = markCombined(self, Ast.ModExpression(curr, rhs, true), curr, rhs);
 			found = true;
 		end
 	until not found;
@@ -751,7 +830,7 @@ function Parser:expressionPow(scope)
 	if(consume(self, TokenKind.Symbol, "^")) then
 		-- Allow unary operators on the rhs (e.g. 2 ^ #x, 2 ^ -x) while preserving right-associativity. ~ SpinnySpiwal
 		local rhs = self:expressionUnary(scope);
-		return Ast.PowExpression(lhs, rhs, true);
+		return markCombined(self, Ast.PowExpression(lhs, rhs, true), lhs, rhs);
 	end
 
 	return lhs;
@@ -789,7 +868,9 @@ end
 function Parser:functionArgList(scope)
 	local args = {};
 	if(consume(self, TokenKind.Symbol, "...")) then
-		table.insert(args, Ast.VarargExpression());
+		local arg = Ast.VarargExpression();
+		arg.sourceSpan = tokenSpan(self, self.tokens[self.index]);
+		table.insert(args, arg);
 		return args;
 	end
 
@@ -798,11 +879,15 @@ function Parser:functionArgList(scope)
 		local name = ident.value;
 
 		local symbol = scope:declare(name, ident);
-		table.insert(args, Ast.VariableExpression(symbol));
+		local arg = Ast.VariableExpression(symbol);
+		arg.sourceSpan = tokenSpan(self, ident);
+		table.insert(args, arg);
 
 		while(consume(self, TokenKind.Symbol, ",")) do
 			if(consume(self, TokenKind.Symbol, "...")) then
-				table.insert(args, Ast.VarargExpression());
+				local arg = Ast.VarargExpression();
+				arg.sourceSpan = tokenSpan(self, self.tokens[self.index]);
+				table.insert(args, arg);
 				return args;
 			end
 
@@ -810,7 +895,9 @@ function Parser:functionArgList(scope)
 			name = ident.value;
 
 			symbol = scope:declare(name, ident);
-			table.insert(args, Ast.VariableExpression(symbol));
+			local arg = Ast.VariableExpression(symbol);
+			arg.sourceSpan = tokenSpan(self, ident);
+			table.insert(args, arg);
 		end
 	end
 
@@ -827,9 +914,11 @@ function Parser:expressionFunctionCall(scope, base)
 	-- Normal Function Call
 	local args = {};
 	if(is(self, TokenKind.String)) then
+		local stringToken = get(self)
 		args = {
-			Ast.StringExpression(get(self).value),
+			Ast.StringExpression(stringToken.value),
 		};
+		args[1].sourceSpan = tokenSpan(self, stringToken)
 	elseif(is(self, TokenKind.Symbol, "{")) then
 		args = {
 			self:tableConstructor(scope),
@@ -843,7 +932,7 @@ function Parser:expressionFunctionCall(scope, base)
 		return base;
 	end
 
-	local node = Ast.FunctionCallExpression(base, args);
+	local node = markThrough(self, Ast.FunctionCallExpression(base, args), base, self.tokens[self.index]);
 
 	-- the result of a function call can be indexed
 	if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[") or is(self, TokenKind.Symbol, ":")) then
@@ -865,18 +954,20 @@ function Parser:expressionIndex(scope, base)
 	while(consume(self, TokenKind.Symbol, "[")) do
 		local expr = self:expression(scope);
 		expect(self, TokenKind.Symbol, "]");
-		base = Ast.IndexExpression(base, expr);
+		base = markThrough(self, Ast.IndexExpression(base, expr), base, self.tokens[self.index]);
 	end
 
 	-- Parse Indexing Expressions
 	while consume(self, TokenKind.Symbol, ".") do
 		local ident = expect(self, TokenKind.Ident);
-		base = Ast.IndexExpression(base, Ast.StringExpression(ident.value));
+		local key = Ast.StringExpression(ident.value)
+		key.sourceSpan = tokenSpan(self, ident)
+		base = markThrough(self, Ast.IndexExpression(base, key), base, ident)
 
 		while(consume(self, TokenKind.Symbol, "[")) do
 			local expr = self:expression(scope);
 			expect(self, TokenKind.Symbol, "]");
-			base = Ast.IndexExpression(base, expr);
+			base = markThrough(self, Ast.IndexExpression(base, expr), base, self.tokens[self.index]);
 		end
 	end
 
@@ -885,9 +976,11 @@ function Parser:expressionIndex(scope, base)
 		local passSelfFunctionName = expect(self, TokenKind.Ident).value;
 		local args = {};
 		if(is(self, TokenKind.String)) then
+			local stringToken = get(self)
 			args = {
-				Ast.StringExpression(get(self).value),
+				Ast.StringExpression(stringToken.value),
 			};
+			args[1].sourceSpan = tokenSpan(self, stringToken)
 		elseif(is(self, TokenKind.Symbol, "{")) then
 			args = {
 				self:tableConstructor(scope),
@@ -900,7 +993,7 @@ function Parser:expressionIndex(scope, base)
 			expect(self, TokenKind.Symbol, ")");
 		end
 
-		local node = Ast.PassSelfFunctionCallExpression(base, passSelfFunctionName, args);
+		local node = markThrough(self, Ast.PassSelfFunctionCallExpression(base, passSelfFunctionName, args), base, self.tokens[self.index]);
 
 		-- the result of a function call can be indexed
 		if(is(self, TokenKind.Symbol, ".") or is(self, TokenKind.Symbol, "[") or is(self, TokenKind.Symbol, ":")) then
@@ -925,11 +1018,13 @@ end
 
 function Parser:expressionLiteral(scope)
 	-- () expression
-	if(consume(self, TokenKind.Symbol, "(")) then
+	if(is(self, TokenKind.Symbol, "(")) then
+		local open = get(self)
 		local expr = self:expression(scope);
-		expect(self, TokenKind.Symbol, ")");
+		local close = expect(self, TokenKind.Symbol, ")");
 		if expr then
 			expr.isParenthesizedExpression = true;
+			expr.sourceSpan = sourceSpan(self, open.startPos, close.endPos)
 		end
 		return expr;
 	end
@@ -1009,20 +1104,29 @@ function Parser:tableConstructor(scope)
 	expect(self, TokenKind.Symbol, "{");
 
 	while (not consume(self, TokenKind.Symbol, "}")) do
+		local entryStart = self.index + 1
 		if(consume(self, TokenKind.Symbol, "[")) then
 			local key = self:expression(scope);
 			expect(self, TokenKind.Symbol, "]");
 			expect(self, TokenKind.Symbol, "=");
 			local value = self:expression(scope);
-			table.insert(entries, Ast.KeyedTableEntry(key, value));
+			local entry = Ast.KeyedTableEntry(key, value)
+			entry.sourceSpan = parserRangeSpan(self, entryStart, self.index)
+			table.insert(entries, entry);
 		elseif(is(self, TokenKind.Ident, 0) and is(self, TokenKind.Symbol, "=", 1)) then
-			local key = Ast.StringExpression(get(self).value);
+			local ident = get(self)
+			local key = Ast.StringExpression(ident.value)
+			key.sourceSpan = tokenSpan(self, ident)
 			expect(self, TokenKind.Symbol, "=");
 			local value = self:expression(scope);
-			table.insert(entries, Ast.KeyedTableEntry(key, value));
+			local entry = Ast.KeyedTableEntry(key, value)
+			entry.sourceSpan = parserRangeSpan(self, entryStart, self.index)
+			table.insert(entries, entry);
 		else
 			local value = self:expression(scope);
-			table.insert(entries, Ast.TableEntry(value));
+			local entry = Ast.TableEntry(value)
+			entry.sourceSpan = parserRangeSpan(self, entryStart, self.index)
+			table.insert(entries, entry);
 		end
 
 
@@ -1033,6 +1137,43 @@ function Parser:tableConstructor(scope)
 	end
 
 	return Ast.TableConstructorExpression(entries);
+end
+
+-- Fill each parser method's result with the token range consumed by that
+-- production. Recursive productions have already attached narrower spans to
+-- their children, and explicit operator/call/index spans below preserve the
+-- exact range for nodes assembled from multiple productions.
+local spanProductions = {
+	"block", "statement", "primaryExpression", "exprList",
+	"expression", "expressionOr", "expressionAnd", "expressionComparision",
+	"expressionStrCat", "expressionAddSub", "expressionMulDivMod",
+	"expressionUnary", "expressionPow", "tableOrFunctionLiteral",
+	"expressionFunctionLiteral", "expressionFunctionCall", "expressionIndex",
+	"expressionLiteral", "tableConstructor",
+}
+
+local function wrapSpanProduction(name)
+	local production = Parser[name]
+	Parser[name] = function(self, ...)
+		local firstIndex = self.index + 1
+		if name == "statement" then
+			while self.tokens[firstIndex]
+				and self.tokens[firstIndex].kind == TokenKind.Symbol
+				and self.tokens[firstIndex].source == ";" do
+				firstIndex = firstIndex + 1
+			end
+		end
+		local result = {production(self, ...)}
+		local node = result[1]
+		if type(node) == "table" and AstKind[node.kind] and not node.sourceSpan then
+			node.sourceSpan = parserRangeSpan(self, firstIndex, self.index)
+		end
+		return unpack(result)
+	end
+end
+
+for _, name in ipairs(spanProductions) do
+	wrapSpanProduction(name)
 end
 
 return Parser

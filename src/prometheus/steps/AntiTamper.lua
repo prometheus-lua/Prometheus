@@ -9,6 +9,7 @@ local RandomStrings = require("prometheus.randomStrings")
 local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
 local logger = require("logger")
+local Source = require("prometheus.source")
 
 local AntiTamper = Step:extend()
 AntiTamper.Description = "This Step Breaks your Script when it is modified. This is only effective when using the new VM."
@@ -82,8 +83,9 @@ end
 function AntiTamper:init(settings) end
 
 function AntiTamper:apply(ast, pipeline)
-	if pipeline.PrettyPrint then
-		logger:warn(string.format('"%s" cannot be used with PrettyPrint, ignoring "%s"', self.Name, self.Name))
+	if pipeline.PrettyPrint or pipeline.SourceMap then
+		local reason = pipeline.PrettyPrint and "PrettyPrint" or "SourceMap"
+		logger:warn(string.format('"%s" cannot be used with %s, ignoring "%s"', self.Name, reason, self.Name))
 		return ast
 	end
 	local code = generateSanityCheck()
@@ -233,7 +235,7 @@ end
     repeat until valid;
     ]]
 
-    local parsed = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(code);
+	local parsed = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(code, Source.internal("AntiTamper", code));
     local doStat = parsed.body.statements[1];
     table.insert(ast.body.statements, 1, doStat);
 

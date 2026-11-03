@@ -13,6 +13,7 @@ local visitast = require("prometheus.visitast");
 local util = require("prometheus.util")
 local Parser = require("prometheus.parser");
 local enums = require("prometheus.enums")
+local Source = require("prometheus.source")
 
 local LuaVersion = enums.LuaVersion;
 local AstKind = Ast.AstKind;
@@ -122,7 +123,7 @@ function ConstantArray:createArray()
 		end
 		entries[i] = Ast.TableEntry(Ast.ConstantNode(v));
 	end
-	return Ast.TableConstructorExpression(entries);
+	return Source.fill(Ast.TableConstructorExpression(entries), self.generatedSpan);
 end
 
 function ConstantArray:indexing(index, data)
@@ -198,14 +199,15 @@ function ConstantArray:addRotateCode(ast, shift)
 		LuaVersion = LuaVersion.Lua51;
 	});
 
-	local newAst = parser:parse(string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants)));
+	local code = string.gsub(string.gsub(rotateCode, "SHIFT", tostring(shift)), "LEN", tostring(#self.constants));
+	local newAst = parser:parse(code, Source.internal("ConstantArray.Rotate", code));
 	local forStat = newAst.body.statements[1];
 	visitast(newAst, nil, function(node, data)
 		if node.name == "ARR" then
 			if node.kind == AstKind.AssignmentGlobalVariable then
-				return Ast.AssignmentVariable(self.arrSymbol);
+				return Source.inherit(Ast.AssignmentVariable(self.arrSymbol), node);
 			elseif node.kind == AstKind.GlobalVariableExpression then
-				return Ast.VariableExpression(self.arrSymbol);
+				return Source.inherit(Ast.VariableExpression(self.arrSymbol), node);
 			end
 		end
 	end)
@@ -268,17 +270,17 @@ function ConstantArray:addDecodeCode(ast)
 			LuaVersion = LuaVersion.Lua51;
 		});
 
-		local newAst = parser:parse(base64DecodeCode);
+		local newAst = parser:parse(base64DecodeCode, Source.internal("ConstantArray.Base64Decoder", base64DecodeCode));
 		local forStat = newAst.body.statements[1];
 
 		visitast(newAst, nil, function(node, data)
 			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
 				if(node.name == "ARR") then
-					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
+					return Source.inherit(node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol), node);
 				end
 
 				if(node.name == "LOOKUP_TABLE") then
-					return self:createBase64Lookup();
+					return Source.fill(self:createBase64Lookup(), self.generatedSpan);
 				end
 			end
 		end)
@@ -352,17 +354,17 @@ function ConstantArray:addDecodeCode(ast)
 			LuaVersion = LuaVersion.Lua51;
 		});
 
-		local newAst = parser:parse(base85DecodeCode);
+		local newAst = parser:parse(base85DecodeCode, Source.internal("ConstantArray.Base85Decoder", base85DecodeCode));
 		local forStat = newAst.body.statements[1];
 
 		visitast(newAst, nil, function(node, data)
 			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
 				if(node.name == "ARR") then
-					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
+					return Source.inherit(node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol), node);
 				end
 
 				if(node.name == "LOOKUP_TABLE") then
-					return self:createBase85Lookup();
+					return Source.fill(self:createBase85Lookup(), self.generatedSpan);
 				end
 			end
 		end)
@@ -472,21 +474,21 @@ function ConstantArray:addDecodeCode(ast)
 			LuaVersion = LuaVersion.Lua51;
 		});
 
-		local newAst = parser:parse(mixedDecodeCode);
+		local newAst = parser:parse(mixedDecodeCode, Source.internal("ConstantArray.MixedDecoder", mixedDecodeCode));
 		local forStat = newAst.body.statements[1];
 
 		visitast(newAst, nil, function(node, data)
 			if(node.kind == AstKind.GlobalVariableExpression or node.kind == AstKind.AssignmentGlobalVariable) then
 				if(node.name == "ARR") then
-					return node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol);
+					return Source.inherit(node.kind == AstKind.AssignmentGlobalVariable and Ast.AssignmentVariable(self.arrSymbol) or Ast.VariableExpression(self.arrSymbol), node);
 				end
 
 				if(node.name == "LOOKUP_TABLE_64") then
-					return self:createBase64Lookup();
+					return Source.fill(self:createBase64Lookup(), self.generatedSpan);
 				end
 
 				if(node.name == "LOOKUP_TABLE_85") then
-					return self:createBase85Lookup();
+					return Source.fill(self:createBase85Lookup(), self.generatedSpan);
 				end
 			end
 		end)
@@ -503,7 +505,7 @@ function ConstantArray:createBase64Lookup()
 		i = i + 1;
 	end
 	util.shuffle(entries);
-	return Ast.TableConstructorExpression(entries);
+	return Source.fill(Ast.TableConstructorExpression(entries), self.generatedSpan);
 end
 
 function ConstantArray:createBase85Lookup()
@@ -514,7 +516,7 @@ function ConstantArray:createBase85Lookup()
 		i = i + 1;
 	end
 	util.shuffle(entries);
-	return Ast.TableConstructorExpression(entries);
+	return Source.fill(Ast.TableConstructorExpression(entries), self.generatedSpan);
 end
 
 function ConstantArray:encode(str)
@@ -599,6 +601,7 @@ end
 
 function ConstantArray:apply(ast, pipeline)
 	initPrefixes();
+	self.generatedSpan = Source.generated("ConstantArray");
 	self.arrSymbol = Ast.LocalSymbol();
 
 	self.base64chars = table.concat(util.shuffle{
@@ -685,10 +688,14 @@ function ConstantArray:apply(ast, pipeline)
 		-- Actually insert Statements to get the Constant Values
 		if node.__apply_constant_array then
 			if node.kind == AstKind.StringExpression then
-				return self:getConstant(node.value, data);
+				local replacement = self:getConstant(node.value, data);
+				return Source.inherit(replacement, node);
 			elseif not self.StringsOnly then
 				if node.isConstant then
-					return node.value ~= nil and self:getConstant(node.value, data);
+					if node.value ~= nil then
+						local replacement = self:getConstant(node.value, data);
+						return Source.inherit(replacement, node);
+					end
 				end
 			end
 			node.__apply_constant_array = nil;
@@ -728,7 +735,7 @@ function ConstantArray:apply(ast, pipeline)
 					addSubArg
 				});
 
-								elems[i] = Ast.KeyedTableEntry(
+				elems[i] = Ast.KeyedTableEntry(
 					Ast.StringExpression(name),
 					Ast.FunctionLiteralExpression(args, Ast.Block({
 						Ast.ReturnStatement({
@@ -737,11 +744,11 @@ function ConstantArray:apply(ast, pipeline)
 					}))
 				)
 			end
-			table.insert(node.statements, 1, Ast.LocalVariableDeclaration({
+			table.insert(node.statements, 1, Source.fill(Ast.LocalVariableDeclaration({
 				wrappers.symbol
 			}, {
 				Ast.TableConstructorExpression(elems)
-			}));
+			}), self.generatedSpan));
 		end
 	end);
 
@@ -761,7 +768,7 @@ function ConstantArray:apply(ast, pipeline)
 			end
 
 			-- Create and Add the Function Declaration
-			table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.wrapperSymbol, {
+			table.insert(ast.body.statements, 1, Source.fill(Ast.LocalFunctionDeclaration(self.wrapperSymbol, {
 				arg
 			}, Ast.Block({
 				Ast.ReturnStatement({
@@ -770,7 +777,7 @@ function ConstantArray:apply(ast, pipeline)
 						addSubArg
 					)
 				});
-			})));
+			})), self.generatedSpan));
 
 			-- Resulting Code:
 			-- function xy(a)
@@ -793,13 +800,14 @@ function ConstantArray:apply(ast, pipeline)
 	end
 
 	-- Add the Array Declaration
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration({self.arrSymbol}, {self:createArray()}));
+	table.insert(ast.body.statements, 1, Source.fill(Ast.LocalVariableDeclaration({self.arrSymbol}, {self:createArray()}), self.generatedSpan));
 
 	self.arrSymbol = nil;
 	self.wrapperSymbol = nil;
 
 	self.constants = nil;
 	self.lookup = nil;
+	self.generatedSpan = nil;
 end
 
 return ConstantArray;

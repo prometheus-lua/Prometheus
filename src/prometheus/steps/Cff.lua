@@ -19,9 +19,10 @@ Cff.SettingsDescriptor = {
 
 function Cff:init(_) end
 
-function Cff:apply(ast)
+function Cff:apply(ast, pipeline)
     if self.ExcludeVm and ast.vmRuntime then
         local compiler = Compiler:new();
+        compiler.sourceMap = pipeline and pipeline.SourceMap;
         compiler.nativeExpressions = {[ast.vmRuntime] = true};
         if ast.vmData then compiler.nativeExpressions[ast.vmData] = true; end
         local flattened = compiler:compile(ast);
@@ -34,6 +35,7 @@ function Cff:apply(ast)
         if flattened then return shareStrings(flattened); end
     end
 	local compiler = Compiler:new();
+    compiler.sourceMap = pipeline and pipeline.SourceMap;
 
     return shareStrings(compiler:compile(ast));
 end

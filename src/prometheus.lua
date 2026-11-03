@@ -56,6 +56,8 @@ local Logger = require("logger");
 local Presets = require("presets");
 local Config = require("config");
 local util = require("prometheus.util");
+local SourceMap = require("prometheus.sourcemap");
+local Traceback = require("prometheus.traceback");
 
 -- Restore package.path
 package.path = oldPkgPath;
@@ -63,6 +65,8 @@ package.path = oldPkgPath;
 -- Export
 return {
     Pipeline = Pipeline;
+    SourceMap = SourceMap;
+    Traceback = Traceback;
     colors = colors;
     Config = util.readonly(Config); -- Readonly
     Logger = Logger;

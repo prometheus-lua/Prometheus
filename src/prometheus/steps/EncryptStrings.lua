@@ -10,6 +10,7 @@ local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
 local visitast = require("prometheus.visitast");
 local util = require("prometheus.util")
+local Source = require("prometheus.source")
 local hoistVmStrings = require("prometheus.vm.strings")
 local AstKind = Ast.AstKind;
 
@@ -194,8 +195,9 @@ function EncryptStrings:apply(ast, _)
     local Encryptor = self:CreateEncryptionService();
 
 	local code = Encryptor.genCode();
-	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
+	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code, Source.internal("EncryptStrings.Decryptor", code));
 	local doStat = newAst.body.statements[1];
+	local generatedSpan = Source.generated("EncryptStrings");
 
 	local decryptVar = Ast.LocalSymbol("_decrypt");
 	local stringsVar = Ast.LocalSymbol("_strings");
@@ -211,9 +213,9 @@ function EncryptStrings:apply(ast, _)
 		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression or node.kind == AstKind.AssignmentGlobalVariable or node.kind == AstKind.GlobalVariableExpression) then
 			if(node.name == "STRINGS") then
 				if node.kind == AstKind.AssignmentVariable or node.kind == AstKind.AssignmentGlobalVariable then
-					return Ast.AssignmentVariable(stringsVar);
+					return Source.inherit(Ast.AssignmentVariable(stringsVar), node);
 				end
-				return Ast.VariableExpression(stringsVar);
+				return Source.inherit(Ast.VariableExpression(stringsVar), node);
 			end
 		end
 	end)
@@ -221,16 +223,16 @@ function EncryptStrings:apply(ast, _)
 	visitast(ast, nil, function(node, data)
 		if(node.kind == AstKind.StringExpression) then
 			local encrypted, seed = Encryptor.encrypt(node.value);
-			return Ast.IndexExpression(Ast.VariableExpression(stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(decryptVar), {
+			return Source.inherit(Ast.IndexExpression(Ast.VariableExpression(stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(decryptVar), {
 				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),
-			}));
+			})), node);
 		end
 	end)
 
 
 	-- Insert to Main Ast
 	table.insert(ast.body.statements, 1, doStat);
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(util.shuffle{ decryptVar, stringsVar }, {}));
+	table.insert(ast.body.statements, 1, Source.fill(Ast.LocalVariableDeclaration(util.shuffle{ decryptVar, stringsVar }, {}), generatedSpan));
 	return ast
 end
 

@@ -8,6 +8,7 @@ local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
 local visitast = require("prometheus.visitast")
 local RandomLiterals = require("prometheus.randomLiterals")
+local Source = require("prometheus.source")
 
 local AstKind = Ast.AstKind
 local ProxifyLocals = Step:extend()
@@ -83,13 +84,18 @@ function ProxifyLocals:CreateAssignmentExpression(info, expr)
 	}))
 	table.insert(metatableVals, Ast.KeyedTableEntry(Ast.StringExpression(info.getValue.key), getFunction))
 
-	return Ast.FunctionCallExpression(Ast.VariableExpression(self.setMetatableSymbol), {
+	local expression = Ast.FunctionCallExpression(Ast.VariableExpression(self.setMetatableSymbol), {
 		Ast.TableConstructorExpression({Ast.KeyedTableEntry(Ast.StringExpression(info.valueName), expr)}),
 		Ast.TableConstructorExpression(metatableVals),
 	})
+	-- The outer value is a replacement for the original initializer/RHS. The
+	-- proxy implementation beneath it belongs to this generated helper source.
+	expression.sourceSpan = expr and expr.sourceSpan
+	return Source.fill(expression, self.generatedSpan)
 end
 
 function ProxifyLocals:apply(ast, pipeline)
+	self.generatedSpan = Source.generated("ProxifyLocals")
 	local localMetatableInfos = {}
 	-- Rewrite exemptions belong to this invocation, including when the same
 	-- step instance is applied repeatedly to an already transformed tree.
@@ -114,9 +120,9 @@ function ProxifyLocals:apply(ast, pipeline)
 	localMetatableInfos[self.setMetatableSymbol] = false
 	localMetatableInfos[self.emptyFunctionSymbol] = false
 	self.emptyFunctionUsed = false
-	local emptyFunctionDeclaration = Ast.LocalVariableDeclaration({self.emptyFunctionSymbol}, {
+	local emptyFunctionDeclaration = Source.fill(Ast.LocalVariableDeclaration({self.emptyFunctionSymbol}, {
 		Ast.FunctionLiteralExpression({}, Ast.Block({})),
-	})
+	}), self.generatedSpan)
 	skipped[emptyFunctionDeclaration] = true
 	table.insert(ast.body.statements, 1, emptyFunctionDeclaration)
 
@@ -131,13 +137,19 @@ function ProxifyLocals:apply(ast, pipeline)
 					local info = getLocalMetatableInfo(statement.symbol)
 					if info then
 						local declaration = Ast.LocalVariableDeclaration({statement.symbol}, {})
+						declaration.sourceSpan = statement.sourceSpan
+						Source.fill(declaration, self.generatedSpan)
 						skipped[declaration] = true
 						local literal = Ast.FunctionLiteralExpression(statement.args, statement.body)
+						literal.sourceSpan = statement.sourceSpan
+						Source.fill(literal, self.generatedSpan)
 						local target = Ast.AssignmentVariable(statement.symbol)
 						ignored[target] = true
 						local assignment = Ast.AssignmentStatement({target}, {
 							self:CreateAssignmentExpression(info, literal),
 						})
+						assignment.sourceSpan = statement.sourceSpan
+						Source.fill(assignment, self.generatedSpan)
 						skipped[assignment] = true
 						node.statements[i] = declaration
 						table.insert(node.statements, i + 1, assignment)
@@ -170,7 +182,9 @@ function ProxifyLocals:apply(ast, pipeline)
 				ignored[reference] = true
 				args[1] = info.setValue.constructor(reference, args[1])
 				self.emptyFunctionUsed = true
-				return Ast.FunctionCallStatement(Ast.VariableExpression(self.emptyFunctionSymbol), args)
+				local replacement = Ast.FunctionCallStatement(Ast.VariableExpression(self.emptyFunctionSymbol), args)
+				replacement.sourceSpan = node.sourceSpan
+				return Source.fill(replacement, self.generatedSpan)
 			end
 		end
 	end, function(node)
@@ -190,14 +204,18 @@ function ProxifyLocals:apply(ast, pipeline)
 				elseif self.LiteralType == "number" then literal = RandomLiterals.Number()
 				elseif self.LiteralType == "string" then literal = RandomLiterals.String(pipeline)
 				else literal = RandomLiterals.Any(pipeline) end
-				return info.getValue.constructor(node, literal)
+				local replacement = info.getValue.constructor(node, literal)
+				replacement.sourceSpan = node.sourceSpan
+				return Source.fill(replacement, self.generatedSpan)
 			end
 		end
 		if node.kind == AstKind.AssignmentVariable and not ignored[node] and not isGlobal(node) then
 			local info = getLocalMetatableInfo(node.symbol)
 			if info then
 				ignored[node] = true
-				return Ast.AssignmentIndexing(node, Ast.StringExpression(info.valueName))
+				local replacement = Ast.AssignmentIndexing(node, Ast.StringExpression(info.valueName))
+				replacement.sourceSpan = node.sourceSpan
+				return Source.fill(replacement, self.generatedSpan)
 			end
 		end
 		if node.kind == AstKind.FunctionDeclaration and node.symbol then
@@ -206,9 +224,10 @@ function ProxifyLocals:apply(ast, pipeline)
 		end
 	end)
 
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration({self.setMetatableSymbol}, {
+	table.insert(ast.body.statements, 1, Source.fill(Ast.LocalVariableDeclaration({self.setMetatableSymbol}, {
 		Ast.GlobalVariableExpression("setmetatable"),
-	}))
+	}), self.generatedSpan))
+	self.generatedSpan = nil
 end
 
 return ProxifyLocals

@@ -63,6 +63,12 @@ local function keys(tb)
 	return keyset
 end
 
+-- Lua treats CRLF and LFCR as single newline sequences. Callers must
+-- consume both bytes together so adjacent pairs cannot overlap.
+local function isNewlinePair(first, second)
+	return (first == "\r" and second == "\n") or (first == "\n" and second == "\r")
+end
+
 local utf8char;
 do
 	local string_char = string.char
@@ -108,6 +114,7 @@ return {
 	escape = escape,
 	chararray = chararray,
 	keys = keys,
+	isNewlinePair = isNewlinePair,
 	shuffle = shuffle,
 	utf8char = utf8char,
 	readonly = readonly

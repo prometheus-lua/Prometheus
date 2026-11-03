@@ -17,6 +17,8 @@ local renameVariables = require("prometheus.names");
 local Enums = require("prometheus.enums");
 local util = require("prometheus.util");
 local logger = require("logger");
+local Source = require("prometheus.source");
+local SourceMapWriter = require("prometheus.sourcemapwriter");
 
 local lookupify = util.lookupify;
 local LuaVersion = Enums.LuaVersion;
@@ -41,6 +43,8 @@ function Unparser:new(settings)
 		identCharsLookup = lookupify(conventions.IdentChars);
 		numberCharsLookup = lookupify(conventions.NumberChars);
 		prettyPrint = settings and settings.PrettyPrint or false;
+		sourceMap = settings and settings.SourceMap or false;
+		includeSources = not settings or settings.SourceMapIncludeSources ~= false;
 		notIdentPattern = "[^" .. table.concat(conventions.IdentChars, "") .. "]";
 		numberPattern = "^[" .. table.concat(conventions.NumberChars, "") .. "]";
 		highlight = settings and settings.Highlight or false;
@@ -83,14 +87,14 @@ function Unparser:newline(ws_needed)
 end
 
 function Unparser:whitespaceIfNeeded(following, ws)
-	if(self.prettyPrint or self.identCharsLookup[string.sub(following, 1, 1)]) then
+	if(self.prettyPrint or self.identCharsLookup[self:edge(following, false)]) then
 		return ws or self.SPACE;
 	end
 	return "";
 end
 
 function Unparser:whitespaceIfNeeded2(leading, ws)
-	if(self.prettyPrint or self.identCharsLookup[string.sub(leading, #leading, #leading)]) then
+	if(self.prettyPrint or self.identCharsLookup[self:edge(leading, true)]) then
 		return ws or self.SPACE;
 	end
 	return "";
@@ -102,6 +106,24 @@ end
 
 function Unparser:whitespace(ws)
 	return self.SPACE or ws;
+end
+
+-- Lexical checks must see rendered characters, not private provenance tags.
+function Unparser:edge(text, last)
+	if self._sourceSpans then
+		local pattern = last and '%z[^%z]*%z$' or '^%z[^%z]*%z'
+		while text:find(pattern) do text = text:gsub(pattern, '') end
+	end
+	return last and text:sub(-1) or text:sub(1, 1)
+end
+
+function Unparser:tagText(text, node)
+	if not self._sourceSpans then return text end
+	local span = node.sourceSpan
+	assert(span, 'Missing source span on ' .. tostring(node.kind))
+	local id = #self._sourceSpans + 1
+	self._sourceSpans[id] = span
+	return '\0' .. id .. '\0' .. text .. '\0/\0'
 end
 
 function Unparser:unparse(ast)
@@ -126,6 +148,17 @@ function Unparser:unparse(ast)
 		end,
 	});
 
+	if self.sourceMap then
+		Source.fill(ast, Source.generated('unparser'))
+		self._sourceSpans = {};
+		local ok, code, map = pcall(function()
+			local tagged = self:unparseBlock(ast.body)
+			return SourceMapWriter.render(tagged, self._sourceSpans, self.luaVersion, self.includeSources)
+		end)
+		self._sourceSpans = nil
+		if not ok then error(code, 0) end
+		return code, map
+	end
 	return self:unparseBlock(ast.body);
 end
 
@@ -144,17 +177,17 @@ function Unparser:unparseBlock(block, tabbing)
 	for i, statement in ipairs(block.statements) do
 		if(statement.kind ~= AstKind.NopStatement) then
 			local statementCode = self:unparseStatement(statement, tabbing);
-			if(not self.prettyPrint and #parts > 0 and string.sub(statementCode, 1, 1) == "(") then
+			if(not self.prettyPrint and #parts > 0 and self:edge(statementCode, false) == "(") then
 				-- This is so that the following works:
 				-- print("Test");(function() print("Test2") end)();
-				statementCode = ";" .. statementCode;
+				statementCode = self:tagText(";", statement) .. statementCode;
 			end
 			local ws = self:whitespaceIfNeeded2(#parts > 0 and parts[#parts] or "", self:whitespaceIfNeeded(statementCode, self:newline(true)));
 			if i ~= 1 then
 				parts[#parts + 1] = ws;
 			end
 			if(self.prettyPrint) then
-				statementCode = statementCode .. ";"
+				statementCode = statementCode .. self:tagText(";", statement)
 			end
 			parts[#parts + 1] = statementCode;
 		end
@@ -276,7 +309,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.symbol.name);
+				push(self:tagText(arg.symbol.name, arg));
 			end
 		end
 		push(")");
@@ -295,7 +328,7 @@ function Unparser:unparseStatement(statement, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.symbol.name);
+				push(self:tagText(arg.symbol.name, arg));
 			end
 		end
 		push(")");
@@ -529,11 +562,11 @@ function Unparser:unparseExpression(expression, tabbing)
 			rhs = "(" .. rhs .. ")"
 		end
 
-		if self.numberCharsLookup[string.sub(lhs, #lhs, #lhs)] then
+		if self.numberCharsLookup[self:edge(lhs, true)] then
 			lhs = lhs .. " "
 		end
 
-		return lhs .. self:optionalWhitespace() .. (tostring(rhs):sub(1, 1) == "." and ".. " or "..") .. self:optionalWhitespace() .. rhs
+		return lhs .. self:optionalWhitespace() .. (self:edge(rhs, false) == "." and ".. " or "..") .. self:optionalWhitespace() .. rhs
 	end
 
 	local arithmeticOps = {
@@ -558,7 +591,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			rhs = "(" .. rhs .. ")";
 		end
 
-		if op == "-" and string.sub(rhs, 1, 1) == "-" then
+		if op == "-" and self:edge(rhs, false) == "-" then
 			rhs = "(" .. rhs .. ")";
 		end
 
@@ -583,7 +616,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			rhs = "(" .. rhs .. ")";
 		end
 
-		if string.sub(rhs, 1, 1) == "-" then
+		if self:edge(rhs, false) == "-" then
 			rhs = "(" .. rhs .. ")";
 		end
 
@@ -609,7 +642,7 @@ function Unparser:unparseExpression(expression, tabbing)
 
 		-- Identifier Indexing e.g: x.y instead of x["y"];
 		if(expression.index.kind == AstKind.StringExpression and self:isValidIdentifier(expression.index.value)) then
-			return base .. "." .. expression.index.value;
+			return base .. "." .. self:tagText(expression.index.value, expression.index);
 		end
 
 		-- Index never needs parens
@@ -663,7 +696,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			if(arg.kind == AstKind.VarargExpression) then
 				push("...");
 			else
-				push(arg.symbol.name);
+				push(self:tagText(arg.symbol.name, arg));
 			end
 		end
 		push(")");
@@ -698,7 +731,7 @@ function Unparser:unparseExpression(expression, tabbing)
 			end
 			if(entry.kind == AstKind.KeyedTableEntry) then
 				if(entry.key.kind == AstKind.StringExpression and self:isValidIdentifier(entry.key.value)) then
-					push(entry.key.value);
+					push(self:tagText(entry.key.value, entry.key));
 				else
 					push("[", self:unparseExpression(entry.key, tableTabbing), "]");
 				end
@@ -735,6 +768,16 @@ function Unparser:unparseExpression(expression, tabbing)
 	end
 
 	logger:error(string.format("\"%s\" is not a valid unparseable expression", expression.kind));
+end
+
+-- Reuse the established grammar renderer. Nested annotations supply origins
+-- for punctuation/operators from their enclosing node and for child tokens
+-- from the child node; the writer removes them before tokenizing the result.
+for _, method in ipairs({'unparseBlock', 'unparseStatement', 'unparseExpression'}) do
+	local render = Unparser[method]
+	Unparser[method] = function(self, node, ...)
+		return self:tagText(render(self, node, ...), node)
+	end
 end
 
 return Unparser

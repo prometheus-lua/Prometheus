@@ -1,4 +1,0 @@
-[*.lua]
-indent_style = tab
-indent_size = 4
-end_of_line = lf

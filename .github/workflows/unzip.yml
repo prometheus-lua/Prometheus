@@ -1,0 +1,35 @@
+
+name: Auto Extract ZIP
+
+on:
+  push:
+    paths:
+      - '**.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP files
+        run: |
+          find . -type f -name "*.zip" -print0 | while IFS= read -r -d '' file; do
+            folder="${file%.zip}"
+            mkdir -p "$folder"
+            unzip -o "$file" -d "$folder"
+            rm "$file"
+          done
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Automatically extract ZIP files"
+          git push

@@ -1,0 +1,139 @@
+
+local Step = require("prometheus.step")
+local RandomStrings = require("prometheus.randomStrings")
+local Parser = require("prometheus.parser")
+local Enums = require("prometheus.enums")
+local logger = require("logger")
+
+local AntiTamper = Step:extend()
+
+AntiTamper.Name = "PACA Anti Tamper"
+AntiTamper.Description = "PACA runtime integrity and tamper detection."
+
+AntiTamper.SettingsDescriptor = {
+    UseDebug = {
+        name = "Use Debug",
+        type = "boolean",
+        default = true,
+        description = "Enable debug-based integrity checks when available.",
+    },
+}
+
+local function generateSanityCheck(useDebug)
+    local parts = {}
+    local marker = RandomStrings.randomString()
+    local count = math.random(3, 8)
+
+    local function add(fmt, ...)
+        parts[#parts + 1] = string.format(fmt, ...)
+    end
+
+    add("do\n")
+    add("local valid = %q\n", marker)
+    add("local expected = %q\n", marker)
+    add("if valid ~= expected then error('PACA:TamperDetected', 0) end\n")
+
+    for i = 1, count do
+        local answer = math.random(0, 1) == 1
+
+        add("local check%d = %s\n", i, tostring(answer))
+        add(
+            "if check%d ~= %s then error('PACA:TamperDetected', 0) end\n",
+            i,
+            tostring(answer)
+        )
+    end
+
+    add("end\n")
+
+    if useDebug then
+        parts[#parts + 1] = [[
+do
+    local dbg = debug
+    if type(dbg) == "table" and type(dbg.info) == "function" then
+        local ok, result = pcall(function()
+            return dbg.info(1, "s")
+        end)
+
+        if not ok or type(result) ~= "string" then
+            error("PACA:TamperDetected", 0)
+        end
+    end
+end
+]]
+    end
+
+    parts[#parts + 1] = [[
+do
+    local originalPcall = pcall
+    local reached = false
+
+    local ok = originalPcall(function()
+        reached = true
+    end)
+
+    if not ok or not reached then
+        error("PACA:TamperDetected", 0)
+    end
+
+    local ok2, err = originalPcall(function()
+        error("PACA_CHECK", 0)
+    end)
+
+    if ok2 or type(err) ~= "string" then
+        error("PACA:TamperDetected", 0)
+    end
+
+    if not string.find(err, "PACA_CHECK", 1, true) then
+        error("PACA:TamperDetected", 0)
+    end
+end
+]]
+
+    return table.concat(parts)
+end
+
+function AntiTamper:init(settings)
+    settings = settings or {}
+    self.UseDebug = settings.UseDebug ~= false
+end
+
+function AntiTamper:apply(ast, pipeline)
+    if pipeline and pipeline.PrettyPrint then
+        logger:warn(
+            string.format(
+                '"%s" cannot be used with PrettyPrint, ignoring "%s"',
+                self.Name,
+                self.Name
+            )
+        )
+        return ast
+    end
+
+    local code = generateSanityCheck(self.UseDebug)
+
+    local parsed = Parser:new({
+        LuaVersion = Enums.LuaVersion.Lua51,
+    }):parse(code)
+
+    local statements = parsed.body.statements
+    local target = ast.body
+
+    if not target or not target.statements then
+        error("PACA Anti-Tamper: invalid AST body")
+    end
+
+    for i = #statements, 1, -1 do
+        local statement = statements[i]
+
+        if statement.body and statement.body.scope then
+            statement.body.scope:setParent(target.scope)
+        end
+
+        table.insert(target.statements, 1, statement)
+    end
+
+    return ast
+end
+
+return AntiTamper

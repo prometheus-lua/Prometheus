@@ -41,10 +41,7 @@ Currently, Prometheus supports:
 - **Lua 5.1**
 - **LuaU** *(basic support is available, but still not fully finished)*
 
-Lua 5.1's legacy implicit `arg` table in vararg functions is unsupported.
-Use `...` and `select('#', ...)` instead; see [Limitations](doc/reference/limitations.md).
-Replacing a function's environment while it is running is also unsupported;
-set the environment before calling the function.
+See [Limitations](doc/reference/limitations.md) for compatibility details.
 
 ---
 

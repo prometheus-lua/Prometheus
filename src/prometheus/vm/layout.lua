@@ -1,7 +1,7 @@
 -- Choose instruction encoding and metadata keys per VM. Compiler IR stays semantic.
 local opcodes = require('prometheus.vm.opcodes')
 local shuffle = require('prometheus.util').shuffle
-local fields = {'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister', 'children'}
+local fields = {'code', 'constants', 'captures', 'params', 'vararg', 'maxRegister', 'children', 'operandSeed', 'operandLeaders'}
 local Layout = {}
 Layout.__index = Layout
 

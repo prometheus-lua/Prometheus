@@ -163,7 +163,12 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 
 			local exp = math.floor(math.log10(math.abs(val)))
 			local mantissa = val / (10 ^ exp)
-			return Ast.NumberExpression(string.format("%.15ge%d", mantissa, exp))
+			local formatted = string.format("%.15ge%d", mantissa, exp)
+			-- Round-trip check. Not exact for every value.
+			if tonumber(formatted) ~= val then
+				return Ast.NumberExpression(val)
+			end
+			return Ast.NumberExpression(formatted)
 		end
 
 		if format == "normal" then

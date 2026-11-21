@@ -7,17 +7,17 @@ local Data = require('prometheus.vm.data')
 local Source = require('prometheus.source')
 local Emit = {}
 
-function Emit.source(proto, layout)
+function Emit.source(proto, layout, encryptOperands)
     layout = layout or Layout.new()
     local data, tables, root = Data.encode(proto, layout)
     local initializer = 'rebuild(' .. data .. ',' .. tables .. ',' .. root .. ')'
-    local source, count = Runtime.build(layout):gsub('__PROTOTYPES__', function() return initializer end)
+    local source, count = Runtime.build(layout, encryptOperands):gsub('__PROTOTYPES__', function() return initializer end)
     assert(count == 1, 'Runtime template must contain one prototype marker')
     return Data.rebuild .. source
 end
 
-function Emit.ast(proto)
-    local source = Emit.source(proto)
+function Emit.ast(proto, encryptOperands)
+    local source = Emit.source(proto, nil, encryptOperands)
     local ast = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(source, Source.internal('VM', source))
     local invocation = ast.body.statements[#ast.body.statements].args[1]
     ast.vmRuntime = invocation.base

@@ -35,6 +35,18 @@ function Data.encode(proto, layout)
         for _, name in ipairs({'constants', 'captures', 'params', 'vararg', 'maxRegister'}) do
             result[layout.fields[name]] = value[name]
         end
+        if value.operandSeed then
+            result[layout.fields.operandSeed] = value.operandSeed
+            -- The leader set is a sparse { [pc] = true } map over
+            -- 1..#code+1; encode it densely as a plain array of booleans
+            -- so it collects and scatters through Data.encode like any
+            -- other table value.
+            local leaders = {}
+            for pc = 1, #value.code + 1 do
+                leaders[pc] = value.operandLeaders[pc] or false
+            end
+            result[layout.fields.operandLeaders] = leaders
+        end
         return result
     end
     local root = {prototype(proto)}
